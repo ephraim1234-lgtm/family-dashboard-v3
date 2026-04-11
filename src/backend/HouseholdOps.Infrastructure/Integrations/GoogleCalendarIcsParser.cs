@@ -18,6 +18,7 @@ internal sealed class GoogleCalendarIcsParser
         var invalidEventCount = 0;
         var encounteredEventCount = 0;
         Dictionary<string, string>? current = null;
+        string? calendarTimeZoneId = null;
 
         foreach (var line in unfoldedLines)
         {
@@ -32,7 +33,10 @@ internal sealed class GoogleCalendarIcsParser
             {
                 if (current is not null)
                 {
-                    var imported = TryMapEvent(current, out var skippedUnsupportedRecurrence);
+                    var imported = TryMapEvent(
+                        current,
+                        calendarTimeZoneId,
+                        out var skippedUnsupportedRecurrence);
                     if (imported is not null)
                     {
                         events.Add(imported);
@@ -56,6 +60,11 @@ internal sealed class GoogleCalendarIcsParser
 
             if (current is null)
             {
+                if (line.StartsWith("X-WR-TIMEZONE:", StringComparison.OrdinalIgnoreCase))
+                {
+                    calendarTimeZoneId = line["X-WR-TIMEZONE:".Length..].Trim();
+                }
+
                 continue;
             }
 
@@ -111,13 +120,14 @@ internal sealed class GoogleCalendarIcsParser
 
     private static ImportedScheduledEvent? TryMapEvent(
         IReadOnlyDictionary<string, string> values,
+        string? calendarTimeZoneId,
         out bool skippedUnsupportedRecurrence)
     {
         skippedUnsupportedRecurrence = false;
 
         if (!TryGetValue(values, "UID", out var uid)
             || !TryGetValue(values, "SUMMARY", out var summary)
-            || !TryParseDate(values, "DTSTART", out var startsAtUtc, out var isAllDay))
+            || !TryParseDate(values, "DTSTART", calendarTimeZoneId, out var startsAtUtc, out var isAllDay))
         {
             return null;
         }
@@ -135,7 +145,7 @@ internal sealed class GoogleCalendarIcsParser
         }
 
         DateTimeOffset? endsAtUtc = null;
-        if (TryParseDate(values, "DTEND", out var parsedEndsAtUtc, out var endsAtIsAllDay))
+        if (TryParseDate(values, "DTEND", calendarTimeZoneId, out var parsedEndsAtUtc, out var endsAtIsAllDay))
         {
             endsAtUtc = isAllDay && endsAtIsAllDay
                 ? parsedEndsAtUtc.AddDays(-1)
@@ -157,6 +167,7 @@ internal sealed class GoogleCalendarIcsParser
     private static bool TryParseDate(
         IReadOnlyDictionary<string, string> values,
         string propertyName,
+        string? calendarTimeZoneId,
         out DateTimeOffset value,
         out bool isAllDay)
     {
@@ -168,7 +179,7 @@ internal sealed class GoogleCalendarIcsParser
             }
 
             isAllDay = entry.Key.Contains("VALUE=DATE", StringComparison.OrdinalIgnoreCase);
-            var timeZoneId = TryGetTimeZoneId(entry.Key);
+            var timeZoneId = TryGetTimeZoneId(entry.Key) ?? calendarTimeZoneId;
 
             if (isAllDay
                 && DateTime.TryParseExact(

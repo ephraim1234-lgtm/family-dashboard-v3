@@ -352,6 +352,118 @@ public class GoogleCalendarIntegrationServiceTests
     }
 
     [Fact]
+    public async Task SyncAsync_UsesCalendarLevelTimeZone_ForFloatingTimes()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = CreateService(
+            dbContext,
+            """
+            BEGIN:VCALENDAR
+            X-WR-TIMEZONE:America/New_York
+            BEGIN:VEVENT
+            UID:floating-event
+            SUMMARY:Floating eastern event
+            DTSTART:20260415T090000
+            DTEND:20260415T100000
+            END:VEVENT
+            END:VCALENDAR
+            """);
+
+        var created = await service.CreateAsync(
+            HouseholdId,
+            new CreateGoogleCalendarLinkRequest(
+                "Eastern calendar",
+                "https://calendar.google.com/calendar/ical/test/basic.ics"),
+            CreatedAtUtc,
+            CancellationToken.None);
+
+        var synced = await service.SyncAsync(
+            HouseholdId,
+            created.Link!.Id,
+            CreatedAtUtc.AddMinutes(5),
+            CancellationToken.None);
+
+        Assert.Equal(GoogleCalendarSyncResultStatus.Succeeded, synced.Status);
+        var imported = await dbContext.ScheduledEvents.SingleAsync();
+        Assert.Equal(new DateTimeOffset(2026, 4, 15, 13, 0, 0, TimeSpan.Zero), imported.StartsAtUtc);
+        Assert.Equal(new DateTimeOffset(2026, 4, 15, 14, 0, 0, TimeSpan.Zero), imported.EndsAtUtc);
+    }
+
+    [Fact]
+    public async Task SyncAsync_NormalizesPrefixedTZIDFormats()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = CreateService(
+            dbContext,
+            """
+            BEGIN:VCALENDAR
+            BEGIN:VEVENT
+            UID:prefixed-tzid-event
+            SUMMARY:Prefixed pacific event
+            DTSTART;TZID=/freeassociation.sourceforge.net/Tzfile/America/Los_Angeles:20260415T090000
+            DTEND;TZID=/freeassociation.sourceforge.net/Tzfile/America/Los_Angeles:20260415T100000
+            END:VEVENT
+            END:VCALENDAR
+            """);
+
+        var created = await service.CreateAsync(
+            HouseholdId,
+            new CreateGoogleCalendarLinkRequest(
+                "Pacific calendar",
+                "https://calendar.google.com/calendar/ical/test/basic.ics"),
+            CreatedAtUtc,
+            CancellationToken.None);
+
+        var synced = await service.SyncAsync(
+            HouseholdId,
+            created.Link!.Id,
+            CreatedAtUtc.AddMinutes(5),
+            CancellationToken.None);
+
+        Assert.Equal(GoogleCalendarSyncResultStatus.Succeeded, synced.Status);
+        var imported = await dbContext.ScheduledEvents.SingleAsync();
+        Assert.Equal(new DateTimeOffset(2026, 4, 15, 16, 0, 0, TimeSpan.Zero), imported.StartsAtUtc);
+        Assert.Equal(new DateTimeOffset(2026, 4, 15, 17, 0, 0, TimeSpan.Zero), imported.EndsAtUtc);
+    }
+
+    [Fact]
+    public async Task SyncAsync_ResolvesCommonUsTimeZoneAliases()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = CreateService(
+            dbContext,
+            """
+            BEGIN:VCALENDAR
+            BEGIN:VEVENT
+            UID:alias-tzid-event
+            SUMMARY:Alias eastern event
+            DTSTART;TZID="US/Eastern":20260415T090000
+            DTEND;TZID="US/Eastern":20260415T100000
+            END:VEVENT
+            END:VCALENDAR
+            """);
+
+        var created = await service.CreateAsync(
+            HouseholdId,
+            new CreateGoogleCalendarLinkRequest(
+                "Alias calendar",
+                "https://calendar.google.com/calendar/ical/test/basic.ics"),
+            CreatedAtUtc,
+            CancellationToken.None);
+
+        var synced = await service.SyncAsync(
+            HouseholdId,
+            created.Link!.Id,
+            CreatedAtUtc.AddMinutes(5),
+            CancellationToken.None);
+
+        Assert.Equal(GoogleCalendarSyncResultStatus.Succeeded, synced.Status);
+        var imported = await dbContext.ScheduledEvents.SingleAsync();
+        Assert.Equal(new DateTimeOffset(2026, 4, 15, 13, 0, 0, TimeSpan.Zero), imported.StartsAtUtc);
+        Assert.Equal(new DateTimeOffset(2026, 4, 15, 14, 0, 0, TimeSpan.Zero), imported.EndsAtUtc);
+    }
+
+    [Fact]
     public async Task SyncAsync_FailsForInvalidFeed_AndPersistsErrorStatus()
     {
         await using var dbContext = CreateDbContext();

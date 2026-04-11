@@ -51,14 +51,21 @@
   - Notes: added per-link automatic sync enable/disable controls, sync interval updates, and worker behavior to ignore disabled auto-sync links.
 
 - `M7` Targeted timezone/TZID support expansion
-  - Status: `planned`
+  - Status: `done`
   - Scope: expand narrow timezone compatibility only where real Google/iCal feeds are likely to need it, without broad recurrence or provider abstraction changes.
   - Key files touched: `PLANS.md`, `src/backend/HouseholdOps.Infrastructure/Integrations/*`, focused tests, docs if behavior changes materially
+  - Validation status: passed
+  - Notes: added calendar-level `X-WR-TIMEZONE` fallback plus normalization for common alias and prefixed `TZID` formats, while explicitly not implementing full `VTIMEZONE` parsing.
+
+- `M8` Narrow recurrence import expansion
+  - Status: `planned`
+  - Scope: evaluate the smallest justified recurrence improvement, likely limited to daily/weekly `COUNT` handling if it maps cleanly into Scheduling semantics.
+  - Key files touched: `PLANS.md`, `src/backend/HouseholdOps.Infrastructure/Integrations/*`, focused tests, docs if behavior changes materially
   - Validation status: pending
-  - Notes: best next unblocked milestone after sync management UX.
+  - Notes: requires a careful recurrence tradeoff check before implementation because recurrence remains a high-risk area.
 
 ## Current milestone
-- `M6` Stronger sync management UX completed and paused at milestone boundary awaiting confirmation.
+- `M7` Targeted timezone/TZID support expansion completed and paused at milestone boundary awaiting confirmation.
 
 ## Decisions
 - Keep Scheduling as owner of local event behavior; imported events stay read-only.
@@ -87,6 +94,8 @@
 - 2026-04-11: Docker runtime validation failed because the Docker daemon was not running.
 - 2026-04-11: `M6` focused tests passed with `dotnet test tests\HouseholdOps.Modules.Scheduling.Tests\HouseholdOps.Modules.Scheduling.Tests.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` (`35` passed).
 - 2026-04-11: `M6` API and Worker builds passed with `dotnet build src\backend\HouseholdOps.Api\HouseholdOps.Api.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` and `dotnet build src\backend\HouseholdOps.Worker\HouseholdOps.Worker.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false`.
+- 2026-04-11: `M7` focused tests passed with `dotnet test tests\HouseholdOps.Modules.Scheduling.Tests\HouseholdOps.Modules.Scheduling.Tests.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` (`38` passed).
+- 2026-04-11: `M7` API and Worker builds passed with `dotnet build src\backend\HouseholdOps.Api\HouseholdOps.Api.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` and `dotnet build src\backend\HouseholdOps.Worker\HouseholdOps.Worker.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false`.
 
 ## Next recommended step
-- Start `M7` targeted timezone/TZID support expansion unless OAuth credentials, callback wiring, and hosted validation become available for `M5`.
+- Review recurrence tradeoffs, then start `M8` with the narrowest justified recurrence import expansion, likely limited to daily/weekly `COUNT` support if it preserves Scheduling semantics.
