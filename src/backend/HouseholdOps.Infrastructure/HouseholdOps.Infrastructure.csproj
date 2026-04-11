@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="9.0.7" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.7" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.7">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\HouseholdOps.Modules.Display\HouseholdOps.Modules.Display.csproj" />
+    <ProjectReference Include="..\HouseholdOps.Modules.Households\HouseholdOps.Modules.Households.csproj" />
+    <ProjectReference Include="..\HouseholdOps.Modules.Identity\HouseholdOps.Modules.Identity.csproj" />
+    <ProjectReference Include="..\HouseholdOps.Modules.Scheduling\HouseholdOps.Modules.Scheduling.csproj" />
+    <ProjectReference Include="..\HouseholdOps.SharedKernel\HouseholdOps.SharedKernel.csproj" />
+  </ItemGroup>
+</Project>

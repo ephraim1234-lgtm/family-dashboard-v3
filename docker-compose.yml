@@ -1,0 +1,52 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: householdops-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-householdops}
+      POSTGRES_USER: ${POSTGRES_USER:-householdops}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-householdops}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - householdops-postgres-data:/var/lib/postgresql/data
+
+  api:
+    build:
+      context: .
+      dockerfile: ops/docker/backend.api.Dockerfile
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=${POSTGRES_DB:-householdops};Username=${POSTGRES_USER:-householdops};Password=${POSTGRES_PASSWORD:-householdops}
+    ports:
+      - "${API_PORT:-5080}:8080"
+    depends_on:
+      - postgres
+
+  worker:
+    build:
+      context: .
+      dockerfile: ops/docker/backend.worker.Dockerfile
+    environment:
+      DOTNET_ENVIRONMENT: Development
+      ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=${POSTGRES_DB:-householdops};Username=${POSTGRES_USER:-householdops};Password=${POSTGRES_PASSWORD:-householdops}
+    depends_on:
+      - postgres
+
+  web:
+    build:
+      context: .
+      dockerfile: ops/docker/web.Dockerfile
+    environment:
+      NODE_ENV: development
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:3001
+      API_INTERNAL_BASE_URL: http://api:8080
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      - api
+
+volumes:
+  householdops-postgres-data:
