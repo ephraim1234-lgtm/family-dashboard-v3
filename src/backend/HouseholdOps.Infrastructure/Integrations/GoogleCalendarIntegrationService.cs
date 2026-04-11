@@ -256,6 +256,7 @@ public sealed class GoogleCalendarIntegrationService(
         var pathHint = uri.AbsolutePath.Length <= 24
             ? uri.AbsolutePath
             : $"...{uri.AbsolutePath[^24..]}";
+        var failureDetails = ResolveFailureDetails(link.LastSyncStatus, link.LastSyncError);
 
         return new GoogleCalendarLinkSummaryResponse(
             link.Id,
@@ -269,8 +270,61 @@ public sealed class GoogleCalendarIntegrationService(
             link.LastSyncError,
             link.LastSyncStartedAtUtc,
             link.LastSyncCompletedAtUtc,
+            failureDetails.Category,
+            failureDetails.RecoveryHint,
             link.ImportedEventCount,
             link.SkippedRecurringEventCount,
             link.CreatedAtUtc);
     }
+
+    private static SyncFailureDetails ResolveFailureDetails(
+        string lastSyncStatus,
+        string? lastSyncError)
+    {
+        if (!string.Equals(lastSyncStatus, GoogleCalendarSyncStatuses.Failed, StringComparison.OrdinalIgnoreCase)
+            || string.IsNullOrWhiteSpace(lastSyncError))
+        {
+            return SyncFailureDetails.None;
+        }
+
+        if (lastSyncError.Contains("none could be imported", StringComparison.OrdinalIgnoreCase)
+            || lastSyncError.Contains("did not contain a VCALENDAR payload", StringComparison.OrdinalIgnoreCase))
+        {
+            return new SyncFailureDetails(
+                "invalid_feed",
+                "Google returned feed content that could not be imported. Confirm the iCal URL is still valid and shared correctly, then retry.");
+        }
+
+        if (lastSyncError.Contains("timed out", StringComparison.OrdinalIgnoreCase)
+            || lastSyncError.Contains("temporarily", StringComparison.OrdinalIgnoreCase)
+            || lastSyncError.Contains("network", StringComparison.OrdinalIgnoreCase)
+            || lastSyncError.Contains("connection", StringComparison.OrdinalIgnoreCase)
+            || lastSyncError.Contains("name or service not known", StringComparison.OrdinalIgnoreCase))
+        {
+            return new SyncFailureDetails(
+                "network",
+                "The sync could not reach Google successfully. Retry now, and if it keeps failing, check outbound network access from the host.");
+        }
+
+        if (lastSyncError.Contains("401", StringComparison.OrdinalIgnoreCase)
+            || lastSyncError.Contains("403", StringComparison.OrdinalIgnoreCase)
+            || lastSyncError.Contains("forbidden", StringComparison.OrdinalIgnoreCase)
+            || lastSyncError.Contains("unauthorized", StringComparison.OrdinalIgnoreCase))
+        {
+            return new SyncFailureDetails(
+                "access",
+                "Google rejected access to this feed. Re-copy the private iCal URL or confirm the calendar is still shared appropriately.");
+        }
+
+        return new SyncFailureDetails(
+            "unknown",
+            "Retry the sync once. If the failure repeats, inspect the saved error text and verify the linked feed still exists and is reachable.");
+    }
+}
+
+internal sealed record SyncFailureDetails(
+    string? Category,
+    string? RecoveryHint)
+{
+    public static SyncFailureDetails None { get; } = new(null, null);
 }

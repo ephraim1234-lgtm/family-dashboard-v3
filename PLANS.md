@@ -65,14 +65,21 @@
   - Notes: added `COUNT` support for already-supported `DAILY` and `WEEKLY` imports by deriving `RecursUntilUtc`, including mixed `COUNT` plus `UNTIL` handling via the earlier effective end.
 
 - `M9` Stronger sync failure visibility
-  - Status: `planned`
+  - Status: `done`
   - Scope: improve owner-facing visibility and recovery guidance for failed calendar syncs without changing provider breadth or imported-event ownership.
   - Key files touched: `PLANS.md`, integrations admin UI, explicit contracts if needed, focused tests, docs if behavior changes materially
+  - Validation status: passed
+  - Notes: added explicit sync failure categories and recovery hints to the link summary contract, then surfaced them in Admin next to retry behavior and next-attempt guidance.
+
+- `M10` OAuth environment preparation
+  - Status: `planned`
+  - Scope: prepare local non-secret config surfaces for future Google OAuth linking without implementing the flow itself until credentials and hosted callback validation are available.
+  - Key files touched: `PLANS.md`, env example/docs, possibly admin copy if needed
   - Validation status: pending
-  - Notes: best next unblocked milestone after recurrence stays narrow and likely provides more operational value than broader RRULE work.
+  - Notes: only worthwhile if we want to reduce future setup friction without crossing into the blocked OAuth milestone itself.
 
 ## Current milestone
-- `M8` Narrow recurrence import expansion completed and paused at milestone boundary awaiting confirmation.
+- `M9` Stronger sync failure visibility completed and paused at milestone boundary awaiting confirmation.
 
 ## Decisions
 - Keep Scheduling as owner of local event behavior; imported events stay read-only.
@@ -106,6 +113,9 @@
 - 2026-04-11: `M7` API and Worker builds passed with `dotnet build src\backend\HouseholdOps.Api\HouseholdOps.Api.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` and `dotnet build src\backend\HouseholdOps.Worker\HouseholdOps.Worker.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false`.
 - 2026-04-11: `M8` focused tests passed with `dotnet test tests\HouseholdOps.Modules.Scheduling.Tests\HouseholdOps.Modules.Scheduling.Tests.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` (`41` passed).
 - 2026-04-11: `M8` API and Worker builds passed with `dotnet build src\backend\HouseholdOps.Api\HouseholdOps.Api.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` and `dotnet build src\backend\HouseholdOps.Worker\HouseholdOps.Worker.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false`.
+- 2026-04-11: Initial parallel `M9` validation hit a transient .NET build artifact lock in `HouseholdOps.SharedKernel\obj\Debug\net9.0\HouseholdOps.SharedKernel.dll`; rerunning serially resolved it without code changes.
+- 2026-04-11: `M9` focused tests passed with `dotnet test tests\HouseholdOps.Modules.Scheduling.Tests\HouseholdOps.Modules.Scheduling.Tests.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` (`42` passed).
+- 2026-04-11: `M9` API and Worker builds passed with `dotnet build src\backend\HouseholdOps.Api\HouseholdOps.Api.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` and `dotnet build src\backend\HouseholdOps.Worker\HouseholdOps.Worker.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false`.
 
 ## Next recommended step
-- Start `M9` stronger sync failure visibility unless OAuth credentials, callback setup, and hosted validation become available and you want to revisit `M5`.
+- If you want to keep moving without OAuth credentials yet, the next sensible step is `M10` OAuth environment preparation: add non-secret env example entries and setup guidance only, while continuing to avoid implementing the blocked OAuth flow itself.

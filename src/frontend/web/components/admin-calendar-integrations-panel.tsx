@@ -14,6 +14,8 @@ type GoogleCalendarLinkSummary = {
   lastSyncError: string | null;
   lastSyncStartedAtUtc: string | null;
   lastSyncCompletedAtUtc: string | null;
+  lastSyncFailureCategory: string | null;
+  lastSyncRecoveryHint: string | null;
   importedEventCount: number;
   skippedRecurringEventCount: number;
   createdAtUtc: string;
@@ -211,6 +213,21 @@ export function AdminCalendarIntegrationsPanel() {
     await refreshLinks();
   }
 
+  function renderFailureCategory(category: string | null) {
+    switch (category) {
+      case "invalid_feed":
+        return "Invalid feed";
+      case "network":
+        return "Network issue";
+      case "access":
+        return "Access problem";
+      case "unknown":
+        return "Unknown failure";
+      default:
+        return null;
+    }
+  }
+
   return (
     <section className="grid">
       <article className="panel">
@@ -326,7 +343,29 @@ export function AdminCalendarIntegrationsPanel() {
                   Skipped recurring events: {link.skippedRecurringEventCount}
                 </div>
                 {link.lastSyncError ? (
-                  <div className="error-text">{link.lastSyncError}</div>
+                  <div className="stack-card" style={{ marginTop: "0.75rem" }}>
+                    <div className="stack-card-header">
+                      <strong>Sync needs attention</strong>
+                      {renderFailureCategory(link.lastSyncFailureCategory) ? (
+                        <span className="pill">
+                          {renderFailureCategory(link.lastSyncFailureCategory)}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="error-text">{link.lastSyncError}</div>
+                    {link.lastSyncRecoveryHint ? (
+                      <p className="muted">{link.lastSyncRecoveryHint}</p>
+                    ) : null}
+                    <p className="muted">
+                      {link.autoSyncEnabled
+                        ? `Automatic sync will retry ${
+                            link.nextSyncDueAtUtc
+                              ? new Date(link.nextSyncDueAtUtc).toLocaleString()
+                              : "on the next schedule"
+                          }.`
+                        : "Automatic sync is disabled, so this link will only retry when you run Sync Now."}
+                    </p>
+                  </div>
                 ) : null}
 
                 <div className="form-stack">

@@ -495,8 +495,38 @@ public class GoogleCalendarIntegrationServiceTests
         Assert.Equal(GoogleCalendarSyncResultStatus.Failed, synced.Status);
         Assert.Equal(GoogleCalendarSyncStatuses.Failed, synced.Link!.LastSyncStatus);
         Assert.Contains("none could be imported", synced.Link.LastSyncError!, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("invalid_feed", synced.Link.LastSyncFailureCategory);
+        Assert.Contains("iCal URL", synced.Link.LastSyncRecoveryHint!, StringComparison.OrdinalIgnoreCase);
         Assert.Empty(dbContext.ScheduledEvents);
         Assert.Equal(CreatedAtUtc.AddMinutes(35), synced.Link.NextSyncDueAtUtc);
+    }
+
+    [Fact]
+    public async Task SyncAsync_ClassifiesNetworkFailures_ForRecoveryGuidance()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = new GoogleCalendarIntegrationService(
+            dbContext,
+            new ThrowingFeedFetcher(new HttpRequestException("Network connection timed out.")),
+            new ImportedScheduledEventSyncService(dbContext));
+
+        var created = await service.CreateAsync(
+            HouseholdId,
+            new CreateGoogleCalendarLinkRequest(
+                "Network calendar",
+                "https://calendar.google.com/calendar/ical/test/basic.ics"),
+            CreatedAtUtc,
+            CancellationToken.None);
+
+        var synced = await service.SyncAsync(
+            HouseholdId,
+            created.Link!.Id,
+            CreatedAtUtc.AddMinutes(5),
+            CancellationToken.None);
+
+        Assert.Equal(GoogleCalendarSyncResultStatus.Failed, synced.Status);
+        Assert.Equal("network", synced.Link!.LastSyncFailureCategory);
+        Assert.Contains("Retry now", synced.Link.LastSyncRecoveryHint!, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -858,6 +888,13 @@ public class GoogleCalendarIntegrationServiceTests
         public Task<string> FetchAsync(
             string feedUrl,
             CancellationToken cancellationToken) => Task.FromResult(Content);
+    }
+
+    private sealed class ThrowingFeedFetcher(Exception exception) : IGoogleCalendarFeedFetcher
+    {
+        public Task<string> FetchAsync(
+            string feedUrl,
+            CancellationToken cancellationToken) => Task.FromException<string>(exception);
     }
 
     private sealed class FakeClock(DateTimeOffset utcNow) : HouseholdOps.SharedKernel.Time.IClock

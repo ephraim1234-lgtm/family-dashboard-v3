@@ -12,6 +12,8 @@ public sealed record GoogleCalendarLinkSummaryResponse(
     string? LastSyncError,
     DateTimeOffset? LastSyncStartedAtUtc,
     DateTimeOffset? LastSyncCompletedAtUtc,
+    string? LastSyncFailureCategory,
+    string? LastSyncRecoveryHint,
     int ImportedEventCount,
     int SkippedRecurringEventCount,
     DateTimeOffset CreatedAtUtc);
