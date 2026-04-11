@@ -78,8 +78,15 @@
   - Validation status: passed
   - Notes: added sanitized OAuth placeholders to `.env.example` and README setup guidance, and created a local ignored `.env` template for user-supplied values without wiring the blocked OAuth flow itself.
 
+- `M11` OAuth readiness visibility
+  - Status: `done`
+  - Scope: expose current Google OAuth config readiness and exact callback guidance in Admin without claiming the OAuth flow itself is implemented.
+  - Key files touched: `PLANS.md`, integrations contracts/endpoints, admin UI, local `.env` only, focused validation
+  - Validation status: passed
+  - Notes: added an owner-visible OAuth readiness endpoint/UI, surfaced the exact local callback pattern, and set the ignored local `.env` redirect URI to `http://localhost:3000/api/integrations/google-oauth/callback`.
+
 ## Current milestone
-- `M10` OAuth environment preparation completed and paused at milestone boundary awaiting confirmation.
+- `M11` OAuth readiness visibility completed and paused at milestone boundary awaiting confirmation.
 
 ## Decisions
 - Keep Scheduling as owner of local event behavior; imported events stay read-only.
@@ -95,6 +102,7 @@
 - Recurring import now supports narrow `COUNT` handling only for the already-supported `DAILY` and `WEEKLY` shapes; broader RRULE features remain intentionally unsupported.
 - OAuth linking is blocked on unavailable `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`, missing callback configuration, and unavailable hosted validation capability.
 - Local `.env` preparation is now in place, but actual OAuth implementation still requires real credentials plus callback wiring and hosted validation.
+- The local callback URI is now defined, but the actual OAuth start/callback flow is still not implemented.
 
 ## Validation log
 - 2026-04-11: Prior slice built successfully with `dotnet build src\backend\HouseholdOps.Api\HouseholdOps.Api.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false`.
@@ -118,6 +126,9 @@
 - 2026-04-11: `M9` focused tests passed with `dotnet test tests\HouseholdOps.Modules.Scheduling.Tests\HouseholdOps.Modules.Scheduling.Tests.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` (`42` passed).
 - 2026-04-11: `M9` API and Worker builds passed with `dotnet build src\backend\HouseholdOps.Api\HouseholdOps.Api.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` and `dotnet build src\backend\HouseholdOps.Worker\HouseholdOps.Worker.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false`.
 - 2026-04-11: `M10` config validation confirmed `.env.example`, README, and `PLANS.md` include OAuth placeholders/guidance, and `git status --short --ignored` confirmed local `.env` remains ignored and untracked.
+- 2026-04-11: Initial parallel `M11` validation hit the same transient .NET build artifact lock pattern seen earlier; serial reruns passed without code changes.
+- 2026-04-11: `M11` focused tests passed with `dotnet test tests\HouseholdOps.Modules.Scheduling.Tests\HouseholdOps.Modules.Scheduling.Tests.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` (`43` passed).
+- 2026-04-11: `M11` API and Worker builds passed with `dotnet build src\backend\HouseholdOps.Api\HouseholdOps.Api.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` and `dotnet build src\backend\HouseholdOps.Worker\HouseholdOps.Worker.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false`.
 
 ## Next recommended step
-- Fill in the local `.env` placeholders for `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_OAUTH_REDIRECT_URI`, then we can reassess whether `M5` OAuth-based Google account linking is unblocked enough to begin.
+- Reassess `M5` now that local secrets and redirect URI are present. The next real implementation slice would be OAuth start/callback foundation, but hosted callback validation remains a known later checkpoint.

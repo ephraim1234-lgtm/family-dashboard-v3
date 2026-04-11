@@ -7,6 +7,7 @@ using HouseholdOps.Modules.Integrations.Contracts;
 using HouseholdOps.Modules.Scheduling;
 using HouseholdOps.Modules.Scheduling.Contracts;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Xunit;
 
 namespace HouseholdOps.Modules.Scheduling.Tests;
@@ -118,6 +119,7 @@ public class GoogleCalendarIntegrationServiceTests
 
         var service = new GoogleCalendarIntegrationService(
             dbContext,
+            CreateConfiguration(),
             feedFetcher,
             new ImportedScheduledEventSyncService(dbContext));
 
@@ -507,6 +509,7 @@ public class GoogleCalendarIntegrationServiceTests
         await using var dbContext = CreateDbContext();
         var service = new GoogleCalendarIntegrationService(
             dbContext,
+            CreateConfiguration(),
             new ThrowingFeedFetcher(new HttpRequestException("Network connection timed out.")),
             new ImportedScheduledEventSyncService(dbContext));
 
@@ -870,8 +873,39 @@ public class GoogleCalendarIntegrationServiceTests
     {
         return new GoogleCalendarIntegrationService(
             dbContext,
+            CreateConfiguration(),
             new FakeFeedFetcher(feedContent),
             new ImportedScheduledEventSyncService(dbContext));
+    }
+
+    [Fact]
+    public void GetOAuthReadiness_ReflectsConfiguredEnvironmentValues()
+    {
+        using var dbContext = CreateDbContext();
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["GOOGLE_CLIENT_ID"] = "client-id",
+                ["GOOGLE_CLIENT_SECRET"] = "client-secret",
+                ["GOOGLE_OAUTH_REDIRECT_URI"] = "http://localhost:3000/api/integrations/google-oauth/callback"
+            })
+            .Build();
+
+        var service = new GoogleCalendarIntegrationService(
+            dbContext,
+            configuration,
+            new FakeFeedFetcher("BEGIN:VCALENDAR\r\nEND:VCALENDAR"),
+            new ImportedScheduledEventSyncService(dbContext));
+
+        var readiness = service.GetOAuthReadiness();
+
+        Assert.True(readiness.HasClientId);
+        Assert.True(readiness.HasClientSecret);
+        Assert.True(readiness.HasRedirectUri);
+        Assert.True(readiness.IsReady);
+        Assert.Equal(
+            "http://localhost:3000/api/integrations/google-oauth/callback",
+            readiness.ConfiguredRedirectUri);
     }
 
     private sealed class FakeFeedFetcher(string feedContent) : IGoogleCalendarFeedFetcher
@@ -901,4 +935,9 @@ public class GoogleCalendarIntegrationServiceTests
     {
         public DateTimeOffset UtcNow { get; } = utcNow;
     }
+
+    private static IConfiguration CreateConfiguration() =>
+        new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>())
+            .Build();
 }

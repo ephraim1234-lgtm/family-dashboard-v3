@@ -8,6 +8,8 @@ public interface IGoogleCalendarIntegrationService
         Guid householdId,
         CancellationToken cancellationToken);
 
+    GoogleOAuthReadinessResponse GetOAuthReadiness();
+
     Task<GoogleCalendarLinkMutationResult> CreateAsync(
         Guid householdId,
         CreateGoogleCalendarLinkRequest request,

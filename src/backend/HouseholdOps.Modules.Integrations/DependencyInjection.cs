@@ -38,6 +38,10 @@ public static class DependencyInjection
             return Results.Ok(response);
         });
 
+        group.MapGet("/google-oauth/readiness", (
+            IGoogleCalendarIntegrationService integrationService) =>
+            Results.Ok(integrationService.GetOAuthReadiness()));
+
         group.MapPost("/google-calendar-links", async (
             CreateGoogleCalendarLinkRequest? request,
             IIdentityAccessService identityAccessService,

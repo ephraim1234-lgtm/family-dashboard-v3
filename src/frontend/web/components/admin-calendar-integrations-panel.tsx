@@ -25,10 +25,20 @@ type GoogleCalendarLinkListResponse = {
   items: GoogleCalendarLinkSummary[];
 };
 
+type GoogleOAuthReadiness = {
+  hasClientId: boolean;
+  hasClientSecret: boolean;
+  hasRedirectUri: boolean;
+  isReady: boolean;
+  configuredRedirectUri: string | null;
+};
+
 export function AdminCalendarIntegrationsPanel() {
   const [displayName, setDisplayName] = useState("Family Google Calendar");
   const [feedUrl, setFeedUrl] = useState("");
   const [links, setLinks] = useState<GoogleCalendarLinkSummary[]>([]);
+  const [oauthReadiness, setOauthReadiness] = useState<GoogleOAuthReadiness | null>(null);
+  const [recommendedRedirectUri, setRecommendedRedirectUri] = useState<string | null>(null);
   const [syncSettings, setSyncSettings] = useState<Record<string, {
     autoSyncEnabled: boolean;
     syncIntervalMinutes: number;
@@ -62,9 +72,29 @@ export function AdminCalendarIntegrationsPanel() {
     });
   }
 
+  async function refreshOAuthReadiness() {
+    const response = await fetch("/api/integrations/google-oauth/readiness", {
+      credentials: "same-origin",
+      cache: "no-store"
+    });
+
+    if (!response.ok) {
+      throw new Error(`Google OAuth readiness lookup failed with ${response.status}.`);
+    }
+
+    const data = (await response.json()) as GoogleOAuthReadiness;
+    setOauthReadiness(data);
+  }
+
   useEffect(() => {
+    setRecommendedRedirectUri(
+      typeof window === "undefined"
+        ? null
+        : `${window.location.origin}/api/integrations/google-oauth/callback`
+    );
+
     startTransition(() => {
-      refreshLinks().catch((refreshError: unknown) => {
+      Promise.all([refreshLinks(), refreshOAuthReadiness()]).catch((refreshError: unknown) => {
         setError(
           refreshError instanceof Error
             ? refreshError.message
@@ -298,6 +328,42 @@ export function AdminCalendarIntegrationsPanel() {
           <span className="pill">Unsupported recurrence skipped</span>
           <span className="pill">Imported events are read-only</span>
         </div>
+      </article>
+
+      <article className="panel">
+        <div className="eyebrow">OAuth readiness</div>
+        <h2>Google account linking setup</h2>
+        <p className="muted">
+          OAuth linking is still blocked on callback wiring and hosted validation, but the
+          config surface is now visible here so you can confirm local readiness without
+          exposing secrets in the repo.
+        </p>
+        <div className="pill-row">
+          <span className="pill">
+            Client ID {oauthReadiness?.hasClientId ? "ready" : "missing"}
+          </span>
+          <span className="pill">
+            Client secret {oauthReadiness?.hasClientSecret ? "ready" : "missing"}
+          </span>
+          <span className="pill">
+            Redirect URI {oauthReadiness?.hasRedirectUri ? "ready" : "missing"}
+          </span>
+        </div>
+        <div className="form-stack" style={{ marginTop: "1rem" }}>
+          <div className="field">
+            <span>Configured redirect URI</span>
+            <code>{oauthReadiness?.configuredRedirectUri ?? "Not configured yet"}</code>
+          </div>
+          <div className="field">
+            <span>Recommended current local redirect URI</span>
+            <code>{recommendedRedirectUri ?? "Unavailable until the page loads"}</code>
+          </div>
+        </div>
+        <p className="muted">
+          For your current local `.env`, the correct value should match the web origin plus
+          `/api/integrations/google-oauth/callback`. If you keep `WEB_PORT=3000`, that means
+          `http://localhost:3000/api/integrations/google-oauth/callback`.
+        </p>
       </article>
 
       <article className="panel">

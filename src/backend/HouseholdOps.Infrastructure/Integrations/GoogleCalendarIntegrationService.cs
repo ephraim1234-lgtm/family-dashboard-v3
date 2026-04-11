@@ -3,11 +3,13 @@ using HouseholdOps.Modules.Integrations;
 using HouseholdOps.Modules.Integrations.Contracts;
 using HouseholdOps.Modules.Scheduling;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 
 namespace HouseholdOps.Infrastructure.Integrations;
 
 public sealed class GoogleCalendarIntegrationService(
     HouseholdOpsDbContext dbContext,
+    IConfiguration configuration,
     IGoogleCalendarFeedFetcher feedFetcher,
     IImportedScheduledEventSyncService importedEventSyncService) : IGoogleCalendarIntegrationService
 {
@@ -25,6 +27,24 @@ public sealed class GoogleCalendarIntegrationService(
             .ToListAsync(cancellationToken);
 
         return new GoogleCalendarLinkListResponse(items);
+    }
+
+    public GoogleOAuthReadinessResponse GetOAuthReadiness()
+    {
+        var clientId = configuration["GOOGLE_CLIENT_ID"];
+        var clientSecret = configuration["GOOGLE_CLIENT_SECRET"];
+        var redirectUri = configuration["GOOGLE_OAUTH_REDIRECT_URI"];
+
+        var hasClientId = !string.IsNullOrWhiteSpace(clientId);
+        var hasClientSecret = !string.IsNullOrWhiteSpace(clientSecret);
+        var hasRedirectUri = !string.IsNullOrWhiteSpace(redirectUri);
+
+        return new GoogleOAuthReadinessResponse(
+            hasClientId,
+            hasClientSecret,
+            hasRedirectUri,
+            hasClientId && hasClientSecret && hasRedirectUri,
+            hasRedirectUri ? redirectUri : null);
     }
 
     public async Task<GoogleCalendarLinkMutationResult> CreateAsync(
