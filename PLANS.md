@@ -58,14 +58,21 @@
   - Notes: added calendar-level `X-WR-TIMEZONE` fallback plus normalization for common alias and prefixed `TZID` formats, while explicitly not implementing full `VTIMEZONE` parsing.
 
 - `M8` Narrow recurrence import expansion
-  - Status: `planned`
+  - Status: `done`
   - Scope: evaluate the smallest justified recurrence improvement, likely limited to daily/weekly `COUNT` handling if it maps cleanly into Scheduling semantics.
   - Key files touched: `PLANS.md`, `src/backend/HouseholdOps.Infrastructure/Integrations/*`, focused tests, docs if behavior changes materially
+  - Validation status: passed
+  - Notes: added `COUNT` support for already-supported `DAILY` and `WEEKLY` imports by deriving `RecursUntilUtc`, including mixed `COUNT` plus `UNTIL` handling via the earlier effective end.
+
+- `M9` Stronger sync failure visibility
+  - Status: `planned`
+  - Scope: improve owner-facing visibility and recovery guidance for failed calendar syncs without changing provider breadth or imported-event ownership.
+  - Key files touched: `PLANS.md`, integrations admin UI, explicit contracts if needed, focused tests, docs if behavior changes materially
   - Validation status: pending
-  - Notes: requires a careful recurrence tradeoff check before implementation because recurrence remains a high-risk area.
+  - Notes: best next unblocked milestone after recurrence stays narrow and likely provides more operational value than broader RRULE work.
 
 ## Current milestone
-- `M7` Targeted timezone/TZID support expansion completed and paused at milestone boundary awaiting confirmation.
+- `M8` Narrow recurrence import expansion completed and paused at milestone boundary awaiting confirmation.
 
 ## Decisions
 - Keep Scheduling as owner of local event behavior; imported events stay read-only.
@@ -78,6 +85,7 @@
 - Frontend build validation depends on local Node/Next dependencies being installed.
 - `TZID` handling currently has a lightweight IANA-to-Windows fallback map, so additional timezone coverage may need expansion if future feeds use less common zones.
 - Recurring import must stay inside Scheduling's existing recurrence model to avoid inventing unsupported exception or conflict behavior.
+- Recurring import now supports narrow `COUNT` handling only for the already-supported `DAILY` and `WEEKLY` shapes; broader RRULE features remain intentionally unsupported.
 - OAuth linking is blocked on unavailable `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`, missing callback configuration, and unavailable hosted validation capability.
 
 ## Validation log
@@ -96,6 +104,8 @@
 - 2026-04-11: `M6` API and Worker builds passed with `dotnet build src\backend\HouseholdOps.Api\HouseholdOps.Api.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` and `dotnet build src\backend\HouseholdOps.Worker\HouseholdOps.Worker.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false`.
 - 2026-04-11: `M7` focused tests passed with `dotnet test tests\HouseholdOps.Modules.Scheduling.Tests\HouseholdOps.Modules.Scheduling.Tests.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` (`38` passed).
 - 2026-04-11: `M7` API and Worker builds passed with `dotnet build src\backend\HouseholdOps.Api\HouseholdOps.Api.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` and `dotnet build src\backend\HouseholdOps.Worker\HouseholdOps.Worker.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false`.
+- 2026-04-11: `M8` focused tests passed with `dotnet test tests\HouseholdOps.Modules.Scheduling.Tests\HouseholdOps.Modules.Scheduling.Tests.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` (`41` passed).
+- 2026-04-11: `M8` API and Worker builds passed with `dotnet build src\backend\HouseholdOps.Api\HouseholdOps.Api.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` and `dotnet build src\backend\HouseholdOps.Worker\HouseholdOps.Worker.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false`.
 
 ## Next recommended step
-- Review recurrence tradeoffs, then start `M8` with the narrowest justified recurrence import expansion, likely limited to daily/weekly `COUNT` support if it preserves Scheduling semantics.
+- Start `M9` stronger sync failure visibility unless OAuth credentials, callback setup, and hosted validation become available and you want to revisit `M5`.

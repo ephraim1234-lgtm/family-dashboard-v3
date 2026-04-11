@@ -288,17 +288,16 @@ internal sealed class GoogleCalendarIcsParser
             return null;
         }
 
-        if (segments.ContainsKey("COUNT"))
-        {
-            return null;
-        }
-
         if (string.Equals(frequency, "DAILY", StringComparison.OrdinalIgnoreCase))
         {
             return new ImportedRecurrence(
                 EventRecurrencePattern.Daily,
                 0,
-                TryParseUntil(segments, startsAtUtc));
+                ResolveRecurrenceEnd(
+                    segments,
+                    startsAtUtc,
+                    EventRecurrencePattern.Daily,
+                    0));
         }
 
         if (string.Equals(frequency, "WEEKLY", StringComparison.OrdinalIgnoreCase))
@@ -322,7 +321,11 @@ internal sealed class GoogleCalendarIcsParser
                 : new ImportedRecurrence(
                     EventRecurrencePattern.Weekly,
                     weeklyDaysMask,
-                    TryParseUntil(segments, startsAtUtc));
+                    ResolveRecurrenceEnd(
+                        segments,
+                        startsAtUtc,
+                        EventRecurrencePattern.Weekly,
+                        weeklyDaysMask));
         }
 
         return null;
@@ -387,6 +390,101 @@ internal sealed class GoogleCalendarIcsParser
         }
 
         return null;
+    }
+
+    private static DateTimeOffset? ResolveRecurrenceEnd(
+        IReadOnlyDictionary<string, string> segments,
+        DateTimeOffset startsAtUtc,
+        EventRecurrencePattern pattern,
+        int weeklyDaysMask)
+    {
+        var until = TryParseUntil(segments, startsAtUtc);
+        var countEnd = TryParseCountEnd(segments, startsAtUtc, pattern, weeklyDaysMask);
+
+        if (until.HasValue && countEnd.HasValue)
+        {
+            return until.Value <= countEnd.Value ? until : countEnd;
+        }
+
+        return until ?? countEnd;
+    }
+
+    private static DateTimeOffset? TryParseCountEnd(
+        IReadOnlyDictionary<string, string> segments,
+        DateTimeOffset startsAtUtc,
+        EventRecurrencePattern pattern,
+        int weeklyDaysMask)
+    {
+        if (!segments.TryGetValue("COUNT", out var rawCount)
+            || !int.TryParse(rawCount, NumberStyles.None, CultureInfo.InvariantCulture, out var count)
+            || count <= 0)
+        {
+            return null;
+        }
+
+        return pattern switch
+        {
+            EventRecurrencePattern.Daily => startsAtUtc.AddDays(count - 1),
+            EventRecurrencePattern.Weekly => ResolveWeeklyCountEnd(startsAtUtc, weeklyDaysMask, count),
+            _ => null
+        };
+    }
+
+    private static DateTimeOffset? ResolveWeeklyCountEnd(
+        DateTimeOffset startsAtUtc,
+        int weeklyDaysMask,
+        int count)
+    {
+        var weeklyDays = ParseWeeklyDaysMask(weeklyDaysMask);
+        if (weeklyDays.Count == 0)
+        {
+            return null;
+        }
+
+        var remainingOccurrences = count;
+        var cursor = startsAtUtc.Date;
+
+        while (remainingOccurrences > 0)
+        {
+            var occurrenceStart = new DateTimeOffset(
+                cursor.Year,
+                cursor.Month,
+                cursor.Day,
+                0,
+                0,
+                0,
+                startsAtUtc.Offset).Add(startsAtUtc.TimeOfDay);
+
+            if (occurrenceStart >= startsAtUtc
+                && weeklyDays.Contains(cursor.DayOfWeek))
+            {
+                remainingOccurrences--;
+                if (remainingOccurrences == 0)
+                {
+                    return occurrenceStart;
+                }
+            }
+
+            cursor = cursor.AddDays(1);
+        }
+
+        return null;
+    }
+
+    private static HashSet<DayOfWeek> ParseWeeklyDaysMask(int weeklyDaysMask)
+    {
+        var mask = (WeeklyDayMask)weeklyDaysMask;
+        var days = new HashSet<DayOfWeek>();
+
+        if (mask.HasFlag(WeeklyDayMask.Sunday)) days.Add(DayOfWeek.Sunday);
+        if (mask.HasFlag(WeeklyDayMask.Monday)) days.Add(DayOfWeek.Monday);
+        if (mask.HasFlag(WeeklyDayMask.Tuesday)) days.Add(DayOfWeek.Tuesday);
+        if (mask.HasFlag(WeeklyDayMask.Wednesday)) days.Add(DayOfWeek.Wednesday);
+        if (mask.HasFlag(WeeklyDayMask.Thursday)) days.Add(DayOfWeek.Thursday);
+        if (mask.HasFlag(WeeklyDayMask.Friday)) days.Add(DayOfWeek.Friday);
+        if (mask.HasFlag(WeeklyDayMask.Saturday)) days.Add(DayOfWeek.Saturday);
+
+        return days;
     }
 }
 

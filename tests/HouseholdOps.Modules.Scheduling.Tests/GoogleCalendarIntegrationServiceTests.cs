@@ -624,6 +624,44 @@ public class GoogleCalendarIntegrationServiceTests
     }
 
     [Fact]
+    public async Task SyncAsync_ImportsSupportedDailyRecurringEvents_WithCount()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = CreateService(
+            dbContext,
+            """
+            BEGIN:VCALENDAR
+            BEGIN:VEVENT
+            UID:daily-count-event
+            SUMMARY:Daily count prep
+            DTSTART:20260415T070000Z
+            DTEND:20260415T073000Z
+            RRULE:FREQ=DAILY;COUNT=3
+            END:VEVENT
+            END:VCALENDAR
+            """);
+
+        var created = await service.CreateAsync(
+            HouseholdId,
+            new CreateGoogleCalendarLinkRequest(
+                "Daily count calendar",
+                "https://calendar.google.com/calendar/ical/test/basic.ics"),
+            CreatedAtUtc,
+            CancellationToken.None);
+
+        var synced = await service.SyncAsync(
+            HouseholdId,
+            created.Link!.Id,
+            CreatedAtUtc.AddMinutes(5),
+            CancellationToken.None);
+
+        Assert.Equal(GoogleCalendarSyncResultStatus.Succeeded, synced.Status);
+        var imported = await dbContext.ScheduledEvents.SingleAsync();
+        Assert.Equal(EventRecurrencePattern.Daily, imported.RecurrencePattern);
+        Assert.Equal(new DateTimeOffset(2026, 4, 17, 7, 0, 0, TimeSpan.Zero), imported.RecursUntilUtc);
+    }
+
+    [Fact]
     public async Task SyncAsync_ImportsSupportedWeeklyRecurringEvents()
     {
         await using var dbContext = CreateDbContext();
@@ -661,6 +699,84 @@ public class GoogleCalendarIntegrationServiceTests
         Assert.Equal(
             (int)(WeeklyDayMask.Monday | WeeklyDayMask.Wednesday),
             imported.WeeklyDaysMask);
+    }
+
+    [Fact]
+    public async Task SyncAsync_ImportsSupportedWeeklyRecurringEvents_WithCount()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = CreateService(
+            dbContext,
+            """
+            BEGIN:VCALENDAR
+            BEGIN:VEVENT
+            UID:weekly-count-event
+            SUMMARY:Pickup count
+            DTSTART:20260413T210000Z
+            DTEND:20260413T213000Z
+            RRULE:FREQ=WEEKLY;BYDAY=MO,WE;COUNT=4
+            END:VEVENT
+            END:VCALENDAR
+            """);
+
+        var created = await service.CreateAsync(
+            HouseholdId,
+            new CreateGoogleCalendarLinkRequest(
+                "Weekly count calendar",
+                "https://calendar.google.com/calendar/ical/test/basic.ics"),
+            CreatedAtUtc,
+            CancellationToken.None);
+
+        var synced = await service.SyncAsync(
+            HouseholdId,
+            created.Link!.Id,
+            CreatedAtUtc.AddMinutes(5),
+            CancellationToken.None);
+
+        Assert.Equal(GoogleCalendarSyncResultStatus.Succeeded, synced.Status);
+        var imported = await dbContext.ScheduledEvents.SingleAsync();
+        Assert.Equal(EventRecurrencePattern.Weekly, imported.RecurrencePattern);
+        Assert.Equal(
+            (int)(WeeklyDayMask.Monday | WeeklyDayMask.Wednesday),
+            imported.WeeklyDaysMask);
+        Assert.Equal(new DateTimeOffset(2026, 4, 22, 21, 0, 0, TimeSpan.Zero), imported.RecursUntilUtc);
+    }
+
+    [Fact]
+    public async Task SyncAsync_UsesEarlierUntilWhenCountAndUntilAreBothPresent()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = CreateService(
+            dbContext,
+            """
+            BEGIN:VCALENDAR
+            BEGIN:VEVENT
+            UID:daily-count-until-event
+            SUMMARY:Daily capped prep
+            DTSTART:20260415T070000Z
+            DTEND:20260415T073000Z
+            RRULE:FREQ=DAILY;COUNT=10;UNTIL=20260417T070000Z
+            END:VEVENT
+            END:VCALENDAR
+            """);
+
+        var created = await service.CreateAsync(
+            HouseholdId,
+            new CreateGoogleCalendarLinkRequest(
+                "Daily capped calendar",
+                "https://calendar.google.com/calendar/ical/test/basic.ics"),
+            CreatedAtUtc,
+            CancellationToken.None);
+
+        var synced = await service.SyncAsync(
+            HouseholdId,
+            created.Link!.Id,
+            CreatedAtUtc.AddMinutes(5),
+            CancellationToken.None);
+
+        Assert.Equal(GoogleCalendarSyncResultStatus.Succeeded, synced.Status);
+        var imported = await dbContext.ScheduledEvents.SingleAsync();
+        Assert.Equal(new DateTimeOffset(2026, 4, 17, 7, 0, 0, TimeSpan.Zero), imported.RecursUntilUtc);
     }
 
     [Fact]
