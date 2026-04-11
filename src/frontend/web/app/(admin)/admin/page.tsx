@@ -1,4 +1,5 @@
 import { AdminAccessPanel } from "../../../components/admin-access-panel";
+import { AdminCalendarIntegrationsPanel } from "../../../components/admin-calendar-integrations-panel";
 import { AdminDisplayManagementPanel } from "../../../components/admin-display-management-panel";
 import { AdminSchedulingWorkspace } from "../../../components/admin-scheduling-workspace";
 
@@ -27,6 +28,9 @@ export default function AdminPage() {
 
       <div className="section-spacer" />
       <AdminAccessPanel />
+
+      <div className="section-spacer" />
+      <AdminCalendarIntegrationsPanel />
 
       <div className="section-spacer" />
       <AdminSchedulingWorkspace />

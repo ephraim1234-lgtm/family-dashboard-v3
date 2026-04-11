@@ -146,6 +146,7 @@ public static class DependencyInjection
             {
                 ScheduledEventMutationStatus.Succeeded => Results.Ok(updated.Event),
                 ScheduledEventMutationStatus.ValidationFailed => Results.BadRequest(updated.Error),
+                ScheduledEventMutationStatus.ReadOnly => Results.Conflict(updated.Error),
                 ScheduledEventMutationStatus.NotFound => Results.NotFound(),
                 _ => Results.BadRequest("Unable to update scheduled event.")
             };
@@ -169,7 +170,13 @@ public static class DependencyInjection
                 eventId,
                 cancellationToken);
 
-            return deleted ? Results.NoContent() : Results.NotFound();
+            return deleted.Status switch
+            {
+                ScheduledEventMutationStatus.Succeeded => Results.NoContent(),
+                ScheduledEventMutationStatus.ReadOnly => Results.Conflict(deleted.Error),
+                ScheduledEventMutationStatus.NotFound => Results.NotFound(),
+                _ => Results.BadRequest("Unable to delete scheduled event.")
+            };
         });
 
         return app;

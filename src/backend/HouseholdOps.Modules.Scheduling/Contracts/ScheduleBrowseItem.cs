@@ -9,4 +9,6 @@ public sealed record ScheduleBrowseItem(
     DateTimeOffset? EndsAtUtc,
     bool IsRecurring,
     string RecurrencePattern,
-    string RecurrenceSummary);
+    string RecurrenceSummary,
+    bool IsImported,
+    string? SourceKind);

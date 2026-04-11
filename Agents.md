@@ -13,6 +13,7 @@ The current active scope is:
 - Households
 - Identity/Auth
 - Scheduling
+- Calendar integrations (narrow import-first slice)
 - Display
 - Administration
 - Worker foundation
@@ -21,6 +22,7 @@ The MVP centers on:
 
 - household membership and context
 - scheduling and calendar events
+- one-way external calendar import foundation
 - recurrence support
 - display devices and display projections
 - admin/configuration for the above
@@ -83,6 +85,7 @@ These future domains are intentionally documented in repo docs, but they must NO
 
 - Households
 - Identity
+- Integrations
 - Scheduling
 - Display
 - Administration
@@ -90,7 +93,6 @@ These future domains are intentionally documented in repo docs, but they must NO
 Reserved future module areas include:
 
 - Notifications
-- Integrations
 - Chores
 - Food
 - Documents

@@ -90,7 +90,7 @@ public class ScheduledEventManagementServiceTests
                 new DateTimeOffset(2026, 4, 18, 0, 0, 0, TimeSpan.Zero)),
             CancellationToken.None);
 
-        Assert.True(deleted);
+        Assert.Equal(ScheduledEventMutationStatus.Succeeded, deleted.Status);
         Assert.Empty(agenda.Items);
     }
 
@@ -170,7 +170,7 @@ public class ScheduledEventManagementServiceTests
                 new DateTimeOffset(2026, 4, 16, 0, 0, 0, TimeSpan.Zero)),
             CancellationToken.None);
 
-        Assert.True(deleted);
+        Assert.Equal(ScheduledEventMutationStatus.Succeeded, deleted.Status);
         Assert.Empty(agenda.Items);
     }
 
@@ -229,7 +229,7 @@ public class ScheduledEventManagementServiceTests
         Assert.Equal(DayOfWeek.Tuesday, updatedAgenda.Items[0].StartsAtUtc!.Value.DayOfWeek);
         Assert.Equal(DayOfWeek.Thursday, updatedAgenda.Items[1].StartsAtUtc!.Value.DayOfWeek);
         Assert.All(updatedAgenda.Items, item => Assert.Equal("Carpool", item.Title));
-        Assert.True(deleted);
+        Assert.Equal(ScheduledEventMutationStatus.Succeeded, deleted.Status);
         Assert.Empty(emptyAgenda.Items);
     }
 

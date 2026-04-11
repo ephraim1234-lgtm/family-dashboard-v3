@@ -57,7 +57,7 @@ These are the most likely adjacent expansions after the initial scheduling/displ
 - external calendar integrations
 - chores/routines
 
-These should be considered future roadmap candidates, not current implementation scope.
+These should generally be considered roadmap candidates. Calendar integrations now have a narrow active first slice focused on disciplined one-way import rather than broad sync.
 
 ## Future domains under consideration
 

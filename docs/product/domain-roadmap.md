@@ -201,7 +201,34 @@ Future provider work will likely need environment variables such as `GOOGLE_CLIE
 High.
 
 **Status**
-Near-term candidate, not active.
+Active expansion slice.
+
+**Current first slice**
+- Google Calendar iCal feed linking
+- manual one-way import into local scheduling
+- sync status visibility per linked calendar
+- imported events treated as read-only in Scheduling
+
+**Current hardening additions**
+- duplicate feed-link prevention per household
+- `TZID` parsing support for imported timed events
+- invalid-feed failure handling with persisted sync errors
+- consistent read-only enforcement for imported event delete/update paths
+
+**Current next slice**
+- worker-managed scheduled sync for already-linked calendars
+- per-link next-due scheduling state with a fixed sync cadence
+- admin visibility for automatic sync cadence and next scheduled run
+
+**Current recurring import slice**
+- import supported `DAILY` recurring external events
+- import supported `WEEKLY` recurring external events with weekday mapping
+- continue skipping unsupported recurrence patterns explicitly
+
+**Still deferred**
+- OAuth account linking
+- broader external recurrence support beyond the current narrow subset
+- bidirectional sync and conflict resolution
 
 ---
 

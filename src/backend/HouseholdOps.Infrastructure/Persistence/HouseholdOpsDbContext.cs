@@ -1,6 +1,7 @@
 using HouseholdOps.Modules.Display;
 using HouseholdOps.Modules.Households;
 using HouseholdOps.Modules.Identity;
+using HouseholdOps.Modules.Integrations;
 using HouseholdOps.Modules.Scheduling;
 using Microsoft.EntityFrameworkCore;
 
@@ -22,6 +23,8 @@ public sealed class HouseholdOpsDbContext(DbContextOptions<HouseholdOpsDbContext
     public DbSet<DisplayAccessToken> DisplayAccessTokens => Set<DisplayAccessToken>();
 
     public DbSet<ScheduledEvent> ScheduledEvents => Set<ScheduledEvent>();
+
+    public DbSet<GoogleCalendarConnection> GoogleCalendarConnections => Set<GoogleCalendarConnection>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -126,7 +129,38 @@ public sealed class HouseholdOpsDbContext(DbContextOptions<HouseholdOpsDbContext
             entity.Property(x => x.RecurrencePattern).HasConversion<string>().HasMaxLength(16);
             entity.Property(x => x.WeeklyDaysMask);
             entity.Property(x => x.RecursUntilUtc);
+            entity.Property(x => x.SourceKind).HasMaxLength(32);
+            entity.Property(x => x.SourceEventId).HasMaxLength(256);
+            entity.Property(x => x.SourceCalendarId);
+            entity.Property(x => x.LastImportedAtUtc);
             entity.Property(x => x.CreatedAtUtc);
+            entity.HasIndex(x => x.HouseholdId);
+            entity.HasIndex(x => new { x.HouseholdId, x.SourceKind, x.SourceCalendarId, x.SourceEventId })
+                .IsUnique()
+                .HasDatabaseName("IX_scheduled_events_source_identity")
+                .HasFilter("\"SourceKind\" IS NOT NULL AND \"SourceCalendarId\" IS NOT NULL AND \"SourceEventId\" IS NOT NULL");
+            entity.HasOne<Household>()
+                .WithMany()
+                .HasForeignKey(x => x.HouseholdId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<GoogleCalendarConnection>(entity =>
+        {
+            entity.ToTable("google_calendar_connections");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.DisplayName).HasMaxLength(200);
+            entity.Property(x => x.FeedUrl);
+            entity.Property(x => x.AutoSyncEnabled);
+            entity.Property(x => x.SyncIntervalMinutes);
+            entity.Property(x => x.NextSyncDueAtUtc);
+            entity.Property(x => x.LastSyncStatus).HasMaxLength(32);
+            entity.Property(x => x.LastSyncError);
+            entity.Property(x => x.CreatedAtUtc);
+            entity.Property(x => x.LastSyncStartedAtUtc);
+            entity.Property(x => x.LastSyncCompletedAtUtc);
+            entity.Property(x => x.ImportedEventCount);
+            entity.Property(x => x.SkippedRecurringEventCount);
             entity.HasIndex(x => x.HouseholdId);
             entity.HasOne<Household>()
                 .WithMany()

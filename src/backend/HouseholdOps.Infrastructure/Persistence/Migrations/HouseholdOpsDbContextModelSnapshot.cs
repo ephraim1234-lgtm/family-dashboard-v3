@@ -92,6 +92,63 @@ partial class HouseholdOpsDbContextModelSnapshot : ModelSnapshot
                 b.ToTable("display_devices", "core");
             });
 
+        modelBuilder.Entity("HouseholdOps.Modules.Integrations.GoogleCalendarConnection", b =>
+            {
+                b.Property<Guid>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("uuid");
+
+                b.Property<bool>("AutoSyncEnabled")
+                    .HasColumnType("boolean");
+
+                b.Property<DateTimeOffset>("CreatedAtUtc")
+                    .HasColumnType("timestamp with time zone");
+
+                b.Property<string>("DisplayName")
+                    .IsRequired()
+                    .HasMaxLength(200)
+                    .HasColumnType("character varying(200)");
+
+                b.Property<string>("FeedUrl")
+                    .IsRequired()
+                    .HasColumnType("text");
+
+                b.Property<Guid>("HouseholdId")
+                    .HasColumnType("uuid");
+
+                b.Property<int>("ImportedEventCount")
+                    .HasColumnType("integer");
+
+                b.Property<DateTimeOffset?>("NextSyncDueAtUtc")
+                    .HasColumnType("timestamp with time zone");
+
+                b.Property<DateTimeOffset?>("LastSyncCompletedAtUtc")
+                    .HasColumnType("timestamp with time zone");
+
+                b.Property<string>("LastSyncError")
+                    .HasColumnType("text");
+
+                b.Property<DateTimeOffset?>("LastSyncStartedAtUtc")
+                    .HasColumnType("timestamp with time zone");
+
+                b.Property<string>("LastSyncStatus")
+                    .IsRequired()
+                    .HasMaxLength(32)
+                    .HasColumnType("character varying(32)");
+
+                b.Property<int>("SkippedRecurringEventCount")
+                    .HasColumnType("integer");
+
+                b.Property<int>("SyncIntervalMinutes")
+                    .HasColumnType("integer");
+
+                b.HasKey("Id");
+
+                b.HasIndex("HouseholdId");
+
+                b.ToTable("google_calendar_connections", "core");
+            });
+
         modelBuilder.Entity("HouseholdOps.Modules.Scheduling.ScheduledEvent", b =>
             {
                 b.Property<Guid>("Id")
@@ -113,6 +170,9 @@ partial class HouseholdOpsDbContextModelSnapshot : ModelSnapshot
                 b.Property<bool>("IsAllDay")
                     .HasColumnType("boolean");
 
+                b.Property<DateTimeOffset?>("LastImportedAtUtc")
+                    .HasColumnType("timestamp with time zone");
+
                 b.Property<string>("RecurrencePattern")
                     .IsRequired()
                     .HasMaxLength(16)
@@ -123,6 +183,17 @@ partial class HouseholdOpsDbContextModelSnapshot : ModelSnapshot
 
                 b.Property<DateTimeOffset?>("StartsAtUtc")
                     .HasColumnType("timestamp with time zone");
+
+                b.Property<Guid?>("SourceCalendarId")
+                    .HasColumnType("uuid");
+
+                b.Property<string>("SourceEventId")
+                    .HasMaxLength(256)
+                    .HasColumnType("character varying(256)");
+
+                b.Property<string>("SourceKind")
+                    .HasMaxLength(32)
+                    .HasColumnType("character varying(32)");
 
                 b.Property<string>("Title")
                     .IsRequired()
@@ -135,6 +206,11 @@ partial class HouseholdOpsDbContextModelSnapshot : ModelSnapshot
                 b.HasKey("Id");
 
                 b.HasIndex("HouseholdId");
+
+                b.HasIndex("HouseholdId", "SourceKind", "SourceCalendarId", "SourceEventId")
+                    .IsUnique()
+                    .HasDatabaseName("IX_scheduled_events_source_identity")
+                    .HasFilter("\"SourceKind\" IS NOT NULL AND \"SourceCalendarId\" IS NOT NULL AND \"SourceEventId\" IS NOT NULL");
 
                 b.ToTable("scheduled_events", "core");
             });
@@ -258,6 +334,15 @@ partial class HouseholdOpsDbContextModelSnapshot : ModelSnapshot
             });
 
         modelBuilder.Entity("HouseholdOps.Modules.Scheduling.ScheduledEvent", b =>
+            {
+                b.HasOne("HouseholdOps.Modules.Households.Household", null)
+                    .WithMany()
+                    .HasForeignKey("HouseholdId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+            });
+
+        modelBuilder.Entity("HouseholdOps.Modules.Integrations.GoogleCalendarConnection", b =>
             {
                 b.HasOne("HouseholdOps.Modules.Households.Household", null)
                     .WithMany()

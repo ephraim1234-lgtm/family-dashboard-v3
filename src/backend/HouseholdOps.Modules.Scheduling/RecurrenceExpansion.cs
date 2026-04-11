@@ -119,7 +119,9 @@ public static class RecurrenceExpansion
                         scheduledEvent.Description,
                         scheduledEvent.IsAllDay,
                         occurrenceStart,
-                        duration.HasValue ? occurrenceStart.Add(duration.Value) : null));
+                        duration.HasValue ? occurrenceStart.Add(duration.Value) : null,
+                        !string.IsNullOrWhiteSpace(scheduledEvent.SourceKind),
+                        scheduledEvent.SourceKind));
                 }
             }
 
@@ -141,7 +143,9 @@ public static class RecurrenceExpansion
             scheduledEvent.Description,
             scheduledEvent.IsAllDay,
             occurrenceStart,
-            duration.HasValue ? occurrenceStart.Add(duration.Value) : null);
+            duration.HasValue ? occurrenceStart.Add(duration.Value) : null,
+            !string.IsNullOrWhiteSpace(scheduledEvent.SourceKind),
+            scheduledEvent.SourceKind);
     }
 
     private static HashSet<DayOfWeek> ResolveWeeklyDays(ScheduledEvent scheduledEvent)

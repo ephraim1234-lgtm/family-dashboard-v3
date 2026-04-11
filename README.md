@@ -44,6 +44,43 @@ Default validation ports used in this repo:
 - API: `http://localhost:3001`
 - Web: `http://localhost:3002`
 
+## Calendar integration validation
+
+Use this sequence when validating the current Google Calendar integration slice:
+
+1. Backend build:
+   `dotnet build src\backend\HouseholdOps.Api\HouseholdOps.Api.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false`
+2. Focused scheduling/integration tests:
+   `dotnet test tests\HouseholdOps.Modules.Scheduling.Tests\HouseholdOps.Modules.Scheduling.Tests.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false`
+3. Frontend build:
+   run `npm install` in `src/frontend/web` first if local dependencies are not present, then run `npm run build`
+4. Docker runtime validation:
+   ensure the local Docker daemon is running before using the `docker compose` flow below
+
+Recommended runtime validation loop for integration changes:
+
+```powershell
+$env:API_PORT='3001'
+docker compose up -d --build postgres api
+```
+
+If you also need the admin UI:
+
+```powershell
+$env:API_PORT='3001'
+$env:WEB_PORT='3002'
+docker compose up -d --build postgres api web
+```
+
+Current Google Calendar integration scope in validation:
+
+- Google Calendar iCal feed links only
+- manual sync from Admin
+- worker-managed automatic sync for linked calendars
+- one-time plus supported daily/weekly external event import into Scheduling
+- unsupported recurrence patterns remain skipped
+- imported events remain read-only in Scheduling
+
 ## Display baseline
 
 - Display devices are provisioned from the owner-only admin surface.
