@@ -44,6 +44,18 @@ Default validation ports used in this repo:
 - API: `http://localhost:3001`
 - Web: `http://localhost:3002`
 
+## Google OAuth prep
+
+OAuth-based Google account linking is not implemented yet, but local setup can be prepared safely now.
+
+1. Copy `.env.example` to `.env` if you have not already.
+2. Fill in these placeholders in your local `.env` only:
+   - `GOOGLE_CLIENT_ID`
+   - `GOOGLE_CLIENT_SECRET`
+   - `GOOGLE_OAUTH_REDIRECT_URI`
+3. Do not commit `.env`; it is intentionally ignored.
+4. Treat the redirect URI as environment-specific. Local Docker validation may cover basic config shape, but real callback validation will still need a hosted environment.
+
 ## Calendar integration validation
 
 Use this sequence when validating the current Google Calendar integration slice:

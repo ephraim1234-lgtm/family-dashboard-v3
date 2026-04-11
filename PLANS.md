@@ -72,14 +72,14 @@
   - Notes: added explicit sync failure categories and recovery hints to the link summary contract, then surfaced them in Admin next to retry behavior and next-attempt guidance.
 
 - `M10` OAuth environment preparation
-  - Status: `planned`
+  - Status: `done`
   - Scope: prepare local non-secret config surfaces for future Google OAuth linking without implementing the flow itself until credentials and hosted callback validation are available.
   - Key files touched: `PLANS.md`, env example/docs, possibly admin copy if needed
-  - Validation status: pending
-  - Notes: only worthwhile if we want to reduce future setup friction without crossing into the blocked OAuth milestone itself.
+  - Validation status: passed
+  - Notes: added sanitized OAuth placeholders to `.env.example` and README setup guidance, and created a local ignored `.env` template for user-supplied values without wiring the blocked OAuth flow itself.
 
 ## Current milestone
-- `M9` Stronger sync failure visibility completed and paused at milestone boundary awaiting confirmation.
+- `M10` OAuth environment preparation completed and paused at milestone boundary awaiting confirmation.
 
 ## Decisions
 - Keep Scheduling as owner of local event behavior; imported events stay read-only.
@@ -94,6 +94,7 @@
 - Recurring import must stay inside Scheduling's existing recurrence model to avoid inventing unsupported exception or conflict behavior.
 - Recurring import now supports narrow `COUNT` handling only for the already-supported `DAILY` and `WEEKLY` shapes; broader RRULE features remain intentionally unsupported.
 - OAuth linking is blocked on unavailable `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`, missing callback configuration, and unavailable hosted validation capability.
+- Local `.env` preparation is now in place, but actual OAuth implementation still requires real credentials plus callback wiring and hosted validation.
 
 ## Validation log
 - 2026-04-11: Prior slice built successfully with `dotnet build src\backend\HouseholdOps.Api\HouseholdOps.Api.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false`.
@@ -116,6 +117,7 @@
 - 2026-04-11: Initial parallel `M9` validation hit a transient .NET build artifact lock in `HouseholdOps.SharedKernel\obj\Debug\net9.0\HouseholdOps.SharedKernel.dll`; rerunning serially resolved it without code changes.
 - 2026-04-11: `M9` focused tests passed with `dotnet test tests\HouseholdOps.Modules.Scheduling.Tests\HouseholdOps.Modules.Scheduling.Tests.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` (`42` passed).
 - 2026-04-11: `M9` API and Worker builds passed with `dotnet build src\backend\HouseholdOps.Api\HouseholdOps.Api.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` and `dotnet build src\backend\HouseholdOps.Worker\HouseholdOps.Worker.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false`.
+- 2026-04-11: `M10` config validation confirmed `.env.example`, README, and `PLANS.md` include OAuth placeholders/guidance, and `git status --short --ignored` confirmed local `.env` remains ignored and untracked.
 
 ## Next recommended step
-- If you want to keep moving without OAuth credentials yet, the next sensible step is `M10` OAuth environment preparation: add non-secret env example entries and setup guidance only, while continuing to avoid implementing the blocked OAuth flow itself.
+- Fill in the local `.env` placeholders for `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, and `GOOGLE_OAUTH_REDIRECT_URI`, then we can reassess whether `M5` OAuth-based Google account linking is unblocked enough to begin.
