@@ -1,4 +1,6 @@
+using HouseholdOps.Modules.Identity;
 using HouseholdOps.Modules.Scheduling.Contracts;
+using HouseholdOps.SharedKernel.Time;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -12,22 +14,196 @@ public static class DependencyInjection
 
     public static IEndpointRouteBuilder MapSchedulingModule(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/scheduling");
+        var group = app.MapGroup("/api/scheduling")
+            .RequireAuthorization("ActiveHouseholdOwner");
 
-        group.MapGet("/agenda", () =>
+        group.MapGet("/events", async (
+            IIdentityAccessService identityAccessService,
+            IAgendaQueryService agendaQueryService,
+            IClock clock,
+            CancellationToken cancellationToken) =>
         {
-            var response = new AgendaWindowResponse(
-                RangeStartUtc: DateTimeOffset.UtcNow,
-                RangeEndUtc: DateTimeOffset.UtcNow.AddDays(7),
-                Notes: new[]
-                {
-                    "Scheduling owns recurrence behavior.",
-                    "Bootstrap only wires an explicit agenda contract; recurrence expansion is not implemented yet."
-                });
+            var session = identityAccessService.GetCurrentSession();
+
+            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var windowStart = clock.UtcNow;
+            var windowEnd = windowStart.AddDays(30);
+
+            var response = await agendaQueryService.GetUpcomingEventsAsync(
+                new UpcomingEventsRequest(householdId, windowStart, windowEnd),
+                cancellationToken);
 
             return Results.Ok(response);
         });
 
+        group.MapGet("/events/browse", async (
+            IIdentityAccessService identityAccessService,
+            IScheduleBrowseQueryService browseQueryService,
+            IClock clock,
+            HttpRequest request,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+
+            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var windowDays = ParseBrowseWindowDays(request.Query["days"]);
+            var windowStart = ParseBrowseWindowStartUtc(request.Query["startUtc"], clock.UtcNow);
+            var windowEnd = windowStart.AddDays(windowDays);
+
+            var response = await browseQueryService.GetUpcomingBrowseAsync(
+                new ScheduleBrowseRequest(householdId, windowStart, windowEnd, windowDays),
+                cancellationToken);
+
+            return Results.Ok(response);
+        });
+
+        group.MapPost("/events", async (
+            CreateScheduledEventRequest? request,
+            IIdentityAccessService identityAccessService,
+            IScheduledEventManagementService eventManagementService,
+            IClock clock,
+            CancellationToken cancellationToken) =>
+        {
+            if (request is null || string.IsNullOrWhiteSpace(request.Title))
+            {
+                return Results.BadRequest("Title is required.");
+            }
+
+            var session = identityAccessService.GetCurrentSession();
+
+            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var created = await eventManagementService.CreateEventAsync(
+                householdId,
+                request,
+                clock.UtcNow,
+                cancellationToken);
+
+            return created.Status switch
+            {
+                ScheduledEventMutationStatus.Succeeded => Results.Ok(created.Event),
+                ScheduledEventMutationStatus.ValidationFailed => Results.BadRequest(created.Error),
+                _ => Results.BadRequest("Unable to create scheduled event.")
+            };
+        });
+
+        group.MapGet("/events/series", async (
+            IIdentityAccessService identityAccessService,
+            IScheduledEventManagementService eventManagementService,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+
+            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var response = await eventManagementService.ListEventsAsync(
+                householdId,
+                cancellationToken);
+
+            return Results.Ok(response);
+        });
+
+        group.MapPut("/events/{eventId:guid}", async (
+            Guid eventId,
+            UpdateScheduledEventRequest? request,
+            IIdentityAccessService identityAccessService,
+            IScheduledEventManagementService eventManagementService,
+            CancellationToken cancellationToken) =>
+        {
+            if (request is null || string.IsNullOrWhiteSpace(request.Title))
+            {
+                return Results.BadRequest("Title is required.");
+            }
+
+            var session = identityAccessService.GetCurrentSession();
+
+            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var updated = await eventManagementService.UpdateEventAsync(
+                householdId,
+                eventId,
+                request,
+                cancellationToken);
+
+            return updated.Status switch
+            {
+                ScheduledEventMutationStatus.Succeeded => Results.Ok(updated.Event),
+                ScheduledEventMutationStatus.ValidationFailed => Results.BadRequest(updated.Error),
+                ScheduledEventMutationStatus.NotFound => Results.NotFound(),
+                _ => Results.BadRequest("Unable to update scheduled event.")
+            };
+        });
+
+        group.MapDelete("/events/{eventId:guid}", async (
+            Guid eventId,
+            IIdentityAccessService identityAccessService,
+            IScheduledEventManagementService eventManagementService,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+
+            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var deleted = await eventManagementService.DeleteEventAsync(
+                householdId,
+                eventId,
+                cancellationToken);
+
+            return deleted ? Results.NoContent() : Results.NotFound();
+        });
+
         return app;
+    }
+
+    private static int ParseBrowseWindowDays(string? rawDays)
+    {
+        if (!int.TryParse(rawDays, out var parsedDays))
+        {
+            return 14;
+        }
+
+        return parsedDays switch
+        {
+            7 => 7,
+            14 => 14,
+            30 => 30,
+            _ => 14
+        };
+    }
+
+    private static DateTimeOffset ParseBrowseWindowStartUtc(
+        string? rawStartUtc,
+        DateTimeOffset fallbackUtcNow)
+    {
+        if (DateTimeOffset.TryParse(rawStartUtc, out var parsedStartUtc))
+        {
+            return new DateTimeOffset(
+                parsedStartUtc.UtcDateTime.Date,
+                TimeSpan.Zero);
+        }
+
+        return new DateTimeOffset(
+            fallbackUtcNow.UtcDateTime.Date,
+            TimeSpan.Zero);
     }
 }

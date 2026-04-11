@@ -4,6 +4,9 @@ public sealed record DisplayProjectionResponse(
     string AccessMode,
     string DeviceName,
     string HouseholdName,
+    string PresentationMode,
+    string AgendaDensityMode,
     string AccessTokenHint,
     DateTimeOffset GeneratedAtUtc,
-    IReadOnlyList<DisplayProjectionSectionResponse> Sections);
+    IReadOnlyList<DisplayProjectionSectionResponse> Sections,
+    DisplayAgendaSectionResponse AgendaSection);

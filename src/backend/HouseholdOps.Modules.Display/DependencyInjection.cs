@@ -68,6 +68,68 @@ public static class DependencyInjection
             return Results.Ok(response);
         });
 
+        adminGroup.MapPut("/devices/{deviceId}/presentation-mode", async (
+            Guid deviceId,
+            UpdateDisplayPresentationModeRequest? request,
+            IIdentityAccessService identityAccessService,
+            IDisplayManagementService displayManagementService,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+
+            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.Unauthorized();
+            }
+
+            if (!Enum.TryParse<DisplayPresentationMode>(
+                    request?.PresentationMode,
+                    ignoreCase: true,
+                    out var presentationMode))
+            {
+                return Results.BadRequest("Presentation mode must be Balanced or FocusNext.");
+            }
+
+            var response = await displayManagementService.UpdatePresentationModeAsync(
+                householdId,
+                deviceId,
+                presentationMode,
+                cancellationToken);
+
+            return response is null ? Results.NotFound() : Results.Ok(response);
+        });
+
+        adminGroup.MapPut("/devices/{deviceId}/agenda-density-mode", async (
+            Guid deviceId,
+            UpdateDisplayAgendaDensityModeRequest? request,
+            IIdentityAccessService identityAccessService,
+            IDisplayManagementService displayManagementService,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+
+            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.Unauthorized();
+            }
+
+            if (!Enum.TryParse<DisplayAgendaDensityMode>(
+                    request?.AgendaDensityMode,
+                    ignoreCase: true,
+                    out var agendaDensityMode))
+            {
+                return Results.BadRequest("Agenda density mode must be Comfortable or Dense.");
+            }
+
+            var response = await displayManagementService.UpdateAgendaDensityModeAsync(
+                householdId,
+                deviceId,
+                agendaDensityMode,
+                cancellationToken);
+
+            return response is null ? Results.NotFound() : Results.Ok(response);
+        });
+
         return app;
     }
 }

@@ -10,5 +10,11 @@ public sealed class DisplayDevice
 
     public bool IsActive { get; init; } = true;
 
+    public DisplayPresentationMode PresentationMode { get; set; } =
+        DisplayPresentationMode.Balanced;
+
+    public DisplayAgendaDensityMode AgendaDensityMode { get; set; } =
+        DisplayAgendaDensityMode.Comfortable;
+
     public DateTimeOffset CreatedAtUtc { get; init; }
 }

@@ -70,16 +70,73 @@ partial class HouseholdOpsDbContextModelSnapshot : ModelSnapshot
                 b.Property<bool>("IsActive")
                     .HasColumnType("boolean");
 
+                b.Property<string>("AgendaDensityMode")
+                    .IsRequired()
+                    .HasMaxLength(32)
+                    .HasColumnType("character varying(32)");
+
                 b.Property<string>("Name")
                     .IsRequired()
                     .HasMaxLength(200)
                     .HasColumnType("character varying(200)");
+
+                b.Property<string>("PresentationMode")
+                    .IsRequired()
+                    .HasMaxLength(32)
+                    .HasColumnType("character varying(32)");
 
                 b.HasKey("Id");
 
                 b.HasIndex("HouseholdId");
 
                 b.ToTable("display_devices", "core");
+            });
+
+        modelBuilder.Entity("HouseholdOps.Modules.Scheduling.ScheduledEvent", b =>
+            {
+                b.Property<Guid>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("uuid");
+
+                b.Property<DateTimeOffset>("CreatedAtUtc")
+                    .HasColumnType("timestamp with time zone");
+
+                b.Property<string>("Description")
+                    .HasColumnType("text");
+
+                b.Property<DateTimeOffset?>("EndsAtUtc")
+                    .HasColumnType("timestamp with time zone");
+
+                b.Property<Guid>("HouseholdId")
+                    .HasColumnType("uuid");
+
+                b.Property<bool>("IsAllDay")
+                    .HasColumnType("boolean");
+
+                b.Property<string>("RecurrencePattern")
+                    .IsRequired()
+                    .HasMaxLength(16)
+                    .HasColumnType("character varying(16)");
+
+                b.Property<DateTimeOffset?>("RecursUntilUtc")
+                    .HasColumnType("timestamp with time zone");
+
+                b.Property<DateTimeOffset?>("StartsAtUtc")
+                    .HasColumnType("timestamp with time zone");
+
+                b.Property<string>("Title")
+                    .IsRequired()
+                    .HasMaxLength(200)
+                    .HasColumnType("character varying(200)");
+
+                b.Property<int>("WeeklyDaysMask")
+                    .HasColumnType("integer");
+
+                b.HasKey("Id");
+
+                b.HasIndex("HouseholdId");
+
+                b.ToTable("scheduled_events", "core");
             });
 
         modelBuilder.Entity("HouseholdOps.Modules.Households.Household", b =>
@@ -196,6 +253,15 @@ partial class HouseholdOpsDbContextModelSnapshot : ModelSnapshot
                 b.HasOne("HouseholdOps.Modules.Display.DisplayDevice", null)
                     .WithMany()
                     .HasForeignKey("DisplayDeviceId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+            });
+
+        modelBuilder.Entity("HouseholdOps.Modules.Scheduling.ScheduledEvent", b =>
+            {
+                b.HasOne("HouseholdOps.Modules.Households.Household", null)
+                    .WithMany()
+                    .HasForeignKey("HouseholdId")
                     .OnDelete(DeleteBehavior.Cascade)
                     .IsRequired();
             });

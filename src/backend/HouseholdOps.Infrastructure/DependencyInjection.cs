@@ -2,9 +2,11 @@ using HouseholdOps.Infrastructure.Auth;
 using HouseholdOps.Infrastructure.Display;
 using HouseholdOps.Infrastructure.Options;
 using HouseholdOps.Infrastructure.Persistence;
+using HouseholdOps.Infrastructure.Scheduling;
 using HouseholdOps.Modules.Display;
 using HouseholdOps.Modules.Households;
 using HouseholdOps.Modules.Identity;
+using HouseholdOps.Modules.Scheduling;
 using HouseholdOps.SharedKernel.Time;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
@@ -32,6 +34,9 @@ public static class DependencyInjection
         services.AddScoped<IHouseholdContextService, HouseholdContextService>();
         services.AddScoped<IDisplayProjectionService, DisplayProjectionService>();
         services.AddScoped<IDisplayManagementService, DisplayManagementService>();
+        services.AddScoped<IAgendaQueryService, AgendaQueryService>();
+        services.AddScoped<IScheduleBrowseQueryService, ScheduleBrowseQueryService>();
+        services.AddScoped<IScheduledEventManagementService, ScheduledEventManagementService>();
         services.AddSingleton<IClock, SystemClock>();
         services.AddSingleton<IAuthorizationHandler, ActiveHouseholdOwnerHandler>();
 

@@ -7,6 +7,7 @@
 
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="..\HouseholdOps.Modules.Identity\HouseholdOps.Modules.Identity.csproj" />
     <ProjectReference Include="..\HouseholdOps.SharedKernel\HouseholdOps.SharedKernel.csproj" />
   </ItemGroup>
 </Project>

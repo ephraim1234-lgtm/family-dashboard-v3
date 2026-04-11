@@ -7,6 +7,8 @@ type DisplayDeviceSummary = {
   deviceId: string;
   deviceName: string;
   isActive: boolean;
+  presentationMode: "Balanced" | "FocusNext";
+  agendaDensityMode: "Comfortable" | "Dense";
   accessTokenHint: string;
   createdAtUtc: string;
 };
@@ -18,6 +20,8 @@ type DisplayDeviceListState = {
 type CreateDisplayDeviceState = {
   deviceId: string;
   deviceName: string;
+  presentationMode: "Balanced" | "FocusNext";
+  agendaDensityMode: "Comfortable" | "Dense";
   accessToken: string;
   accessTokenHint: string;
   displayPath: string;
@@ -31,6 +35,58 @@ export function AdminDisplayManagementPanel() {
   const [status, setStatus] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  async function updatePresentationMode(
+    deviceId: string,
+    presentationMode: "Balanced" | "FocusNext"
+  ) {
+    setError(null);
+
+    const response = await fetch(
+      `/api/admin/display/devices/${deviceId}/presentation-mode`,
+      {
+        method: "PUT",
+        credentials: "same-origin",
+        headers: {
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({ presentationMode })
+      }
+    );
+
+    if (!response.ok) {
+      setError(`Display mode update failed with ${response.status}.`);
+      return;
+    }
+
+    await refresh();
+  }
+
+  async function updateAgendaDensityMode(
+    deviceId: string,
+    agendaDensityMode: "Comfortable" | "Dense"
+  ) {
+    setError(null);
+
+    const response = await fetch(
+      `/api/admin/display/devices/${deviceId}/agenda-density-mode`,
+      {
+        method: "PUT",
+        credentials: "same-origin",
+        headers: {
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({ agendaDensityMode })
+      }
+    );
+
+    if (!response.ok) {
+      setError(`Display agenda density update failed with ${response.status}.`);
+      return;
+    }
+
+    await refresh();
+  }
 
   async function refresh() {
     setError(null);
@@ -155,6 +211,14 @@ export function AdminDisplayManagementPanel() {
                 <dd>{latestCreated.deviceName}</dd>
               </div>
               <div>
+                <dt>Presentation mode</dt>
+                <dd>{latestCreated.presentationMode}</dd>
+              </div>
+              <div>
+                <dt>Agenda density</dt>
+                <dd>{latestCreated.agendaDensityMode}</dd>
+              </div>
+              <div>
                 <dt>Access token</dt>
                 <dd>{latestCreated.accessToken}</dd>
               </div>
@@ -173,16 +237,113 @@ export function AdminDisplayManagementPanel() {
 
       <article className="panel">
         <h2>Provisioned devices</h2>
+        <p className="muted">
+          Use one explicit presentation mode per device. Balanced keeps a fuller
+          agenda list visible; FocusNext puts more weight on the next timed item.
+        </p>
+        <p className="muted">
+          Agenda density stays separate and bounded. Comfortable keeps more space
+          around items; Dense surfaces more of the same projection frame.
+        </p>
         {status === 200 ? (
           devices.length > 0 ? (
-            <ul className="plain-list">
+            <div className="stack-list">
               {devices.map((device) => (
-                <li key={device.deviceId}>
-                  {device.deviceName} | token hint {device.accessTokenHint} |{" "}
-                  {device.isActive ? "active" : "inactive"}
-                </li>
+                <div className="stack-card" key={device.deviceId}>
+                  <div className="stack-card-header">
+                    <div>
+                      <strong>{device.deviceName}</strong>
+                      <div className="muted">
+                        Token hint {device.accessTokenHint} |{" "}
+                        {device.isActive ? "active" : "inactive"}
+                      </div>
+                    </div>
+                    <div className="pill-row">
+                      <span className="pill">{device.presentationMode}</span>
+                      <span className="pill">{device.agendaDensityMode}</span>
+                    </div>
+                  </div>
+                  <div className="pill-row">
+                    <button
+                      className={`pill-button ${device.presentationMode === "Balanced" ? "pill-button-active" : ""}`}
+                      onClick={() =>
+                        startTransition(() => {
+                          updatePresentationMode(device.deviceId, "Balanced").catch(
+                            (updateError: unknown) => {
+                              setError(
+                                updateError instanceof Error
+                                  ? updateError.message
+                                  : "Unable to update the display mode."
+                              );
+                            }
+                          );
+                        })
+                      }
+                      disabled={isPending}
+                    >
+                      Balanced
+                    </button>
+                    <button
+                      className={`pill-button ${device.presentationMode === "FocusNext" ? "pill-button-active" : ""}`}
+                      onClick={() =>
+                        startTransition(() => {
+                          updatePresentationMode(device.deviceId, "FocusNext").catch(
+                            (updateError: unknown) => {
+                              setError(
+                                updateError instanceof Error
+                                  ? updateError.message
+                                  : "Unable to update the display mode."
+                              );
+                            }
+                          );
+                        })
+                      }
+                      disabled={isPending}
+                    >
+                      Focus Next
+                    </button>
+                    <button
+                      className={`pill-button ${device.agendaDensityMode === "Comfortable" ? "pill-button-active" : ""}`}
+                      onClick={() =>
+                        startTransition(() => {
+                          updateAgendaDensityMode(device.deviceId, "Comfortable").catch(
+                            (updateError: unknown) => {
+                              setError(
+                                updateError instanceof Error
+                                  ? updateError.message
+                                  : "Unable to update display density."
+                              );
+                            }
+                          );
+                        })
+                      }
+                      disabled={isPending}
+                    >
+                      Comfortable
+                    </button>
+                    <button
+                      className={`pill-button ${device.agendaDensityMode === "Dense" ? "pill-button-active" : ""}`}
+                      onClick={() =>
+                        startTransition(() => {
+                          updateAgendaDensityMode(device.deviceId, "Dense").catch(
+                            (updateError: unknown) => {
+                              setError(
+                                updateError instanceof Error
+                                  ? updateError.message
+                                  : "Unable to update display density."
+                              );
+                            }
+                          );
+                        })
+                      }
+                      disabled={isPending}
+                    >
+                      Dense
+                    </button>
+                  </div>
+                </div>
               ))}
-            </ul>
+            </div>
           ) : (
             <p className="muted">
               No display devices have been provisioned for this household yet.

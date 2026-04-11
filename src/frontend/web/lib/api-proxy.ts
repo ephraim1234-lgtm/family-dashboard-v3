@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { siteConfig } from "./site-config";
 
 type ProxyOptions = {
-  method?: "GET" | "POST";
+  method?: "GET" | "POST" | "PUT" | "DELETE";
   includeCookies?: boolean;
   body?: string;
 };

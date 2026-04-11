@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
+import { AdminDisplayManagementPanel } from "./admin-display-management-panel";
 
 type DisplayDeviceSummary = {
   deviceId: string;
@@ -24,7 +25,7 @@ type CreateDisplayDeviceState = {
   createdAtUtc: string;
 } | null;
 
-export function AdminDisplayDevicePanel() {
+function LegacyAdminDisplayDevicePanel() {
   const [devices, setDevices] = useState<DisplayDeviceSummary[]>([]);
   const [latestCreated, setLatestCreated] = useState<CreateDisplayDeviceState>(null);
   const [status, setStatus] = useState<number | null>(null);
@@ -178,4 +179,8 @@ export function AdminDisplayDevicePanel() {
       </article>
     </section>
   );
+}
+
+export function AdminDisplayDevicePanel() {
+  return <AdminDisplayManagementPanel />;
 }

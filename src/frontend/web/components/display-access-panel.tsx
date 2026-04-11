@@ -1,6 +1,21 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { DisplaySurfacePanel } from "./display-surface-panel";
+
+type DisplayAgendaItem = {
+  title: string;
+  startsAtUtc: string | null;
+  endsAtUtc: string | null;
+  isAllDay: boolean;
+  description: string | null;
+};
+
+type DisplayAgendaSection = {
+  windowStartUtc: string;
+  windowEndUtc: string;
+  items: DisplayAgendaItem[];
+};
 
 type DisplaySnapshot = {
   accessMode: string;
@@ -12,6 +27,7 @@ type DisplaySnapshot = {
     title: string;
     body: string;
   }>;
+  agendaSection: DisplayAgendaSection;
 };
 
 type DisplayAccessPanelProps = {
@@ -32,7 +48,23 @@ const anonymousSession: SessionState = {
   activeHouseholdRole: null
 };
 
-export function DisplayAccessPanel({ token }: DisplayAccessPanelProps) {
+function formatEventTime(item: DisplayAgendaItem): string {
+  if (item.isAllDay) {
+    return "All day";
+  }
+  if (!item.startsAtUtc) {
+    return "—";
+  }
+  const d = new Date(item.startsAtUtc);
+  return d.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  });
+}
+
+function LegacyDisplayAccessPanel({ token }: DisplayAccessPanelProps) {
   const [session, setSession] = useState<SessionState>(anonymousSession);
   const [snapshot, setSnapshot] = useState<DisplaySnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -129,7 +161,7 @@ export function DisplayAccessPanel({ token }: DisplayAccessPanelProps) {
           </button>
         </div>
 
-        {isPending ? <p className="muted">Loading display boundary check...</p> : null}
+        {isPending ? <p className="muted">Loading display projection...</p> : null}
         {error ? <p className="error-text">{error}</p> : null}
 
         {snapshot ? (
@@ -178,17 +210,32 @@ export function DisplayAccessPanel({ token }: DisplayAccessPanelProps) {
 
         {snapshot ? (
           <>
-            <h2>Projection sections</h2>
-            <ul className="plain-list">
-              {snapshot.sections.map((section) => (
-                <li key={section.title}>
-                  <strong>{section.title}:</strong> {section.body}
-                </li>
-              ))}
-            </ul>
+            <h2>Upcoming agenda</h2>
+            <p className="muted" style={{ marginBottom: "0.5rem" }}>
+              {new Date(snapshot.agendaSection.windowStartUtc).toLocaleDateString()} –{" "}
+              {new Date(snapshot.agendaSection.windowEndUtc).toLocaleDateString()}
+            </p>
+            {snapshot.agendaSection.items.length === 0 ? (
+              <p className="muted">No events scheduled in this window.</p>
+            ) : (
+              <ul className="plain-list">
+                {snapshot.agendaSection.items.map((item) => (
+                  <li key={item.title + (item.startsAtUtc ?? "")}>
+                    <strong>{formatEventTime(item)}</strong> — {item.title}
+                    {item.description ? (
+                      <span className="muted"> ({item.description})</span>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            )}
           </>
         ) : null}
       </article>
     </section>
   );
+}
+
+export function DisplayAccessPanel({ token }: DisplayAccessPanelProps) {
+  return <DisplaySurfacePanel token={token} />;
 }

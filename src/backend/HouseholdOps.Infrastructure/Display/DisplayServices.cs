@@ -3,6 +3,8 @@ using System.Text;
 using HouseholdOps.Infrastructure.Persistence;
 using HouseholdOps.Modules.Display;
 using HouseholdOps.Modules.Display.Contracts;
+using HouseholdOps.Modules.Scheduling;
+using HouseholdOps.Modules.Scheduling.Contracts;
 using HouseholdOps.SharedKernel.Time;
 using Microsoft.EntityFrameworkCore;
 
@@ -10,8 +12,24 @@ namespace HouseholdOps.Infrastructure.Display;
 
 public sealed class DisplayProjectionService(
     HouseholdOpsDbContext dbContext,
-    IClock clock) : IDisplayProjectionService
+    IClock clock,
+    IAgendaQueryService agendaQueryService) : IDisplayProjectionService
 {
+    private static string ToDayLabel(DateOnly date, DateTime todayUtcDate)
+    {
+        if (date == DateOnly.FromDateTime(todayUtcDate))
+        {
+            return "Today";
+        }
+
+        if (date == DateOnly.FromDateTime(todayUtcDate.AddDays(1)))
+        {
+            return "Tomorrow";
+        }
+
+        return date.ToString("ddd, MMM d");
+    }
+
     public async Task<DisplayProjectionResponse?> GetProjectionAsync(
         string accessToken,
         CancellationToken cancellationToken)
@@ -28,7 +46,10 @@ public sealed class DisplayProjectionService(
             select new
             {
                 DeviceName = device.Name,
+                device.PresentationMode,
+                device.AgendaDensityMode,
                 HouseholdName = household.Name,
+                HouseholdId = household.Id,
                 token.TokenHint
             })
             .SingleOrDefaultAsync(cancellationToken);
@@ -38,24 +59,99 @@ public sealed class DisplayProjectionService(
             return null;
         }
 
+        var windowStart = clock.UtcNow;
+        var windowEnd = windowStart.AddDays(7);
+
+        var agenda = await agendaQueryService.GetUpcomingEventsAsync(
+            new UpcomingEventsRequest(result.HouseholdId, windowStart, windowEnd),
+            cancellationToken);
+
+        var agendaItems = agenda.Items
+            .Select(i => new DisplayAgendaItemResponse(
+                i.Title,
+                i.StartsAtUtc,
+                i.EndsAtUtc,
+                i.IsAllDay,
+                i.Description))
+            .ToList();
+
+        var allDayItems = agendaItems
+            .Where(i => i.IsAllDay)
+            .ToList();
+
+        var timedItems = agendaItems
+            .Where(i => !i.IsAllDay)
+            .OrderBy(i => i.StartsAtUtc)
+            .ToList();
+
+        var nextItem = timedItems
+            .FirstOrDefault();
+
+        var today = windowStart.UtcDateTime.Date;
+        var soonCutoff = windowStart.AddHours(6);
+
+        var soonItems = timedItems
+            .Where(i =>
+                i.StartsAtUtc.HasValue
+                && i.StartsAtUtc.Value <= soonCutoff
+                && (nextItem is null
+                    || i.Title != nextItem.Title
+                    || i.StartsAtUtc != nextItem.StartsAtUtc))
+            .ToList();
+
+        var laterTodayItems = timedItems
+            .Where(i =>
+                i.StartsAtUtc.HasValue
+                && i.StartsAtUtc.Value.UtcDateTime.Date == today
+                && i.StartsAtUtc.Value > soonCutoff)
+            .ToList();
+
+        var upcomingDays = agendaItems
+            .GroupBy(i =>
+                DateOnly.FromDateTime(
+                    (i.StartsAtUtc ?? windowStart).UtcDateTime.Date))
+            .OrderBy(group => group.Key)
+            .Select(group =>
+            {
+                var items = group.ToList();
+                var firstTimed = items
+                    .Where(item => item.StartsAtUtc.HasValue)
+                    .OrderBy(item => item.StartsAtUtc)
+                    .FirstOrDefault();
+
+                return new DisplayAgendaDaySummaryResponse(
+                    group.Key,
+                    ToDayLabel(group.Key, today),
+                    items.Count,
+                    items.Count(item => item.IsAllDay),
+                    items.Count(item => !item.IsAllDay),
+                    firstTimed?.StartsAtUtc);
+            })
+            .ToList();
+
         return new DisplayProjectionResponse(
             AccessMode: "DisplayToken",
             DeviceName: result.DeviceName,
             HouseholdName: result.HouseholdName,
+            PresentationMode: result.PresentationMode.ToString(),
+            AgendaDensityMode: result.AgendaDensityMode.ToString(),
             AccessTokenHint: result.TokenHint,
             GeneratedAtUtc: clock.UtcNow,
             Sections: new[]
             {
                 new DisplayProjectionSectionResponse(
-                    "Today agenda",
-                    "Scheduling projection wiring will land here next."),
-                new DisplayProjectionSectionResponse(
-                    "Upcoming events",
-                    "This projection is display-safe and intentionally separate from app/admin session auth."),
-                new DisplayProjectionSectionResponse(
-                    "Household status",
-                    $"Rendering for {result.HouseholdName} on {result.DeviceName}.")
-            });
+                    "Household",
+                    $"{result.HouseholdName} on {result.DeviceName}")
+            },
+            AgendaSection: new DisplayAgendaSectionResponse(
+                WindowStartUtc: agenda.WindowStartUtc,
+                WindowEndUtc: agenda.WindowEndUtc,
+                NextItem: nextItem,
+                AllDayItems: allDayItems,
+                SoonItems: soonItems,
+                LaterTodayItems: laterTodayItems,
+                UpcomingDays: upcomingDays,
+                Items: agendaItems));
     }
 }
 
@@ -75,6 +171,8 @@ public sealed class DisplayManagementService(
                 device.Id,
                 device.Name,
                 device.IsActive,
+                device.PresentationMode.ToString(),
+                device.AgendaDensityMode.ToString(),
                 dbContext.DisplayAccessTokens
                     .Where(token => token.DisplayDeviceId == device.Id && token.RevokedAtUtc == null)
                     .OrderByDescending(token => token.CreatedAtUtc)
@@ -118,11 +216,84 @@ public sealed class DisplayManagementService(
         return new CreateDisplayDeviceResponse(
             device.Id,
             device.Name,
+            device.PresentationMode.ToString(),
+            device.AgendaDensityMode.ToString(),
             accessToken,
             token.TokenHint,
             $"/display/{accessToken}",
             createdAtUtc);
     }
+
+    public async Task<DisplayDeviceSummaryResponse?> UpdatePresentationModeAsync(
+        Guid householdId,
+        Guid deviceId,
+        DisplayPresentationMode presentationMode,
+        CancellationToken cancellationToken)
+    {
+        var device = await dbContext.DisplayDevices
+            .SingleOrDefaultAsync(
+                item => item.HouseholdId == householdId && item.Id == deviceId,
+                cancellationToken);
+
+        if (device is null)
+        {
+            return null;
+        }
+
+        device.PresentationMode = presentationMode;
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        var tokenHint = await dbContext.DisplayAccessTokens
+            .Where(token => token.DisplayDeviceId == device.Id && token.RevokedAtUtc == null)
+            .OrderByDescending(token => token.CreatedAtUtc)
+            .Select(token => token.TokenHint)
+            .FirstOrDefaultAsync(cancellationToken) ?? "None";
+
+        return new DisplayDeviceSummaryResponse(
+            device.Id,
+            device.Name,
+            device.IsActive,
+            device.PresentationMode.ToString(),
+            device.AgendaDensityMode.ToString(),
+            tokenHint,
+            device.CreatedAtUtc);
+    }
+
+    public async Task<DisplayDeviceSummaryResponse?> UpdateAgendaDensityModeAsync(
+        Guid householdId,
+        Guid deviceId,
+        DisplayAgendaDensityMode agendaDensityMode,
+        CancellationToken cancellationToken)
+    {
+        var device = await dbContext.DisplayDevices
+            .SingleOrDefaultAsync(
+                item => item.HouseholdId == householdId && item.Id == deviceId,
+                cancellationToken);
+
+        if (device is null)
+        {
+            return null;
+        }
+
+        device.AgendaDensityMode = agendaDensityMode;
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        var tokenHint = await dbContext.DisplayAccessTokens
+            .Where(token => token.DisplayDeviceId == device.Id && token.RevokedAtUtc == null)
+            .OrderByDescending(token => token.CreatedAtUtc)
+            .Select(token => token.TokenHint)
+            .FirstOrDefaultAsync(cancellationToken) ?? "None";
+
+        return new DisplayDeviceSummaryResponse(
+            device.Id,
+            device.Name,
+            device.IsActive,
+            device.PresentationMode.ToString(),
+            device.AgendaDensityMode.ToString(),
+            tokenHint,
+            device.CreatedAtUtc);
+    }
+
 }
 
 internal static class DisplayTokenHasher

@@ -1,6 +1,7 @@
+using HouseholdOps.Modules.Display;
 using HouseholdOps.Modules.Households;
 using HouseholdOps.Modules.Identity;
-using HouseholdOps.Modules.Display;
+using HouseholdOps.Modules.Scheduling;
 using Microsoft.EntityFrameworkCore;
 
 namespace HouseholdOps.Infrastructure.Persistence;
@@ -19,6 +20,8 @@ public sealed class HouseholdOpsDbContext(DbContextOptions<HouseholdOpsDbContext
     public DbSet<DisplayDevice> DisplayDevices => Set<DisplayDevice>();
 
     public DbSet<DisplayAccessToken> DisplayAccessTokens => Set<DisplayAccessToken>();
+
+    public DbSet<ScheduledEvent> ScheduledEvents => Set<ScheduledEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -85,6 +88,12 @@ public sealed class HouseholdOpsDbContext(DbContextOptions<HouseholdOpsDbContext
             entity.ToTable("display_devices");
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Name).HasMaxLength(200);
+            entity.Property(x => x.PresentationMode)
+                .HasConversion<string>()
+                .HasMaxLength(32);
+            entity.Property(x => x.AgendaDensityMode)
+                .HasConversion<string>()
+                .HasMaxLength(32);
             entity.Property(x => x.CreatedAtUtc);
             entity.HasIndex(x => x.HouseholdId);
             entity.HasOne<Household>()
@@ -105,6 +114,23 @@ public sealed class HouseholdOpsDbContext(DbContextOptions<HouseholdOpsDbContext
             entity.HasOne<DisplayDevice>()
                 .WithMany()
                 .HasForeignKey(x => x.DisplayDeviceId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ScheduledEvent>(entity =>
+        {
+            entity.ToTable("scheduled_events");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Title).HasMaxLength(200);
+            entity.Property(x => x.Description);
+            entity.Property(x => x.RecurrencePattern).HasConversion<string>().HasMaxLength(16);
+            entity.Property(x => x.WeeklyDaysMask);
+            entity.Property(x => x.RecursUntilUtc);
+            entity.Property(x => x.CreatedAtUtc);
+            entity.HasIndex(x => x.HouseholdId);
+            entity.HasOne<Household>()
+                .WithMany()
+                .HasForeignKey(x => x.HouseholdId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
     }
