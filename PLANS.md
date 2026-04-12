@@ -4,6 +4,8 @@
 - Advance Google Calendar integration from a narrow working slice to a robust, validated import path without expanding into multi-provider or bidirectional sync.
 
 ## Current capability
+- Google OAuth account linking foundation can start from Admin and complete through the web-shell callback path.
+- Admin shows Google OAuth readiness, recommended callback URI, and linked Google accounts.
 - Google Calendar iCal feed links can be created and removed.
 - Manual sync imports one-time plus supported daily/weekly recurring external events into local Scheduling.
 - Worker-managed auto sync now processes due linked calendars on a fixed cadence.
@@ -38,11 +40,11 @@
   - Validation status: passed
   - Notes: supported only `DAILY` and `WEEKLY` patterns that map directly to the current Scheduling recurrence model.
 - `M5` OAuth-based Google account linking
-  - Status: `blocked`
-  - Scope: replace raw iCal feed entry with Google account linking and managed provider credentials.
-  - Key files touched: `PLANS.md`, auth/integrations backend, admin UI, env/docs, hosted callback setup
-  - Validation status: blocked
-  - Notes: blocked in the current environment because `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are not present, no callback URL/configuration is wired yet, and hosted callback validation is not available in this session.
+  - Status: `done`
+  - Scope: add the narrowest useful Google OAuth account-linking foundation without replacing the existing iCal import path yet.
+  - Key files touched: `PLANS.md`, integrations backend/contracts, persistence/migrations, admin UI, frontend proxy routes, env/docs
+  - Validation status: passed
+  - Notes: implemented OAuth start/callback foundation through the web-shell callback route, persisted linked Google accounts and tokens under Integrations, and kept scheduling/import behavior unchanged.
 - `M6` Stronger sync management UX
   - Status: `done`
   - Scope: give owners better control over linked calendar sync behavior and failure recovery without changing the read-only imported-event model.
@@ -85,8 +87,15 @@
   - Validation status: passed
   - Notes: added an owner-visible OAuth readiness endpoint/UI, surfaced the exact local callback pattern, and set the ignored local `.env` redirect URI to `http://localhost:3000/api/integrations/google-oauth/callback`.
 
+- `M12` OAuth-backed calendar selection
+  - Status: `planned`
+  - Scope: use a linked Google account to discover calendars and create a provider-managed calendar link without changing local scheduling ownership or jumping to bidirectional sync.
+  - Key files touched: `PLANS.md`, integrations backend/contracts, admin UI, focused tests, docs if behavior changes materially
+  - Validation status: pending
+  - Notes: best next step after account linking because it turns the OAuth foundation into a directly usable calendar-management workflow.
+
 ## Current milestone
-- `M11` OAuth readiness visibility completed and paused at milestone boundary awaiting confirmation.
+- `M5` OAuth-based Google account linking completed and paused at milestone boundary awaiting confirmation.
 
 ## Decisions
 - Keep Scheduling as owner of local event behavior; imported events stay read-only.
@@ -100,9 +109,8 @@
 - `TZID` handling currently has a lightweight IANA-to-Windows fallback map, so additional timezone coverage may need expansion if future feeds use less common zones.
 - Recurring import must stay inside Scheduling's existing recurrence model to avoid inventing unsupported exception or conflict behavior.
 - Recurring import now supports narrow `COUNT` handling only for the already-supported `DAILY` and `WEEKLY` shapes; broader RRULE features remain intentionally unsupported.
-- OAuth linking is blocked on unavailable `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`, missing callback configuration, and unavailable hosted validation capability.
-- Local `.env` preparation is now in place, but actual OAuth implementation still requires real credentials plus callback wiring and hosted validation.
-- The local callback URI is now defined, but the actual OAuth start/callback flow is still not implemented.
+- OAuth foundation is now implemented locally, but hosted callback validation is still a later real-world checkpoint before claiming production readiness.
+- Linked Google account tokens are now stored in the integrations persistence model; stronger secret-management/encryption can be a later hardening step.
 
 ## Validation log
 - 2026-04-11: Prior slice built successfully with `dotnet build src\backend\HouseholdOps.Api\HouseholdOps.Api.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false`.
@@ -129,6 +137,10 @@
 - 2026-04-11: Initial parallel `M11` validation hit the same transient .NET build artifact lock pattern seen earlier; serial reruns passed without code changes.
 - 2026-04-11: `M11` focused tests passed with `dotnet test tests\HouseholdOps.Modules.Scheduling.Tests\HouseholdOps.Modules.Scheduling.Tests.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` (`43` passed).
 - 2026-04-11: `M11` API and Worker builds passed with `dotnet build src\backend\HouseholdOps.Api\HouseholdOps.Api.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` and `dotnet build src\backend\HouseholdOps.Worker\HouseholdOps.Worker.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false`.
+- 2026-04-12: Initial parallel `M5` validation hit the same transient .NET build artifact lock pattern seen in earlier milestones; serial reruns passed without code changes.
+- 2026-04-12: `M5` focused tests passed with `dotnet test tests\HouseholdOps.Modules.Scheduling.Tests\HouseholdOps.Modules.Scheduling.Tests.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` (`44` passed).
+- 2026-04-12: `M5` API and Worker builds passed with `dotnet build src\backend\HouseholdOps.Api\HouseholdOps.Api.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` and `dotnet build src\backend\HouseholdOps.Worker\HouseholdOps.Worker.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false`.
+- 2026-04-12: `npm run build` in `src/frontend/web` still failed because `next` is not installed in the local environment.
 
 ## Next recommended step
-- Reassess `M5` now that local secrets and redirect URI are present. The next real implementation slice would be OAuth start/callback foundation, but hosted callback validation remains a known later checkpoint.
+- Start `M12` OAuth-backed calendar selection so a linked Google account can become a directly usable managed calendar link while keeping Scheduling and one-way import ownership unchanged.

@@ -86,6 +86,7 @@ docker compose up -d --build postgres api web
 
 Current Google Calendar integration scope in validation:
 
+- Google OAuth account linking foundation and readiness visibility
 - Google Calendar iCal feed links only
 - manual sync from Admin
 - worker-managed automatic sync for linked calendars

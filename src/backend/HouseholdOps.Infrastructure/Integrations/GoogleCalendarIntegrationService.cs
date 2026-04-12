@@ -10,6 +10,7 @@ namespace HouseholdOps.Infrastructure.Integrations;
 public sealed class GoogleCalendarIntegrationService(
     HouseholdOpsDbContext dbContext,
     IConfiguration configuration,
+    IGoogleOAuthClient googleOAuthClient,
     IGoogleCalendarFeedFetcher feedFetcher,
     IImportedScheduledEventSyncService importedEventSyncService) : IGoogleCalendarIntegrationService
 {
@@ -45,6 +46,82 @@ public sealed class GoogleCalendarIntegrationService(
             hasRedirectUri,
             hasClientId && hasClientSecret && hasRedirectUri,
             hasRedirectUri ? redirectUri : null);
+    }
+
+    public async Task<GoogleOAuthAccountLinkListResponse> ListOAuthAccountsAsync(
+        Guid householdId,
+        CancellationToken cancellationToken)
+    {
+        var items = await dbContext.GoogleOAuthAccountLinks
+            .Where(link => link.HouseholdId == householdId)
+            .OrderByDescending(link => link.UpdatedAtUtc)
+            .Select(link => new GoogleOAuthAccountLinkSummaryResponse(
+                link.Id,
+                link.Email,
+                link.DisplayName,
+                link.Scope,
+                link.CreatedAtUtc,
+                link.UpdatedAtUtc))
+            .ToListAsync(cancellationToken);
+
+        return new GoogleOAuthAccountLinkListResponse(items);
+    }
+
+    public GoogleOAuthStartResponse BeginOAuthLink(string state) =>
+        new(googleOAuthClient.BuildAuthorizationUrl(state));
+
+    public async Task CompleteOAuthLinkAsync(
+        Guid householdId,
+        Guid linkedByUserId,
+        string code,
+        DateTimeOffset completedAtUtc,
+        CancellationToken cancellationToken)
+    {
+        var token = await googleOAuthClient.ExchangeCodeAsync(code, cancellationToken);
+        var profile = await googleOAuthClient.GetUserProfileAsync(
+            token.AccessToken,
+            cancellationToken);
+
+        var existingLink = await dbContext.GoogleOAuthAccountLinks
+            .SingleOrDefaultAsync(
+                item => item.HouseholdId == householdId
+                    && item.GoogleUserId == profile.Subject,
+                cancellationToken);
+
+        if (existingLink is null)
+        {
+            dbContext.GoogleOAuthAccountLinks.Add(new GoogleOAuthAccountLink
+            {
+                HouseholdId = householdId,
+                LinkedByUserId = linkedByUserId,
+                GoogleUserId = profile.Subject,
+                Email = profile.Email,
+                DisplayName = profile.Name,
+                AccessToken = token.AccessToken,
+                RefreshToken = token.RefreshToken,
+                TokenType = token.TokenType,
+                Scope = token.Scope,
+                AccessTokenExpiresAtUtc = completedAtUtc.AddSeconds(token.ExpiresInSeconds),
+                CreatedAtUtc = completedAtUtc,
+                UpdatedAtUtc = completedAtUtc
+            });
+        }
+        else
+        {
+            existingLink.LinkedByUserId = linkedByUserId;
+            existingLink.Email = profile.Email;
+            existingLink.DisplayName = profile.Name;
+            existingLink.AccessToken = token.AccessToken;
+            existingLink.RefreshToken = string.IsNullOrWhiteSpace(token.RefreshToken)
+                ? existingLink.RefreshToken
+                : token.RefreshToken;
+            existingLink.TokenType = token.TokenType;
+            existingLink.Scope = token.Scope;
+            existingLink.AccessTokenExpiresAtUtc = completedAtUtc.AddSeconds(token.ExpiresInSeconds);
+            existingLink.UpdatedAtUtc = completedAtUtc;
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     public async Task<GoogleCalendarLinkMutationResult> CreateAsync(

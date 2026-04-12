@@ -33,12 +33,27 @@ type GoogleOAuthReadiness = {
   configuredRedirectUri: string | null;
 };
 
+type GoogleOAuthAccountLinkSummary = {
+  id: string;
+  email: string;
+  displayName: string | null;
+  scope: string;
+  createdAtUtc: string;
+  updatedAtUtc: string;
+};
+
+type GoogleOAuthAccountLinkListResponse = {
+  items: GoogleOAuthAccountLinkSummary[];
+};
+
 export function AdminCalendarIntegrationsPanel() {
   const [displayName, setDisplayName] = useState("Family Google Calendar");
   const [feedUrl, setFeedUrl] = useState("");
   const [links, setLinks] = useState<GoogleCalendarLinkSummary[]>([]);
   const [oauthReadiness, setOauthReadiness] = useState<GoogleOAuthReadiness | null>(null);
+  const [oauthAccounts, setOauthAccounts] = useState<GoogleOAuthAccountLinkSummary[]>([]);
   const [recommendedRedirectUri, setRecommendedRedirectUri] = useState<string | null>(null);
+  const [oauthMessage, setOauthMessage] = useState<string | null>(null);
   const [syncSettings, setSyncSettings] = useState<Record<string, {
     autoSyncEnabled: boolean;
     syncIntervalMinutes: number;
@@ -86,6 +101,20 @@ export function AdminCalendarIntegrationsPanel() {
     setOauthReadiness(data);
   }
 
+  async function refreshOAuthAccounts() {
+    const response = await fetch("/api/integrations/google-oauth/accounts", {
+      credentials: "same-origin",
+      cache: "no-store"
+    });
+
+    if (!response.ok) {
+      throw new Error(`Google OAuth account lookup failed with ${response.status}.`);
+    }
+
+    const data = (await response.json()) as GoogleOAuthAccountLinkListResponse;
+    setOauthAccounts(data.items);
+  }
+
   useEffect(() => {
     setRecommendedRedirectUri(
       typeof window === "undefined"
@@ -93,8 +122,26 @@ export function AdminCalendarIntegrationsPanel() {
         : `${window.location.origin}/api/integrations/google-oauth/callback`
     );
 
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const oauthState = params.get("google_oauth");
+      if (oauthState === "linked") {
+        setOauthMessage("Google account linked successfully.");
+      } else if (oauthState === "invalid-state") {
+        setOauthMessage("Google OAuth state verification failed. Start the linking flow again.");
+      } else if (oauthState === "missing-session") {
+        setOauthMessage("Your owner session was missing during the callback. Sign in again and retry linking.");
+      } else if (oauthState === "forbidden") {
+        setOauthMessage("An owner-scoped household session is required to complete Google account linking.");
+      } else if (oauthState === "missing-code") {
+        setOauthMessage("Google did not return an authorization code.");
+      } else if (oauthState === "error" || oauthState === "failed") {
+        setOauthMessage(params.get("reason") ?? "Google account linking failed.");
+      }
+    }
+
     startTransition(() => {
-      Promise.all([refreshLinks(), refreshOAuthReadiness()]).catch((refreshError: unknown) => {
+      Promise.all([refreshLinks(), refreshOAuthReadiness(), refreshOAuthAccounts()]).catch((refreshError: unknown) => {
         setError(
           refreshError instanceof Error
             ? refreshError.message
@@ -243,6 +290,35 @@ export function AdminCalendarIntegrationsPanel() {
     await refreshLinks();
   }
 
+  function handleStartOAuthLink() {
+    startTransition(() => {
+      startOAuthLink().catch((oauthError: unknown) => {
+        setError(
+          oauthError instanceof Error
+            ? oauthError.message
+            : "Unable to begin Google OAuth linking."
+        );
+      });
+    });
+  }
+
+  async function startOAuthLink() {
+    setError(null);
+
+    const response = await fetch("/api/integrations/google-oauth/start", {
+      method: "POST",
+      credentials: "same-origin"
+    });
+
+    if (!response.ok) {
+      setError(await response.text());
+      return;
+    }
+
+    const data = (await response.json()) as { authorizationUrl: string };
+    window.location.assign(data.authorizationUrl);
+  }
+
   function renderFailureCategory(category: string | null) {
     switch (category) {
       case "invalid_feed":
@@ -317,12 +393,13 @@ export function AdminCalendarIntegrationsPanel() {
         <div className="eyebrow">Scope note</div>
         <h2>Narrow import boundary</h2>
         <p className="muted">
-          This phase skips OAuth, recurring external events, and bidirectional sync.
-          Use a Google Calendar iCal feed, then run sync manually to import one-time
-          events into household Scheduling and Display.
+          This phase now includes Google OAuth account linking foundation, but calendar
+          import still runs through the existing Google iCal feed path. Recurring
+          expansion remains narrow, and bidirectional sync is still out of scope.
         </p>
         <div className="pill-row">
           <span className="pill">Google only</span>
+          <span className="pill">OAuth account linking foundation</span>
           <span className="pill">Manual sync</span>
           <span className="pill">Daily + weekly recurring import</span>
           <span className="pill">Unsupported recurrence skipped</span>
@@ -364,6 +441,39 @@ export function AdminCalendarIntegrationsPanel() {
           `/api/integrations/google-oauth/callback`. If you keep `WEB_PORT=3000`, that means
           `http://localhost:3000/api/integrations/google-oauth/callback`.
         </p>
+        <div className="action-row">
+          <button
+            className="action-button"
+            onClick={handleStartOAuthLink}
+            disabled={isPending || !oauthReadiness?.isReady}
+          >
+            Link Google Account
+          </button>
+        </div>
+        {oauthMessage ? <p className="muted">{oauthMessage}</p> : null}
+        {oauthAccounts.length === 0 ? (
+          <p className="muted">No Google OAuth accounts have been linked yet.</p>
+        ) : (
+          <div className="stack-list">
+            {oauthAccounts.map((account) => (
+              <div className="stack-card" key={account.id}>
+                <div className="stack-card-header">
+                  <div>
+                    <strong>{account.displayName ?? account.email}</strong>
+                    <div className="muted">{account.email}</div>
+                  </div>
+                  <span className="pill">Linked</span>
+                </div>
+                <div className="muted">
+                  Scope: {account.scope}
+                </div>
+                <div className="muted">
+                  Updated {new Date(account.updatedAtUtc).toLocaleString()}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </article>
 
       <article className="panel">

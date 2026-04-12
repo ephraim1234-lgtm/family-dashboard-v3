@@ -42,6 +42,7 @@ public static class DependencyInjection
         services.AddScoped<IImportedScheduledEventSyncService, ImportedScheduledEventSyncService>();
         services.AddScoped<IGoogleCalendarIntegrationService, GoogleCalendarIntegrationService>();
         services.AddHttpClient<IGoogleCalendarFeedFetcher, GoogleCalendarFeedFetcher>();
+        services.AddHttpClient<IGoogleOAuthClient, GoogleOAuthClient>();
         services.AddSingleton<IClock, SystemClock>();
         services.AddSingleton<IAuthorizationHandler, ActiveHouseholdOwnerHandler>();
 

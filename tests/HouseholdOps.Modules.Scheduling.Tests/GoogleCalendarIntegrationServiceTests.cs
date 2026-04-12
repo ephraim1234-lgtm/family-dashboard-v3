@@ -120,6 +120,7 @@ public class GoogleCalendarIntegrationServiceTests
         var service = new GoogleCalendarIntegrationService(
             dbContext,
             CreateConfiguration(),
+            new FakeGoogleOAuthClient(),
             feedFetcher,
             new ImportedScheduledEventSyncService(dbContext));
 
@@ -510,6 +511,7 @@ public class GoogleCalendarIntegrationServiceTests
         var service = new GoogleCalendarIntegrationService(
             dbContext,
             CreateConfiguration(),
+            new FakeGoogleOAuthClient(),
             new ThrowingFeedFetcher(new HttpRequestException("Network connection timed out.")),
             new ImportedScheduledEventSyncService(dbContext));
 
@@ -874,6 +876,7 @@ public class GoogleCalendarIntegrationServiceTests
         return new GoogleCalendarIntegrationService(
             dbContext,
             CreateConfiguration(),
+            new FakeGoogleOAuthClient(),
             new FakeFeedFetcher(feedContent),
             new ImportedScheduledEventSyncService(dbContext));
     }
@@ -894,6 +897,7 @@ public class GoogleCalendarIntegrationServiceTests
         var service = new GoogleCalendarIntegrationService(
             dbContext,
             configuration,
+            new FakeGoogleOAuthClient(),
             new FakeFeedFetcher("BEGIN:VCALENDAR\r\nEND:VCALENDAR"),
             new ImportedScheduledEventSyncService(dbContext));
 
@@ -906,6 +910,41 @@ public class GoogleCalendarIntegrationServiceTests
         Assert.Equal(
             "http://localhost:3000/api/integrations/google-oauth/callback",
             readiness.ConfiguredRedirectUri);
+    }
+
+    [Fact]
+    public async Task CompleteOAuthLinkAsync_CreatesOrUpdatesLinkedGoogleAccount()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = new GoogleCalendarIntegrationService(
+            dbContext,
+            CreateConfiguration(),
+            new FakeGoogleOAuthClient(
+                new GoogleOAuthTokenResult(
+                    "access-token",
+                    "Bearer",
+                    3600,
+                    "openid email profile https://www.googleapis.com/auth/calendar.readonly",
+                    "refresh-token"),
+                new GoogleOAuthUserProfile(
+                    "google-user-1",
+                    "owner@example.com",
+                    "Owner Example")),
+            new FakeFeedFetcher("BEGIN:VCALENDAR\r\nEND:VCALENDAR"),
+            new ImportedScheduledEventSyncService(dbContext));
+
+        await service.CompleteOAuthLinkAsync(
+            HouseholdId,
+            Guid.Parse("33333333-3333-3333-3333-333333333333"),
+            "auth-code",
+            CreatedAtUtc,
+            CancellationToken.None);
+
+        var linked = await dbContext.GoogleOAuthAccountLinks.SingleAsync();
+        Assert.Equal(HouseholdId, linked.HouseholdId);
+        Assert.Equal("google-user-1", linked.GoogleUserId);
+        Assert.Equal("owner@example.com", linked.Email);
+        Assert.Equal("refresh-token", linked.RefreshToken);
     }
 
     private sealed class FakeFeedFetcher(string feedContent) : IGoogleCalendarFeedFetcher
@@ -929,6 +968,38 @@ public class GoogleCalendarIntegrationServiceTests
         public Task<string> FetchAsync(
             string feedUrl,
             CancellationToken cancellationToken) => Task.FromException<string>(exception);
+    }
+
+    private sealed class FakeGoogleOAuthClient(
+        GoogleOAuthTokenResult? tokenResult = null,
+        GoogleOAuthUserProfile? userProfile = null) : IGoogleOAuthClient
+    {
+        private readonly GoogleOAuthTokenResult token =
+            tokenResult
+            ?? new GoogleOAuthTokenResult(
+                "token",
+                "Bearer",
+                3600,
+                "openid email profile",
+                "refresh");
+
+        private readonly GoogleOAuthUserProfile profile =
+            userProfile
+            ?? new GoogleOAuthUserProfile(
+                "google-user",
+                "user@example.com",
+                "User Example");
+
+        public string BuildAuthorizationUrl(string state) =>
+            $"https://accounts.google.com/o/oauth2/v2/auth?state={state}";
+
+        public Task<GoogleOAuthTokenResult> ExchangeCodeAsync(
+            string code,
+            CancellationToken cancellationToken) => Task.FromResult(token);
+
+        public Task<GoogleOAuthUserProfile> GetUserProfileAsync(
+            string accessToken,
+            CancellationToken cancellationToken) => Task.FromResult(profile);
     }
 
     private sealed class FakeClock(DateTimeOffset utcNow) : HouseholdOps.SharedKernel.Time.IClock

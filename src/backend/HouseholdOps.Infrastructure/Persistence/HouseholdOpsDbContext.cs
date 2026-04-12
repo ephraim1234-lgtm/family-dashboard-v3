@@ -26,6 +26,8 @@ public sealed class HouseholdOpsDbContext(DbContextOptions<HouseholdOpsDbContext
 
     public DbSet<GoogleCalendarConnection> GoogleCalendarConnections => Set<GoogleCalendarConnection>();
 
+    public DbSet<GoogleOAuthAccountLink> GoogleOAuthAccountLinks => Set<GoogleOAuthAccountLink>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -162,6 +164,28 @@ public sealed class HouseholdOpsDbContext(DbContextOptions<HouseholdOpsDbContext
             entity.Property(x => x.ImportedEventCount);
             entity.Property(x => x.SkippedRecurringEventCount);
             entity.HasIndex(x => x.HouseholdId);
+            entity.HasOne<Household>()
+                .WithMany()
+                .HasForeignKey(x => x.HouseholdId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<GoogleOAuthAccountLink>(entity =>
+        {
+            entity.ToTable("google_oauth_account_links");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.GoogleUserId).HasMaxLength(128);
+            entity.Property(x => x.Email).HasMaxLength(320);
+            entity.Property(x => x.DisplayName).HasMaxLength(200);
+            entity.Property(x => x.AccessToken);
+            entity.Property(x => x.RefreshToken);
+            entity.Property(x => x.TokenType).HasMaxLength(32);
+            entity.Property(x => x.Scope);
+            entity.Property(x => x.AccessTokenExpiresAtUtc);
+            entity.Property(x => x.CreatedAtUtc);
+            entity.Property(x => x.UpdatedAtUtc);
+            entity.HasIndex(x => x.HouseholdId);
+            entity.HasIndex(x => new { x.HouseholdId, x.GoogleUserId }).IsUnique();
             entity.HasOne<Household>()
                 .WithMany()
                 .HasForeignKey(x => x.HouseholdId)

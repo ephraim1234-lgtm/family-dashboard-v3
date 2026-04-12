@@ -209,6 +209,12 @@ Active expansion slice.
 - sync status visibility per linked calendar
 - imported events treated as read-only in Scheduling
 
+**Current OAuth foundation slice**
+- Google account linking start/callback flow through the web-shell callback path
+- persisted Google provider account links owned by Integrations
+- admin visibility for OAuth readiness and linked Google accounts
+- existing iCal import path remains the active scheduling import path for now
+
 **Current hardening additions**
 - duplicate feed-link prevention per household
 - `TZID` parsing support for imported timed events
@@ -226,7 +232,7 @@ Active expansion slice.
 - continue skipping unsupported recurrence patterns explicitly
 
 **Still deferred**
-- OAuth account linking
+- OAuth-backed calendar discovery/selection beyond the account-linking foundation
 - broader external recurrence support beyond the current narrow subset
 - bidirectional sync and conflict resolution
 
