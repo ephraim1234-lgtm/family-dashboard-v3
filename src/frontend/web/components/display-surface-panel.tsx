@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 
 type DisplayAgendaItem = {
   title: string;
@@ -108,10 +108,14 @@ function dayLabel(item: DisplayAgendaItem) {
   });
 }
 
+const MAX_CONSECUTIVE_FAILURES = 3;
+
 export function DisplaySurfacePanel({ token }: DisplaySurfacePanelProps) {
   const [snapshot, setSnapshot] = useState<DisplaySnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
   const [isPending, startTransition] = useTransition();
+  const consecutiveFailuresRef = useRef(0);
 
   async function refresh() {
     setError(null);
@@ -127,13 +131,24 @@ export function DisplaySurfacePanel({ token }: DisplaySurfacePanelProps) {
 
     const nextSnapshot = (await response.json()) as DisplaySnapshot;
     setSnapshot(nextSnapshot);
+    setLastRefreshedAt(new Date());
+    consecutiveFailuresRef.current = 0;
   }
 
   useEffect(() => {
     function doRefresh() {
       startTransition(() => {
         refresh().catch(() => {
-          setError("Unable to load the display surface right now.");
+          consecutiveFailuresRef.current += 1;
+
+          if (consecutiveFailuresRef.current >= MAX_CONSECUTIVE_FAILURES) {
+            window.location.reload();
+            return;
+          }
+
+          setError(
+            `Unable to load the display surface. Retry ${consecutiveFailuresRef.current}/${MAX_CONSECUTIVE_FAILURES - 1} — will reload if this persists.`
+          );
           setSnapshot(null);
         });
       });
@@ -426,6 +441,11 @@ export function DisplaySurfacePanel({ token }: DisplaySurfacePanelProps) {
             <span>{snapshot.householdName}</span>
             <span>{snapshot.deviceName}</span>
             <span>Token hint {snapshot.accessTokenHint}</span>
+            <span className="display-footer-refresh">
+              {lastRefreshedAt
+                ? `Refreshed ${lastRefreshedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" })}`
+                : "Refreshing…"}
+            </span>
           </footer>
         </>
       ) : null}
