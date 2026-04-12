@@ -46,9 +46,8 @@ export async function proxyApi(
           }
         });
 
-  const setCookie = response.headers.get("set-cookie");
-  if (setCookie) {
-    nextResponse.headers.set("set-cookie", setCookie);
+  for (const cookie of response.headers.getSetCookie()) {
+    nextResponse.headers.append("set-cookie", cookie);
   }
 
   return nextResponse;

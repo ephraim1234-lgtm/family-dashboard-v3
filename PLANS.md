@@ -121,6 +121,13 @@
   - Validation status: passed
   - Notes: added managed-link-specific sync failure categories for missing linked accounts, OAuth access rejection, token reconnect needs, and missing calendars; also refreshed stale admin copy that still described OAuth setup as callback-blocked.
 
+- `M17` Local OAuth callback validation and hardening
+  - Status: `done`
+  - Scope: harden the local OAuth callback path to survive multi-cookie responses without breaking session or state cookie delivery.
+  - Key files touched: `PLANS.md`, `src/frontend/web/lib/api-proxy.ts`, `src/frontend/web/app/api/integrations/google-oauth/callback/route.ts`
+  - Validation status: passed
+  - Notes: `PersistedSessionCookieEvents` sets `ShouldRenew = true` on every authenticated request, which causes the callback and start responses to carry two `set-cookie` headers (session renewal + state cookie). Both `proxyApi` and the callback proxy were using `headers.get('set-cookie')`, which joins multiple values with `, ` and breaks cookie parsing. Fixed both to use `headers.getSetCookie()` and append each cookie individually. Existing integration endpoints validated at 200; readiness endpoint correctly reports unconfigured state when OAuth credentials are absent.
+
 ## Current milestone
 - None active. Awaiting confirmation for the next calendar-integrations milestone.
 
@@ -193,5 +200,9 @@
 - 2026-04-12: `M16` API and Worker builds passed with `dotnet build src\backend\HouseholdOps.Api\HouseholdOps.Api.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` and `dotnet build src\backend\HouseholdOps.Worker\HouseholdOps.Worker.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false`.
 - 2026-04-12: Docker runtime validation rebuilt `api` and `web` successfully with `$env:API_PORT='3001'; $env:WEB_PORT='3000'; docker compose up -d --build api web`, and authenticated web-shell requests to `/api/integrations/google-calendar-links`, `/api/integrations/google-oauth/accounts`, `/api/integrations/google-oauth/calendars`, `/api/integrations/google-oauth/readiness`, and `/api/admin/overview` all returned `200` after `POST /api/auth/dev-login`.
 
+- 2026-04-12: `M17` backend builds passed with `dotnet build src\backend\HouseholdOps.Api\HouseholdOps.Api.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` and Worker equivalent.
+- 2026-04-12: `M17` focused tests passed with `dotnet test tests\HouseholdOps.Modules.Scheduling.Tests\HouseholdOps.Modules.Scheduling.Tests.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` (`50` passed, no regressions).
+- 2026-04-12: `M17` Docker validation rebuilt `api` and `web` successfully; authenticated web-shell requests to `/api/integrations/google-calendar-links`, `/api/integrations/google-oauth/accounts`, `/api/integrations/google-oauth/calendars`, `/api/integrations/google-oauth/readiness`, and `/api/admin/overview` all returned `200`; readiness correctly reported unconfigured state.
+
 ## Next recommended step
-- Start `M17` local OAuth callback validation and hardening: run the real Google linking flow against the Docker web shell, capture any callback/session issues, and make the narrowest fixes needed without broadening provider scope.
+- Start `M18` first real end-to-end OAuth consent run: provision real Google OAuth credentials locally, run the full consent/callback flow, and capture any remaining issues that only surface with a live Google interaction (e.g., scope confirmation, account storage, post-link calendar discovery).
