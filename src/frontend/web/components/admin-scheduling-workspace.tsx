@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useAdminOwnerSession } from "./use-admin-owner-session";
 
 type RecurrencePattern = "None" | "Daily" | "Weekly";
 
@@ -16,6 +17,8 @@ type ScheduledEventSeriesItem = {
   recurrenceSummary: string;
   weeklyDays: string[];
   recursUntilUtc: string | null;
+  isImported: boolean;
+  sourceKind: string | null;
   nextOccurrenceStartsAtUtc: string | null;
   createdAtUtc: string;
 };
@@ -34,6 +37,8 @@ type ScheduleBrowseItem = {
   isRecurring: boolean;
   recurrencePattern: RecurrencePattern;
   recurrenceSummary: string;
+  isImported: boolean;
+  sourceKind: string | null;
 };
 
 type ScheduleBrowseDayGroup = {
@@ -46,6 +51,21 @@ type ScheduleBrowseResponse = {
   windowEndUtc: string;
   windowDays: number;
   days: ScheduleBrowseDayGroup[];
+};
+
+type EventReminderItem = {
+  id: string;
+  scheduledEventId: string;
+  eventTitle: string;
+  minutesBefore: number;
+  dueAtUtc: string;
+  status: string;
+  firedAtUtc: string | null;
+  createdAtUtc: string;
+};
+
+type EventReminderListResponse = {
+  items: EventReminderItem[];
 };
 
 type BrowseFilter = "All" | "Recurring" | "OneTime";
@@ -135,6 +155,18 @@ function recurrenceBadge(item: { isRecurring: boolean; recurrencePattern: Recurr
   return item.recurrencePattern;
 }
 
+function sourceBadge(item: { isImported: boolean; sourceKind: string | null }) {
+  if (!item.isImported) {
+    return "Local";
+  }
+
+  if (item.sourceKind === "GoogleCalendarIcs") {
+    return "Imported from Google";
+  }
+
+  return "Imported";
+}
+
 function relativeDayLabel(date: string) {
   const target = new Date(`${date}T00:00:00Z`);
   const today = new Date();
@@ -199,6 +231,7 @@ function formatFrameRange(startUtc: string, endUtc: string) {
 }
 
 export function AdminSchedulingWorkspace() {
+  const { isOwner, isLoading: isSessionLoading } = useAdminOwnerSession();
   const hydratedPreferencesRef = useRef(false);
   const initialState = useMemo(() => createDefaultState(), []);
   const [title, setTitle] = useState(initialState.title);
@@ -218,6 +251,10 @@ export function AdminSchedulingWorkspace() {
   const [browseFilter, setBrowseFilter] = useState<BrowseFilter>("All");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [reminders, setReminders] = useState<EventReminderItem[]>([]);
+  const [reminderMinutesBefore, setReminderMinutesBefore] = useState(15);
+  const [reminderError, setReminderError] = useState<string | null>(null);
+  const [isReminderPending, startReminderTransition] = useTransition();
 
   function resetForm() {
     const next = createDefaultState();
@@ -230,6 +267,8 @@ export function AdminSchedulingWorkspace() {
     setWeeklyDays(next.weeklyDays);
     setRecursUntilLocal(next.recursUntilLocal);
     setEditingEventId(null);
+    setReminders([]);
+    setReminderError(null);
   }
 
   async function refreshBrowse(startUtc = browseStartUtc, windowDays = browseWindowDays) {
@@ -286,6 +325,103 @@ export function AdminSchedulingWorkspace() {
   }
 
   useEffect(() => {
+    if (!editingEventId) {
+      setReminders([]);
+      setReminderError(null);
+      return;
+    }
+
+    startReminderTransition(() => {
+      loadReminders(editingEventId).catch(() => {
+        setReminderError("Unable to load reminders.");
+      });
+    });
+  }, [editingEventId]);
+
+  async function loadReminders(eventId: string) {
+    setReminderError(null);
+
+    const response = await fetch("/api/notifications/reminders", {
+      credentials: "same-origin",
+      cache: "no-store"
+    });
+
+    if (!response.ok) {
+      throw new Error(`Reminders fetch failed with ${response.status}.`);
+    }
+
+    const data = (await response.json()) as EventReminderListResponse;
+    setReminders(data.items.filter((r) => r.scheduledEventId === eventId));
+  }
+
+  function handleAddReminder() {
+    if (!editingEventId) {
+      return;
+    }
+
+    startReminderTransition(() => {
+      addReminder(editingEventId).catch((addError: unknown) => {
+        setReminderError(
+          addError instanceof Error ? addError.message : "Unable to add reminder."
+        );
+      });
+    });
+  }
+
+  async function addReminder(eventId: string) {
+    setReminderError(null);
+
+    const response = await fetch("/api/notifications/reminders", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ scheduledEventId: eventId, minutesBefore: reminderMinutesBefore })
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || `Add reminder failed with ${response.status}.`);
+    }
+
+    await loadReminders(eventId);
+  }
+
+  function handleDeleteReminder(reminderId: string) {
+    if (!editingEventId) {
+      return;
+    }
+
+    const eventId = editingEventId;
+
+    startReminderTransition(() => {
+      deleteReminder(reminderId, eventId).catch((deleteError: unknown) => {
+        setReminderError(
+          deleteError instanceof Error ? deleteError.message : "Unable to delete reminder."
+        );
+      });
+    });
+  }
+
+  async function deleteReminder(reminderId: string, eventId: string) {
+    setReminderError(null);
+
+    const response = await fetch(`/api/notifications/reminders/${reminderId}`, {
+      method: "DELETE",
+      credentials: "same-origin"
+    });
+
+    if (!response.ok && response.status !== 404) {
+      throw new Error(`Delete reminder failed with ${response.status}.`);
+    }
+
+    await loadReminders(eventId);
+  }
+
+  useEffect(() => {
+    if (isSessionLoading) {
+      return;
+    }
+
     let storedWindowDays = 14;
 
     if (typeof window !== "undefined") {
@@ -316,6 +452,13 @@ export function AdminSchedulingWorkspace() {
 
     hydratedPreferencesRef.current = true;
 
+    if (!isOwner) {
+      setBrowse(null);
+      setManagedEvents([]);
+      setError(null);
+      return;
+    }
+
     startTransition(() => {
       refreshAll({
         startUtc: getCurrentWindowStartIso(),
@@ -328,7 +471,7 @@ export function AdminSchedulingWorkspace() {
         );
       });
     });
-  }, []);
+  }, [isOwner, isSessionLoading]);
 
   useEffect(() => {
     if (!hydratedPreferencesRef.current || typeof window === "undefined") {
@@ -592,6 +735,11 @@ export function AdminSchedulingWorkspace() {
             Browse a clear, explicit schedule frame grouped by day, then jump
             straight into the series that owns each occurrence.
           </p>
+          {!isOwner && !isSessionLoading ? (
+            <p className="muted">
+              Sign in with an owner session to load the scheduling workspace.
+            </p>
+          ) : null}
           <div className="pill-row">
             <span className="pill">
               Window: {browse ? formatFrameRange(browse.windowStartUtc, browse.windowEndUtc) : "Loading"}
@@ -614,8 +762,8 @@ export function AdminSchedulingWorkspace() {
           <h2>Whole-series lifecycle</h2>
           <p className="muted">
             One-time, daily, and weekly events are all edited or deleted at the
-            series level in this phase. Occurrence-only changes are intentionally
-            out of scope.
+            series level in this phase. Imported external events remain read-only,
+            and occurrence-only changes are intentionally out of scope.
           </p>
           <div className="pill-row">
             <button
@@ -800,27 +948,37 @@ export function AdminSchedulingWorkspace() {
                               {formatEventTime(item)}
                             </div>
                           </div>
-                          <span className="pill">{recurrenceBadge(item)}</span>
+                          <div className="pill-row">
+                            <span className="pill">{recurrenceBadge(item)}</span>
+                            <span className="pill">{sourceBadge(item)}</span>
+                          </div>
                         </div>
                         <div className="muted">{item.recurrenceSummary}</div>
                         {item.description ? <div>{item.description}</div> : null}
-                        <div className="action-row compact-action-row">
-                          <button
-                            className="action-button action-button-ghost"
-                            onClick={() => {
-                              const target = managedEvents.find(
-                                (managedEvent) => managedEvent.id === item.eventId
-                              );
+                        {item.isImported ? (
+                          <div className="muted">
+                            Imported events are managed from the Calendar integrations
+                            panel.
+                          </div>
+                        ) : (
+                          <div className="action-row compact-action-row">
+                            <button
+                              className="action-button action-button-ghost"
+                              onClick={() => {
+                                const target = managedEvents.find(
+                                  (managedEvent) => managedEvent.id === item.eventId
+                                );
 
-                              if (target) {
-                                beginEditing(target);
-                              }
-                            }}
-                            disabled={isPending}
-                          >
-                            Edit Owning Series
-                          </button>
-                        </div>
+                                if (target) {
+                                  beginEditing(target);
+                                }
+                              }}
+                              disabled={isPending}
+                            >
+                              Edit Owning Series
+                            </button>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -836,11 +994,12 @@ export function AdminSchedulingWorkspace() {
 
         <article className="panel">
           <div className="eyebrow">Series editor</div>
-          <h2>{editingEventId ? "Edit scheduled event series" : "Create scheduled event series"}</h2>
-          <p className="muted">
-            This form manages whole scheduled events. Recurrence stays narrow and
-            explicit: one-time, daily, or weekly with selected weekdays.
-          </p>
+        <h2>{editingEventId ? "Edit scheduled event series" : "Create scheduled event series"}</h2>
+        <p className="muted">
+          This form manages whole scheduled events. Recurrence stays narrow and
+          explicit: one-time, daily, or weekly with selected weekdays. Imported
+          calendars flow in separately and stay read-only here.
+        </p>
 
           <div className="form-stack">
             <label className="field">
@@ -927,6 +1086,97 @@ export function AdminSchedulingWorkspace() {
             ) : null}
           </div>
 
+          {editingEventId ? (
+            <div className="reminder-section">
+              <div className="eyebrow">Event reminders</div>
+              <p className="muted">
+                Reminders fire before the event starts. All-day events are not
+                supported.
+              </p>
+
+              <div className="reminder-add-row">
+                <label className="field reminder-minutes-field">
+                  <span>Minutes before</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={10080}
+                    value={reminderMinutesBefore}
+                    onChange={(event) =>
+                      setReminderMinutesBefore(Number(event.target.value))
+                    }
+                    disabled={isReminderPending}
+                  />
+                </label>
+                <div className="pill-row reminder-preset-row">
+                  {([15, 30, 60, 1440] as const).map((preset) => (
+                    <button
+                      key={preset}
+                      className={`pill-button${reminderMinutesBefore === preset ? " pill-button-active" : ""}`}
+                      onClick={() => setReminderMinutesBefore(preset)}
+                      disabled={isReminderPending}
+                    >
+                      {preset < 60
+                        ? `${preset} min`
+                        : preset === 60
+                          ? "1 hr"
+                          : "1 day"}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  className="action-button"
+                  onClick={handleAddReminder}
+                  disabled={isReminderPending}
+                >
+                  {isReminderPending ? "Saving..." : "Add Reminder"}
+                </button>
+              </div>
+
+              {reminderError ? (
+                <p className="error-text">{reminderError}</p>
+              ) : null}
+
+              {reminders.length > 0 ? (
+                <div className="stack-list reminder-list">
+                  {reminders.map((reminder) => (
+                    <div className="stack-card reminder-card" key={reminder.id}>
+                      <div className="stack-card-header">
+                        <div>
+                          <strong>
+                            {reminder.minutesBefore < 60
+                              ? `${reminder.minutesBefore} min before`
+                              : reminder.minutesBefore === 60
+                                ? "1 hr before"
+                                : reminder.minutesBefore % 60 === 0
+                                  ? `${reminder.minutesBefore / 60} hr before`
+                                  : `${reminder.minutesBefore} min before`}
+                          </strong>
+                          <div className="muted">
+                            Due{" "}
+                            {new Date(reminder.dueAtUtc).toLocaleString()}
+                          </div>
+                        </div>
+                        <div className="pill-row">
+                          <span className="pill">{reminder.status}</span>
+                          <button
+                            className="action-button action-button-secondary"
+                            onClick={() => handleDeleteReminder(reminder.id)}
+                            disabled={isReminderPending}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="muted">No reminders set for this event.</p>
+              )}
+            </div>
+          ) : null}
+
           <div className="action-row">
             <button className="action-button" onClick={handleSubmit} disabled={isPending}>
               {editingEventId ? "Save Series Changes" : "Create Event"}
@@ -967,6 +1217,7 @@ export function AdminSchedulingWorkspace() {
                   </div>
                   <div className="pill-row">
                     <span className="pill">{recurrenceBadge(item)}</span>
+                    <span className="pill">{sourceBadge(item)}</span>
                     <span className="pill">
                       {item.nextOccurrenceStartsAtUtc
                         ? `Next ${new Date(item.nextOccurrenceStartsAtUtc).toLocaleString()}`
@@ -981,22 +1232,29 @@ export function AdminSchedulingWorkspace() {
                     : ""}
                 </div>
                 {item.description ? <div>{item.description}</div> : null}
-                <div className="action-row compact-action-row">
-                  <button
-                    className="action-button action-button-ghost"
-                    onClick={() => beginEditing(item)}
-                    disabled={isPending}
-                  >
-                    Edit Series
-                  </button>
-                  <button
-                    className="action-button action-button-secondary"
-                    onClick={() => handleDelete(item.id)}
-                    disabled={isPending}
-                  >
-                    Delete Series
-                  </button>
-                </div>
+                {item.isImported ? (
+                  <div className="muted">
+                    Imported series update through Integration sync, not direct Scheduling
+                    edits.
+                  </div>
+                ) : (
+                  <div className="action-row compact-action-row">
+                    <button
+                      className="action-button action-button-ghost"
+                      onClick={() => beginEditing(item)}
+                      disabled={isPending}
+                    >
+                      Edit Series
+                    </button>
+                    <button
+                      className="action-button action-button-secondary"
+                      onClick={() => handleDelete(item.id)}
+                      disabled={isPending}
+                    >
+                      Delete Series
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>

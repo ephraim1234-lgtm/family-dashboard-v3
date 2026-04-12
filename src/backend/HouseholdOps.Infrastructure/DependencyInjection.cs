@@ -1,11 +1,15 @@
 using HouseholdOps.Infrastructure.Auth;
 using HouseholdOps.Infrastructure.Display;
+using HouseholdOps.Infrastructure.Integrations;
+using HouseholdOps.Infrastructure.Notifications;
 using HouseholdOps.Infrastructure.Options;
 using HouseholdOps.Infrastructure.Persistence;
 using HouseholdOps.Infrastructure.Scheduling;
 using HouseholdOps.Modules.Display;
 using HouseholdOps.Modules.Households;
 using HouseholdOps.Modules.Identity;
+using HouseholdOps.Modules.Integrations;
+using HouseholdOps.Modules.Notifications;
 using HouseholdOps.Modules.Scheduling;
 using HouseholdOps.SharedKernel.Time;
 using Microsoft.AspNetCore.Authorization;
@@ -37,6 +41,11 @@ public static class DependencyInjection
         services.AddScoped<IAgendaQueryService, AgendaQueryService>();
         services.AddScoped<IScheduleBrowseQueryService, ScheduleBrowseQueryService>();
         services.AddScoped<IScheduledEventManagementService, ScheduledEventManagementService>();
+        services.AddScoped<IImportedScheduledEventSyncService, ImportedScheduledEventSyncService>();
+        services.AddScoped<IGoogleCalendarIntegrationService, GoogleCalendarIntegrationService>();
+        services.AddScoped<IEventReminderService, EventReminderService>();
+        services.AddHttpClient<IGoogleCalendarFeedFetcher, GoogleCalendarFeedFetcher>();
+        services.AddHttpClient<IGoogleOAuthClient, GoogleOAuthClient>();
         services.AddSingleton<IClock, SystemClock>();
         services.AddSingleton<IAuthorizationHandler, ActiveHouseholdOwnerHandler>();
 

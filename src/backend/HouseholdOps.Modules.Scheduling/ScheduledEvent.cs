@@ -22,5 +22,13 @@ public sealed class ScheduledEvent
 
     public DateTimeOffset? RecursUntilUtc { get; set; }
 
+    public string? SourceKind { get; set; }
+
+    public Guid? SourceCalendarId { get; set; }
+
+    public string? SourceEventId { get; set; }
+
+    public DateTimeOffset? LastImportedAtUtc { get; set; }
+
     public DateTimeOffset CreatedAtUtc { get; init; }
 }

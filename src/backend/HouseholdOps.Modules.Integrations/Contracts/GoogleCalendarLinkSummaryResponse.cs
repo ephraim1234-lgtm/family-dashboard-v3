@@ -1,0 +1,25 @@
+namespace HouseholdOps.Modules.Integrations.Contracts;
+
+public sealed record GoogleCalendarLinkSummaryResponse(
+    Guid Id,
+    string DisplayName,
+    string LinkMode,
+    string FeedUrlHost,
+    string FeedUrlPathHint,
+    Guid? GoogleOAuthAccountLinkId,
+    string? GoogleOAuthAccountEmail,
+    string? GoogleCalendarId,
+    string? GoogleCalendarTimeZone,
+    bool AutoSyncEnabled,
+    int SyncIntervalMinutes,
+    DateTimeOffset? NextSyncDueAtUtc,
+    string LastSyncStatus,
+    string? LastSyncError,
+    DateTimeOffset? LastSyncStartedAtUtc,
+    DateTimeOffset? LastSyncCompletedAtUtc,
+    string? LastSyncFailureCategory,
+    string? LastSyncRecoveryHint,
+    int ImportedEventCount,
+    int SkippedRecurringEventCount,
+    int SkippedRecurringOverrideCount,
+    DateTimeOffset CreatedAtUtc);

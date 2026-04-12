@@ -44,6 +44,56 @@ Default validation ports used in this repo:
 - API: `http://localhost:3001`
 - Web: `http://localhost:3002`
 
+## Google OAuth prep
+
+Google OAuth account linking, calendar discovery, and managed Google calendar link creation are implemented for local validation. The original iCal path still remains available, and both import paths stay one-way into local Scheduling.
+
+1. Copy `.env.example` to `.env` if you have not already.
+2. Fill in these placeholders in your local `.env` only:
+   - `GOOGLE_CLIENT_ID`
+   - `GOOGLE_CLIENT_SECRET`
+   - `GOOGLE_OAUTH_REDIRECT_URI`
+3. Do not commit `.env`; it is intentionally ignored.
+4. Treat the redirect URI as environment-specific. Local Docker validation may cover basic config shape, but real callback validation will still need a hosted environment.
+
+## Calendar integration validation
+
+Use this sequence when validating the current Google Calendar integration slice:
+
+1. Backend build:
+   `dotnet build src\backend\HouseholdOps.Api\HouseholdOps.Api.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false`
+2. Focused scheduling/integration tests:
+   `dotnet test tests\HouseholdOps.Modules.Scheduling.Tests\HouseholdOps.Modules.Scheduling.Tests.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false`
+3. Frontend build:
+   run `npm install` in `src/frontend/web` first if local dependencies are not present, then run `npm run build`
+4. Docker runtime validation:
+   ensure the local Docker daemon is running before using the `docker compose` flow below
+
+Recommended runtime validation loop for integration changes:
+
+```powershell
+$env:API_PORT='3001'
+docker compose up -d --build postgres api
+```
+
+If you also need the admin UI:
+
+```powershell
+$env:API_PORT='3001'
+$env:WEB_PORT='3002'
+docker compose up -d --build postgres api web
+```
+
+Current Google Calendar integration scope in validation:
+
+- Google OAuth account linking, readiness visibility, calendar discovery, and managed calendar-link creation
+- Google Calendar iCal feed links and managed OAuth calendar links
+- manual sync from Admin
+- worker-managed automatic sync for linked calendars
+- one-time plus supported daily/weekly external event import into Scheduling
+- unsupported recurrence patterns remain skipped
+- imported events remain read-only in Scheduling
+
 ## Display baseline
 
 - Display devices are provisioned from the owner-only admin surface.

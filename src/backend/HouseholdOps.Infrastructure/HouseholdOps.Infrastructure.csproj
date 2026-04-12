@@ -20,6 +20,8 @@
     <ProjectReference Include="..\HouseholdOps.Modules.Display\HouseholdOps.Modules.Display.csproj" />
     <ProjectReference Include="..\HouseholdOps.Modules.Households\HouseholdOps.Modules.Households.csproj" />
     <ProjectReference Include="..\HouseholdOps.Modules.Identity\HouseholdOps.Modules.Identity.csproj" />
+    <ProjectReference Include="..\HouseholdOps.Modules.Integrations\HouseholdOps.Modules.Integrations.csproj" />
+    <ProjectReference Include="..\HouseholdOps.Modules.Notifications\HouseholdOps.Modules.Notifications.csproj" />
     <ProjectReference Include="..\HouseholdOps.Modules.Scheduling\HouseholdOps.Modules.Scheduling.csproj" />
     <ProjectReference Include="..\HouseholdOps.SharedKernel\HouseholdOps.SharedKernel.csproj" />
   </ItemGroup>

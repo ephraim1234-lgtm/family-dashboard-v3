@@ -268,6 +268,53 @@ a {
   color: rgba(247, 239, 224, 0.74);
 }
 
+.display-reminders-strip {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 20px;
+  background: rgba(220, 120, 20, 0.14);
+  border: 1px solid rgba(220, 140, 40, 0.28);
+  border-radius: 14px;
+  flex-wrap: wrap;
+}
+
+.display-reminders-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(247, 200, 100, 0.9);
+  white-space: nowrap;
+}
+
+.display-reminders-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  flex: 1;
+}
+
+.display-reminder-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 999px;
+  padding: 8px 14px;
+  background: rgba(220, 140, 40, 0.18);
+  border: 1px solid rgba(220, 160, 60, 0.3);
+}
+
+.display-reminder-title {
+  font-weight: 600;
+  color: rgba(247, 230, 190, 0.95);
+}
+
+.display-reminder-meta {
+  font-size: 0.8rem;
+  color: rgba(247, 200, 100, 0.8);
+}
+
 .display-footer {
   display: flex;
   gap: 14px;
@@ -475,6 +522,40 @@ a {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+}
+
+.reminder-section {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.reminder-add-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.reminder-minutes-field {
+  min-width: 160px;
+}
+
+.reminder-minutes-field input {
+  width: 100%;
+}
+
+.reminder-preset-row {
+  flex-wrap: nowrap;
+}
+
+.reminder-list {
+  margin-top: 12px;
+}
+
+.reminder-card .stack-card-header {
+  align-items: center;
 }
 
 @media (max-width: 720px) {

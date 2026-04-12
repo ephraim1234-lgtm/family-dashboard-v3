@@ -2,6 +2,7 @@ using System;
 using HouseholdOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -19,6 +20,53 @@ partial class HouseholdOpsDbContextModelSnapshot : ModelSnapshot
             .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
         NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+
+        modelBuilder.Entity("HouseholdOps.Modules.Notifications.EventReminder", b =>
+            {
+                b.Property<Guid>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("uuid");
+
+                b.Property<DateTimeOffset>("CreatedAtUtc")
+                    .HasColumnType("timestamp with time zone");
+
+                b.Property<DateTimeOffset>("DueAtUtc")
+                    .HasColumnType("timestamp with time zone");
+
+                b.Property<string>("EventTitle")
+                    .IsRequired()
+                    .HasMaxLength(200)
+                    .HasColumnType("character varying(200)");
+
+                b.Property<DateTimeOffset?>("FiredAtUtc")
+                    .HasColumnType("timestamp with time zone");
+
+                b.Property<Guid>("HouseholdId")
+                    .HasColumnType("uuid");
+
+                b.Property<int>("MinutesBefore")
+                    .HasColumnType("integer");
+
+                b.Property<Guid>("ScheduledEventId")
+                    .HasColumnType("uuid");
+
+                b.Property<string>("Status")
+                    .IsRequired()
+                    .HasMaxLength(16)
+                    .HasColumnType("character varying(16)");
+
+                b.HasKey("Id");
+
+                b.HasIndex("HouseholdId");
+
+                b.HasIndex("HouseholdId", "ScheduledEventId")
+                    .HasDatabaseName("IX_event_reminders_household_event");
+
+                b.HasIndex("Status", "DueAtUtc")
+                    .HasDatabaseName("IX_event_reminders_status_due");
+
+                b.ToTable("event_reminders", "core");
+            });
 
         modelBuilder.Entity("HouseholdOps.Modules.Display.DisplayAccessToken", b =>
             {
@@ -92,6 +140,154 @@ partial class HouseholdOpsDbContextModelSnapshot : ModelSnapshot
                 b.ToTable("display_devices", "core");
             });
 
+        modelBuilder.Entity("HouseholdOps.Modules.Integrations.GoogleCalendarConnection", b =>
+            {
+                b.Property<Guid>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("uuid");
+
+                b.Property<bool>("AutoSyncEnabled")
+                    .HasColumnType("boolean");
+
+                b.Property<DateTimeOffset>("CreatedAtUtc")
+                    .HasColumnType("timestamp with time zone");
+
+                b.Property<string>("DisplayName")
+                    .IsRequired()
+                    .HasMaxLength(200)
+                    .HasColumnType("character varying(200)");
+
+                b.Property<string>("FeedUrl")
+                    .HasColumnType("text");
+
+                b.Property<string>("GoogleCalendarId")
+                    .HasMaxLength(320)
+                    .HasColumnType("character varying(320)");
+
+                b.Property<string>("GoogleCalendarTimeZone")
+                    .HasMaxLength(128)
+                    .HasColumnType("character varying(128)");
+
+                b.Property<Guid?>("GoogleOAuthAccountLinkId")
+                    .HasColumnType("uuid");
+
+                b.Property<Guid>("HouseholdId")
+                    .HasColumnType("uuid");
+
+                b.Property<int>("ImportedEventCount")
+                    .HasColumnType("integer");
+
+                b.Property<DateTimeOffset?>("NextSyncDueAtUtc")
+                    .HasColumnType("timestamp with time zone");
+
+                b.Property<DateTimeOffset?>("LastSyncCompletedAtUtc")
+                    .HasColumnType("timestamp with time zone");
+
+                b.Property<string>("LastSyncError")
+                    .HasColumnType("text");
+
+                b.Property<DateTimeOffset?>("LastSyncStartedAtUtc")
+                    .HasColumnType("timestamp with time zone");
+
+                b.Property<string>("LastSyncStatus")
+                    .IsRequired()
+                    .HasMaxLength(32)
+                    .HasColumnType("character varying(32)");
+
+                b.Property<int>("SkippedRecurringEventCount")
+                    .HasColumnType("integer");
+
+                b.Property<int>("SkippedRecurringOverrideCount")
+                    .HasColumnType("integer");
+
+                b.Property<int>("SyncIntervalMinutes")
+                    .HasColumnType("integer");
+
+                b.Property<string>("LinkMode")
+                    .IsRequired()
+                    .HasMaxLength(32)
+                    .HasColumnType("character varying(32)");
+
+                b.HasKey("Id");
+
+                b.HasIndex("GoogleOAuthAccountLinkId");
+
+                b.HasIndex("HouseholdId");
+
+                b.HasIndex("HouseholdId", "FeedUrl")
+                    .IsUnique()
+                    .HasDatabaseName("IX_google_calendar_connections_household_feed_url")
+                    .HasFilter("\"FeedUrl\" IS NOT NULL");
+
+                b.HasIndex("HouseholdId", "GoogleOAuthAccountLinkId", "GoogleCalendarId")
+                    .IsUnique()
+                    .HasDatabaseName("IX_google_calendar_connections_household_oauth_calendar")
+                    .HasFilter("\"GoogleOAuthAccountLinkId\" IS NOT NULL AND \"GoogleCalendarId\" IS NOT NULL");
+
+                b.ToTable("google_calendar_connections", "core");
+            });
+
+        modelBuilder.Entity("HouseholdOps.Modules.Integrations.GoogleOAuthAccountLink", b =>
+            {
+                b.Property<Guid>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("uuid");
+
+                b.Property<string>("AccessToken")
+                    .IsRequired()
+                    .HasColumnType("text");
+
+                b.Property<DateTimeOffset?>("AccessTokenExpiresAtUtc")
+                    .HasColumnType("timestamp with time zone");
+
+                b.Property<DateTimeOffset>("CreatedAtUtc")
+                    .HasColumnType("timestamp with time zone");
+
+                b.Property<string>("DisplayName")
+                    .HasMaxLength(200)
+                    .HasColumnType("character varying(200)");
+
+                b.Property<string>("Email")
+                    .IsRequired()
+                    .HasMaxLength(320)
+                    .HasColumnType("character varying(320)");
+
+                b.Property<string>("GoogleUserId")
+                    .IsRequired()
+                    .HasMaxLength(128)
+                    .HasColumnType("character varying(128)");
+
+                b.Property<Guid>("HouseholdId")
+                    .HasColumnType("uuid");
+
+                b.Property<Guid>("LinkedByUserId")
+                    .HasColumnType("uuid");
+
+                b.Property<string>("RefreshToken")
+                    .HasColumnType("text");
+
+                b.Property<string>("Scope")
+                    .IsRequired()
+                    .HasColumnType("text");
+
+                b.Property<string>("TokenType")
+                    .IsRequired()
+                    .HasMaxLength(32)
+                    .HasColumnType("character varying(32)");
+
+                b.Property<DateTimeOffset>("UpdatedAtUtc")
+                    .HasColumnType("timestamp with time zone");
+
+                b.HasKey("Id");
+
+                b.HasIndex("HouseholdId");
+
+                b.HasIndex("HouseholdId", "GoogleUserId")
+                    .IsUnique();
+
+                b.ToTable("google_oauth_account_links", "core");
+            });
+
         modelBuilder.Entity("HouseholdOps.Modules.Scheduling.ScheduledEvent", b =>
             {
                 b.Property<Guid>("Id")
@@ -113,6 +309,9 @@ partial class HouseholdOpsDbContextModelSnapshot : ModelSnapshot
                 b.Property<bool>("IsAllDay")
                     .HasColumnType("boolean");
 
+                b.Property<DateTimeOffset?>("LastImportedAtUtc")
+                    .HasColumnType("timestamp with time zone");
+
                 b.Property<string>("RecurrencePattern")
                     .IsRequired()
                     .HasMaxLength(16)
@@ -123,6 +322,17 @@ partial class HouseholdOpsDbContextModelSnapshot : ModelSnapshot
 
                 b.Property<DateTimeOffset?>("StartsAtUtc")
                     .HasColumnType("timestamp with time zone");
+
+                b.Property<Guid?>("SourceCalendarId")
+                    .HasColumnType("uuid");
+
+                b.Property<string>("SourceEventId")
+                    .HasMaxLength(256)
+                    .HasColumnType("character varying(256)");
+
+                b.Property<string>("SourceKind")
+                    .HasMaxLength(32)
+                    .HasColumnType("character varying(32)");
 
                 b.Property<string>("Title")
                     .IsRequired()
@@ -135,6 +345,11 @@ partial class HouseholdOpsDbContextModelSnapshot : ModelSnapshot
                 b.HasKey("Id");
 
                 b.HasIndex("HouseholdId");
+
+                b.HasIndex("HouseholdId", "SourceKind", "SourceCalendarId", "SourceEventId")
+                    .IsUnique()
+                    .HasDatabaseName("IX_scheduled_events_source_identity")
+                    .HasFilter("\"SourceKind\" IS NOT NULL AND \"SourceCalendarId\" IS NOT NULL AND \"SourceEventId\" IS NOT NULL");
 
                 b.ToTable("scheduled_events", "core");
             });
@@ -248,6 +463,15 @@ partial class HouseholdOpsDbContextModelSnapshot : ModelSnapshot
                 b.ToTable("users", "core");
             });
 
+        modelBuilder.Entity("HouseholdOps.Modules.Notifications.EventReminder", b =>
+            {
+                b.HasOne("HouseholdOps.Modules.Households.Household", null)
+                    .WithMany()
+                    .HasForeignKey("HouseholdId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+            });
+
         modelBuilder.Entity("HouseholdOps.Modules.Display.DisplayAccessToken", b =>
             {
                 b.HasOne("HouseholdOps.Modules.Display.DisplayDevice", null)
@@ -258,6 +482,29 @@ partial class HouseholdOpsDbContextModelSnapshot : ModelSnapshot
             });
 
         modelBuilder.Entity("HouseholdOps.Modules.Scheduling.ScheduledEvent", b =>
+            {
+                b.HasOne("HouseholdOps.Modules.Households.Household", null)
+                    .WithMany()
+                    .HasForeignKey("HouseholdId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+            });
+
+        modelBuilder.Entity("HouseholdOps.Modules.Integrations.GoogleCalendarConnection", b =>
+            {
+                b.HasOne("HouseholdOps.Modules.Integrations.GoogleOAuthAccountLink", null)
+                    .WithMany()
+                    .HasForeignKey("GoogleOAuthAccountLinkId")
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                b.HasOne("HouseholdOps.Modules.Households.Household", null)
+                    .WithMany()
+                    .HasForeignKey("HouseholdId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+            });
+
+        modelBuilder.Entity("HouseholdOps.Modules.Integrations.GoogleOAuthAccountLink", b =>
             {
                 b.HasOne("HouseholdOps.Modules.Households.Household", null)
                     .WithMany()

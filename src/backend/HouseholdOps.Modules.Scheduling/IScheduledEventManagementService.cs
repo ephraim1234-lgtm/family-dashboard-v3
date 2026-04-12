@@ -20,7 +20,7 @@ public interface IScheduledEventManagementService
         UpdateScheduledEventRequest request,
         CancellationToken cancellationToken);
 
-    Task<bool> DeleteEventAsync(
+    Task<ScheduledEventMutationResult> DeleteEventAsync(
         Guid householdId,
         Guid eventId,
         CancellationToken cancellationToken);

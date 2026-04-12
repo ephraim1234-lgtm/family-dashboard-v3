@@ -20,7 +20,7 @@ It should support:
 
 ## Current product core
 
-The current product core is intentionally narrow:
+The current product core is intentionally centered on:
 
 - household membership and context
 - scheduling
@@ -28,7 +28,7 @@ The current product core is intentionally narrow:
 - display / ambient household visibility
 - administration and configuration
 
-This is the first real product boundary and should remain the implementation center until it is stable.
+This is the first real product boundary and should remain the implementation center until it is stable enough to support expansion.
 
 ## Why this core comes first
 
@@ -39,6 +39,16 @@ Scheduling and display are the strongest foundation because they:
 - establish core household context and permissions
 - create a stable base for later domains like reminders, chores, and food operations
 
+## Product progression principle
+
+The product should not get trapped in permanent MVP refinement.
+
+The current core should be improved where necessary, but once it is functional enough to support real usage, the platform should intentionally expand into adjacent, high-value domains.
+
+That means the implementation scope should evolve over time.
+
+The existence of a stable core is meant to unlock the next useful capability, not to justify endless polishing of the original feature set.
+
 ## Product principles
 
 - self-hosted first
@@ -48,16 +58,19 @@ Scheduling and display are the strongest foundation because they:
 - role-aware household access
 - maintainable evolution over broad up-front scope
 - future domains should be added intentionally, not pre-built into the architecture
+- active scope should evolve as the product matures
 
-## Near-term likely expansions
+## Current active expansion areas
 
-These are the most likely adjacent expansions after the initial scheduling/display MVP:
+These are the most likely and most appropriate adjacent expansions after the initial scheduling/display core:
 
-- reminders/notifications
+- reminders / notifications
 - external calendar integrations
-- chores/routines
+- chores / routines
 
-These should be considered future roadmap candidates, not current implementation scope.
+Calendar integrations are now actively underway with a narrow first slice focused on disciplined one-way import rather than broad sync.
+
+They should still be built in narrow, disciplined slices.
 
 ## Future domains under consideration
 
@@ -109,3 +122,17 @@ Future domains should NOT automatically cause:
 - generic frameworks
 - unused abstractions
 - premature service decomposition
+
+## Delivery discipline
+
+Product evolution should follow this pattern:
+
+1. stabilize the current core enough to support real use
+2. promote the next adjacent capability into active implementation
+3. ship a narrow, useful slice
+4. update the docs to reflect the new product reality
+5. repeat
+
+The goal is deliberate expansion, not static preservation of the original MVP boundary.
+
+

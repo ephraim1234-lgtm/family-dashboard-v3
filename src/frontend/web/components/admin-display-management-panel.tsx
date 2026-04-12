@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
+import { useAdminOwnerSession } from "./use-admin-owner-session";
 
 type DisplayDeviceSummary = {
   deviceId: string;
@@ -29,6 +30,7 @@ type CreateDisplayDeviceState = {
 } | null;
 
 export function AdminDisplayManagementPanel() {
+  const { isOwner, isLoading: isSessionLoading } = useAdminOwnerSession();
   const [devices, setDevices] = useState<DisplayDeviceSummary[]>([]);
   const [latestCreated, setLatestCreated] =
     useState<CreateDisplayDeviceState>(null);
@@ -114,6 +116,18 @@ export function AdminDisplayManagementPanel() {
   }
 
   useEffect(() => {
+    if (isSessionLoading) {
+      return;
+    }
+
+    if (!isOwner) {
+      setDevices([]);
+      setLatestCreated(null);
+      setStatus(401);
+      setError(null);
+      return;
+    }
+
     startTransition(() => {
       refresh().catch((refreshError: unknown) => {
         setError(
@@ -123,7 +137,7 @@ export function AdminDisplayManagementPanel() {
         );
       });
     });
-  }, []);
+  }, [isOwner, isSessionLoading]);
 
   function handleRefresh() {
     startTransition(() => {

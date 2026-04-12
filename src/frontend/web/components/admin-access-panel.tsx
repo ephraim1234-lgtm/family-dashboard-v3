@@ -39,6 +39,17 @@ export function AdminAccessPanel() {
     const sessionData = (await sessionResponse.json()) as SessionState;
     setSession(sessionData);
 
+    const isOwnerSession =
+      sessionData.isAuthenticated
+      && sessionData.activeHouseholdId != null
+      && sessionData.activeHouseholdRole === "Owner";
+
+    if (!isOwnerSession) {
+      setAdminStatus(sessionData.isAuthenticated ? 403 : 401);
+      setAdminOverview(null);
+      return;
+    }
+
     const adminResponse = await fetch("/api/admin/overview", {
       credentials: "same-origin",
       cache: "no-store"
