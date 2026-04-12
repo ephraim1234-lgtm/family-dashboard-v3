@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using HouseholdOps.Infrastructure.Persistence;
+using HouseholdOps.Modules.Chores;
 using HouseholdOps.Modules.Display;
 using HouseholdOps.Modules.Display.Contracts;
 using HouseholdOps.Modules.Notifications;
@@ -140,6 +141,18 @@ public sealed class DisplayProjectionService(
             .Select(r => new DisplayReminderItem(r.EventTitle, r.MinutesBefore, r.DueAtUtc))
             .ToListAsync(cancellationToken);
 
+        var todayDayBit = 1 << (int)windowStart.UtcDateTime.DayOfWeek;
+        var dueChores = await dbContext.Chores
+            .Where(c => c.HouseholdId == result.HouseholdId
+                && c.IsActive
+                && (c.RecurrenceKind == ChoreRecurrenceKind.Daily
+                    || (c.RecurrenceKind == ChoreRecurrenceKind.Weekly
+                        && (c.WeeklyDaysMask & todayDayBit) != 0)))
+            .OrderBy(c => c.Title)
+            .Take(6)
+            .Select(c => new DisplayChoreItem(c.Title, c.AssignedMemberName, c.RecurrenceKind.ToString()))
+            .ToListAsync(cancellationToken);
+
         return new DisplayProjectionResponse(
             AccessMode: "DisplayToken",
             DeviceName: result.DeviceName,
@@ -163,7 +176,8 @@ public sealed class DisplayProjectionService(
                 LaterTodayItems: laterTodayItems,
                 UpcomingDays: upcomingDays,
                 Items: agendaItems),
-            UpcomingReminders: upcomingReminders);
+            UpcomingReminders: upcomingReminders,
+            DueChores: dueChores);
     }
 }
 

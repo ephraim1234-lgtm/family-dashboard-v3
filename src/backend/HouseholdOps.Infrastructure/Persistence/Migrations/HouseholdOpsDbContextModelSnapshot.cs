@@ -21,6 +21,95 @@ partial class HouseholdOpsDbContextModelSnapshot : ModelSnapshot
 
         NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+        modelBuilder.Entity("HouseholdOps.Modules.Chores.Chore", b =>
+            {
+                b.Property<Guid>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("uuid");
+
+                b.Property<Guid?>("AssignedMembershipId")
+                    .HasColumnType("uuid");
+
+                b.Property<string?>("AssignedMemberName")
+                    .HasMaxLength(200)
+                    .HasColumnType("character varying(200)");
+
+                b.Property<DateTimeOffset>("CreatedAtUtc")
+                    .HasColumnType("timestamp with time zone");
+
+                b.Property<string?>("Description")
+                    .HasColumnType("text");
+
+                b.Property<Guid>("HouseholdId")
+                    .HasColumnType("uuid");
+
+                b.Property<bool>("IsActive")
+                    .HasColumnType("boolean");
+
+                b.Property<string>("RecurrenceKind")
+                    .IsRequired()
+                    .HasMaxLength(16)
+                    .HasColumnType("character varying(16)");
+
+                b.Property<string>("Title")
+                    .IsRequired()
+                    .HasMaxLength(200)
+                    .HasColumnType("character varying(200)");
+
+                b.Property<int>("WeeklyDaysMask")
+                    .HasColumnType("integer");
+
+                b.HasKey("Id");
+
+                b.HasIndex("HouseholdId");
+
+                b.ToTable("chores", "core");
+            });
+
+        modelBuilder.Entity("HouseholdOps.Modules.Chores.ChoreCompletion", b =>
+            {
+                b.Property<Guid>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("uuid");
+
+                b.Property<Guid>("ChoreId")
+                    .HasColumnType("uuid");
+
+                b.Property<string>("ChoreTitle")
+                    .IsRequired()
+                    .HasMaxLength(200)
+                    .HasColumnType("character varying(200)");
+
+                b.Property<DateTimeOffset>("CompletedAtUtc")
+                    .HasColumnType("timestamp with time zone");
+
+                b.Property<string>("CompletedByDisplayName")
+                    .IsRequired()
+                    .HasMaxLength(200)
+                    .HasColumnType("character varying(200)");
+
+                b.Property<Guid?>("CompletedByMembershipId")
+                    .HasColumnType("uuid");
+
+                b.Property<Guid>("HouseholdId")
+                    .HasColumnType("uuid");
+
+                b.Property<string?>("Notes")
+                    .HasColumnType("text");
+
+                b.HasKey("Id");
+
+                b.HasIndex("HouseholdId");
+
+                b.HasIndex("HouseholdId", "ChoreId")
+                    .HasDatabaseName("IX_chore_completions_household_chore");
+
+                b.HasIndex("HouseholdId", "CompletedAtUtc")
+                    .HasDatabaseName("IX_chore_completions_household_completed");
+
+                b.ToTable("chore_completions", "core");
+            });
+
         modelBuilder.Entity("HouseholdOps.Modules.Notifications.EventReminder", b =>
             {
                 b.Property<Guid>("Id")
@@ -477,6 +566,24 @@ partial class HouseholdOpsDbContextModelSnapshot : ModelSnapshot
                 b.HasOne("HouseholdOps.Modules.Display.DisplayDevice", null)
                     .WithMany()
                     .HasForeignKey("DisplayDeviceId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+            });
+
+        modelBuilder.Entity("HouseholdOps.Modules.Chores.Chore", b =>
+            {
+                b.HasOne("HouseholdOps.Modules.Households.Household", null)
+                    .WithMany()
+                    .HasForeignKey("HouseholdId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+            });
+
+        modelBuilder.Entity("HouseholdOps.Modules.Chores.ChoreCompletion", b =>
+            {
+                b.HasOne("HouseholdOps.Modules.Households.Household", null)
+                    .WithMany()
+                    .HasForeignKey("HouseholdId")
                     .OnDelete(DeleteBehavior.Cascade)
                     .IsRequired();
             });

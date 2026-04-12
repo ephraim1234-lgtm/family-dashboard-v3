@@ -1,3 +1,4 @@
+using HouseholdOps.Modules.Chores;
 using HouseholdOps.Modules.Display;
 using HouseholdOps.Modules.Households;
 using HouseholdOps.Modules.Identity;
@@ -30,6 +31,10 @@ public sealed class HouseholdOpsDbContext(DbContextOptions<HouseholdOpsDbContext
     public DbSet<GoogleOAuthAccountLink> GoogleOAuthAccountLinks => Set<GoogleOAuthAccountLink>();
 
     public DbSet<EventReminder> EventReminders => Set<EventReminder>();
+
+    public DbSet<Chore> Chores => Set<Chore>();
+
+    public DbSet<ChoreCompletion> ChoreCompletions => Set<ChoreCompletion>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -227,6 +232,43 @@ public sealed class HouseholdOpsDbContext(DbContextOptions<HouseholdOpsDbContext
                 .HasDatabaseName("IX_event_reminders_household_event");
             entity.HasIndex(x => new { x.Status, x.DueAtUtc })
                 .HasDatabaseName("IX_event_reminders_status_due");
+            entity.HasOne<Household>()
+                .WithMany()
+                .HasForeignKey(x => x.HouseholdId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Chore>(entity =>
+        {
+            entity.ToTable("chores");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Title).HasMaxLength(200);
+            entity.Property(x => x.Description);
+            entity.Property(x => x.AssignedMemberName).HasMaxLength(200);
+            entity.Property(x => x.RecurrenceKind).HasConversion<string>().HasMaxLength(16);
+            entity.Property(x => x.WeeklyDaysMask);
+            entity.Property(x => x.IsActive);
+            entity.Property(x => x.CreatedAtUtc);
+            entity.HasIndex(x => x.HouseholdId);
+            entity.HasOne<Household>()
+                .WithMany()
+                .HasForeignKey(x => x.HouseholdId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ChoreCompletion>(entity =>
+        {
+            entity.ToTable("chore_completions");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.ChoreTitle).HasMaxLength(200);
+            entity.Property(x => x.CompletedByDisplayName).HasMaxLength(200);
+            entity.Property(x => x.CompletedAtUtc);
+            entity.Property(x => x.Notes);
+            entity.HasIndex(x => x.HouseholdId);
+            entity.HasIndex(x => new { x.HouseholdId, x.ChoreId })
+                .HasDatabaseName("IX_chore_completions_household_chore");
+            entity.HasIndex(x => new { x.HouseholdId, x.CompletedAtUtc })
+                .HasDatabaseName("IX_chore_completions_household_completed");
             entity.HasOne<Household>()
                 .WithMany()
                 .HasForeignKey(x => x.HouseholdId)

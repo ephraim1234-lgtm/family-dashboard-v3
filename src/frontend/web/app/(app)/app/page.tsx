@@ -1,4 +1,5 @@
 import { AuthStatusPanel } from "../../../components/auth-status-panel";
+import { MyChoresPanel } from "../../../components/my-chores-panel";
 import { UpcomingAgendaPanel } from "../../../components/upcoming-agenda-panel";
 
 export default function AppHomePage() {
@@ -15,6 +16,9 @@ export default function AppHomePage() {
 
       <div className="section-spacer" />
       <AuthStatusPanel />
+
+      <div className="section-spacer" />
+      <MyChoresPanel />
 
       <div className="section-spacer" />
       <UpcomingAgendaPanel />

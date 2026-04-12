@@ -10,4 +10,5 @@ public sealed record DisplayProjectionResponse(
     DateTimeOffset GeneratedAtUtc,
     IReadOnlyList<DisplayProjectionSectionResponse> Sections,
     DisplayAgendaSectionResponse AgendaSection,
-    IReadOnlyList<DisplayReminderItem> UpcomingReminders);
+    IReadOnlyList<DisplayReminderItem> UpcomingReminders,
+    IReadOnlyList<DisplayChoreItem> DueChores);

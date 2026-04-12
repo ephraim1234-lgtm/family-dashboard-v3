@@ -1,5 +1,6 @@
 import { AdminAccessPanel } from "../../../components/admin-access-panel";
 import { AdminCalendarIntegrationsPanel } from "../../../components/admin-calendar-integrations-panel";
+import { AdminChoresPanel } from "../../../components/admin-chores-panel";
 import { AdminDisplayManagementPanel } from "../../../components/admin-display-management-panel";
 import { AdminHouseholdSettingsPanel } from "../../../components/admin-household-settings-panel";
 import { AdminMembersPanel } from "../../../components/admin-members-panel";
@@ -37,6 +38,9 @@ export default function AdminPage() {
 
       <div className="section-spacer" />
       <AdminMembersPanel />
+
+      <div className="section-spacer" />
+      <AdminChoresPanel />
 
       <div className="section-spacer" />
       <AdminCalendarIntegrationsPanel />
