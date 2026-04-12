@@ -121,6 +121,44 @@ internal sealed class GoogleOAuthClient(
             .ToList();
     }
 
+    public async Task<IReadOnlyList<GoogleOAuthCalendarEvent>> GetCalendarEventsAsync(
+        string accessToken,
+        string calendarId,
+        CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(
+            HttpMethod.Get,
+            $"https://www.googleapis.com/calendar/v3/calendars/{Uri.EscapeDataString(calendarId)}/events?singleEvents=false&showDeleted=false");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        using var response = await httpClient.SendAsync(request, cancellationToken);
+        var payload = await response.Content.ReadFromJsonAsync<CalendarEventsPayload>(cancellationToken)
+            ?? throw new InvalidOperationException("Google Calendar event lookup returned no payload.");
+
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new InvalidOperationException(
+                $"Google Calendar event lookup failed with {(int)response.StatusCode}.");
+        }
+
+        return (payload.Items ?? [])
+            .Where(item => !string.IsNullOrWhiteSpace(item.Id))
+            .Select(item => new GoogleOAuthCalendarEvent(
+                item.Id!,
+                item.Summary,
+                item.Description,
+                item.Status ?? "confirmed",
+                item.Start?.Date,
+                item.Start?.DateTime,
+                item.Start?.TimeZone,
+                item.End?.Date,
+                item.End?.DateTime,
+                item.End?.TimeZone,
+                item.Recurrence ?? [],
+                item.RecurringEventId))
+            .ToList();
+    }
+
     private string GetRequiredConfig(string key) =>
         string.IsNullOrWhiteSpace(configuration[key]?.Trim().Trim('"'))
             ? throw new InvalidOperationException($"{key} is required for Google OAuth.")
@@ -210,6 +248,51 @@ internal sealed class GoogleOAuthClient(
 
         [JsonPropertyName("accessRole")]
         public string? AccessRole { get; init; }
+
+        [JsonPropertyName("timeZone")]
+        public string? TimeZone { get; init; }
+    }
+
+    private sealed class CalendarEventsPayload
+    {
+        [JsonPropertyName("items")]
+        public CalendarEventPayload[]? Items { get; init; }
+    }
+
+    private sealed class CalendarEventPayload
+    {
+        [JsonPropertyName("id")]
+        public string? Id { get; init; }
+
+        [JsonPropertyName("summary")]
+        public string? Summary { get; init; }
+
+        [JsonPropertyName("description")]
+        public string? Description { get; init; }
+
+        [JsonPropertyName("status")]
+        public string? Status { get; init; }
+
+        [JsonPropertyName("start")]
+        public CalendarEventDatePayload? Start { get; init; }
+
+        [JsonPropertyName("end")]
+        public CalendarEventDatePayload? End { get; init; }
+
+        [JsonPropertyName("recurrence")]
+        public string[]? Recurrence { get; init; }
+
+        [JsonPropertyName("recurringEventId")]
+        public string? RecurringEventId { get; init; }
+    }
+
+    private sealed class CalendarEventDatePayload
+    {
+        [JsonPropertyName("date")]
+        public string? Date { get; init; }
+
+        [JsonPropertyName("dateTime")]
+        public string? DateTime { get; init; }
 
         [JsonPropertyName("timeZone")]
         public string? TimeZone { get; init; }

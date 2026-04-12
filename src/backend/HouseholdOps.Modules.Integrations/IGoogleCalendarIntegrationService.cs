@@ -34,6 +34,12 @@ public interface IGoogleCalendarIntegrationService
         DateTimeOffset createdAtUtc,
         CancellationToken cancellationToken);
 
+    Task<GoogleCalendarLinkMutationResult> CreateManagedLinkAsync(
+        Guid householdId,
+        CreateManagedGoogleCalendarLinkRequest request,
+        DateTimeOffset createdAtUtc,
+        CancellationToken cancellationToken);
+
     Task<bool> DeleteAsync(
         Guid householdId,
         Guid linkId,

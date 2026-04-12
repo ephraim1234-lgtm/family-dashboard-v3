@@ -5,8 +5,13 @@ import { useEffect, useState, useTransition } from "react";
 type GoogleCalendarLinkSummary = {
   id: string;
   displayName: string;
+  linkMode: string;
   feedUrlHost: string;
   feedUrlPathHint: string;
+  googleOAuthAccountLinkId: string | null;
+  googleOAuthAccountEmail: string | null;
+  googleCalendarId: string | null;
+  googleCalendarTimeZone: string | null;
   autoSyncEnabled: boolean;
   syncIntervalMinutes: number;
   nextSyncDueAtUtc: string | null;
@@ -69,6 +74,7 @@ export function AdminCalendarIntegrationsPanel() {
   const [oauthCalendars, setOauthCalendars] = useState<GoogleOAuthCalendarSummary[]>([]);
   const [recommendedRedirectUri, setRecommendedRedirectUri] = useState<string | null>(null);
   const [oauthMessage, setOauthMessage] = useState<string | null>(null);
+  const [calendarLinkingKey, setCalendarLinkingKey] = useState<string | null>(null);
   const [syncSettings, setSyncSettings] = useState<Record<string, {
     autoSyncEnabled: boolean;
     syncIntervalMinutes: number;
@@ -142,6 +148,34 @@ export function AdminCalendarIntegrationsPanel() {
 
     const data = (await response.json()) as GoogleOAuthCalendarListResponse;
     setOauthCalendars(data.items);
+  }
+
+  async function createManagedLink(calendar: GoogleOAuthCalendarSummary) {
+    setError(null);
+    setCalendarLinkingKey(`${calendar.accountLinkId}:${calendar.calendarId}`);
+
+    const response = await fetch("/api/integrations/google-oauth/calendars/link", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: {
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        accountLinkId: calendar.accountLinkId,
+        calendarId: calendar.calendarId,
+        displayName: calendar.displayName,
+        calendarTimeZone: calendar.timeZone
+      })
+    });
+
+    setCalendarLinkingKey(null);
+
+    if (!response.ok) {
+      setError(await response.text());
+      return;
+    }
+
+    await Promise.all([refreshLinks(), refreshOAuthCalendars()]);
   }
 
   useEffect(() => {
@@ -353,6 +387,19 @@ export function AdminCalendarIntegrationsPanel() {
     window.location.assign(data.authorizationUrl);
   }
 
+  function handleCreateManagedLink(calendar: GoogleOAuthCalendarSummary) {
+    startTransition(() => {
+      createManagedLink(calendar).catch((linkError: unknown) => {
+        setCalendarLinkingKey(null);
+        setError(
+          linkError instanceof Error
+            ? linkError.message
+            : "Unable to link the discovered Google calendar."
+        );
+      });
+    });
+  }
+
   function renderFailureCategory(category: string | null) {
     switch (category) {
       case "invalid_feed":
@@ -427,13 +474,13 @@ export function AdminCalendarIntegrationsPanel() {
         <div className="eyebrow">Scope note</div>
         <h2>Narrow import boundary</h2>
         <p className="muted">
-          This phase now includes Google OAuth account linking foundation, but calendar
-          import still runs through the existing Google iCal feed path. Recurring
-          expansion remains narrow, and bidirectional sync is still out of scope.
+          This phase now includes Google OAuth account linking, calendar discovery,
+          and managed Google calendar links. Import remains one-way into Scheduling,
+          recurrence support stays narrow, and bidirectional sync is still out of scope.
         </p>
         <div className="pill-row">
           <span className="pill">Google only</span>
-          <span className="pill">OAuth account linking foundation</span>
+          <span className="pill">OAuth-managed links</span>
           <span className="pill">Manual sync</span>
           <span className="pill">Daily + weekly recurring import</span>
           <span className="pill">Unsupported recurrence skipped</span>
@@ -513,25 +560,42 @@ export function AdminCalendarIntegrationsPanel() {
                     <p className="muted">No calendars discovered yet for this account.</p>
                   ) : (
                     <div className="stack-list" style={{ marginTop: "0.75rem" }}>
-                      {calendars.map((calendar) => (
-                        <div className="stack-card" key={`${account.id}:${calendar.calendarId}`}>
-                          <div className="stack-card-header">
-                            <div>
-                              <strong>{calendar.displayName}</strong>
-                              <div className="muted">{calendar.calendarId}</div>
+                      {calendars.map((calendar) => {
+                        const existingLink = links.find(
+                          (link) =>
+                            link.googleOAuthAccountLinkId === calendar.accountLinkId
+                            && link.googleCalendarId === calendar.calendarId
+                        );
+
+                        return (
+                          <div className="stack-card" key={`${account.id}:${calendar.calendarId}`}>
+                            <div className="stack-card-header">
+                              <div>
+                                <strong>{calendar.displayName}</strong>
+                                <div className="muted">{calendar.calendarId}</div>
+                              </div>
+                              <div className="pill-row">
+                                {calendar.isPrimary ? <span className="pill">Primary</span> : null}
+                                {calendar.accessRole ? (
+                                  <span className="pill">{calendar.accessRole}</span>
+                                ) : null}
+                              </div>
                             </div>
-                            <div className="pill-row">
-                              {calendar.isPrimary ? <span className="pill">Primary</span> : null}
-                              {calendar.accessRole ? (
-                                <span className="pill">{calendar.accessRole}</span>
-                              ) : null}
+                            <div className="muted">
+                              Time zone: {calendar.timeZone ?? "Not provided"}
+                            </div>
+                            <div className="action-row compact-action-row" style={{ marginTop: "0.75rem" }}>
+                              <button
+                                className="action-button"
+                                onClick={() => handleCreateManagedLink(calendar)}
+                                disabled={isPending || existingLink != null || calendarLinkingKey === `${calendar.accountLinkId}:${calendar.calendarId}`}
+                              >
+                                {existingLink ? "Already Linked" : "Link for Import"}
+                              </button>
                             </div>
                           </div>
-                          <div className="muted">
-                            Time zone: {calendar.timeZone ?? "Not provided"}
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -544,7 +608,7 @@ export function AdminCalendarIntegrationsPanel() {
       <article className="panel">
         <h2>Linked Google calendars</h2>
         {links.length === 0 ? (
-          <p className="muted">No Google Calendar feeds have been linked yet.</p>
+          <p className="muted">No Google calendars have been linked yet.</p>
         ) : (
           <div className="stack-list">
             {links.map((link) => (
@@ -555,19 +619,35 @@ export function AdminCalendarIntegrationsPanel() {
                   <div>
                     <strong>{link.displayName}</strong>
                     <div className="muted">
-                      {link.feedUrlHost}
-                      {link.feedUrlPathHint}
+                      {link.linkMode === "OAuthCalendar" ? (
+                        <>
+                          {link.googleOAuthAccountEmail ?? "Linked Google account"}
+                          {" · "}
+                          {link.googleCalendarId ?? link.feedUrlPathHint}
+                        </>
+                      ) : (
+                        <>
+                          {link.feedUrlHost}
+                          {link.feedUrlPathHint}
+                        </>
+                      )}
                     </div>
                   </div>
                   <div className="pill-row">
                     <span className="pill">{link.lastSyncStatus}</span>
                     <span className="pill">{link.importedEventCount} imported</span>
+                    <span className="pill">
+                      {link.linkMode === "OAuthCalendar" ? "OAuth managed" : "iCal feed"}
+                    </span>
                     {link.autoSyncEnabled ? (
                       <span className="pill">Auto every {link.syncIntervalMinutes}m</span>
                     ) : null}
                   </div>
                 </div>
 
+                <div className="muted">
+                  Source time zone {link.googleCalendarTimeZone ?? "Not provided"}
+                </div>
                 <div className="muted">
                   Last completed{" "}
                   {link.lastSyncCompletedAtUtc

@@ -19,6 +19,11 @@ public interface IGoogleOAuthClient
     Task<IReadOnlyList<GoogleOAuthCalendarSummary>> GetCalendarsAsync(
         string accessToken,
         CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<GoogleOAuthCalendarEvent>> GetCalendarEventsAsync(
+        string accessToken,
+        string calendarId,
+        CancellationToken cancellationToken);
 }
 
 public sealed record GoogleOAuthTokenResult(
@@ -39,3 +44,17 @@ public sealed record GoogleOAuthCalendarSummary(
     bool IsPrimary,
     string? AccessRole,
     string? TimeZone);
+
+public sealed record GoogleOAuthCalendarEvent(
+    string Id,
+    string? Summary,
+    string? Description,
+    string Status,
+    string? Date,
+    string? DateTime,
+    string? TimeZone,
+    string? EndDate,
+    string? EndDateTime,
+    string? EndTimeZone,
+    IReadOnlyList<string> Recurrence,
+    string? RecurringEventId);

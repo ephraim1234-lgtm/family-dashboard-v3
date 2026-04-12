@@ -152,7 +152,11 @@ public sealed class HouseholdOpsDbContext(DbContextOptions<HouseholdOpsDbContext
             entity.ToTable("google_calendar_connections");
             entity.HasKey(x => x.Id);
             entity.Property(x => x.DisplayName).HasMaxLength(200);
+            entity.Property(x => x.LinkMode).HasMaxLength(32);
             entity.Property(x => x.FeedUrl);
+            entity.Property(x => x.GoogleOAuthAccountLinkId);
+            entity.Property(x => x.GoogleCalendarId).HasMaxLength(320);
+            entity.Property(x => x.GoogleCalendarTimeZone).HasMaxLength(128);
             entity.Property(x => x.AutoSyncEnabled);
             entity.Property(x => x.SyncIntervalMinutes);
             entity.Property(x => x.NextSyncDueAtUtc);
@@ -164,9 +168,21 @@ public sealed class HouseholdOpsDbContext(DbContextOptions<HouseholdOpsDbContext
             entity.Property(x => x.ImportedEventCount);
             entity.Property(x => x.SkippedRecurringEventCount);
             entity.HasIndex(x => x.HouseholdId);
+            entity.HasIndex(x => new { x.HouseholdId, x.FeedUrl })
+                .IsUnique()
+                .HasDatabaseName("IX_google_calendar_connections_household_feed_url")
+                .HasFilter("\"FeedUrl\" IS NOT NULL");
+            entity.HasIndex(x => new { x.HouseholdId, x.GoogleOAuthAccountLinkId, x.GoogleCalendarId })
+                .IsUnique()
+                .HasDatabaseName("IX_google_calendar_connections_household_oauth_calendar")
+                .HasFilter("\"GoogleOAuthAccountLinkId\" IS NOT NULL AND \"GoogleCalendarId\" IS NOT NULL");
             entity.HasOne<Household>()
                 .WithMany()
                 .HasForeignKey(x => x.HouseholdId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<GoogleOAuthAccountLink>()
+                .WithMany()
+                .HasForeignKey(x => x.GoogleOAuthAccountLinkId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
 

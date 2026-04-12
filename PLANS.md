@@ -7,7 +7,7 @@
 - Google OAuth account linking foundation can start from Admin and complete through the web-shell callback path.
 - Admin shows Google OAuth readiness, recommended callback URI, and linked Google accounts.
 - Admin can discover accessible Google calendars from linked OAuth accounts.
-- Google Calendar iCal feed links can be created and removed.
+- Google Calendar iCal feed links and managed OAuth calendar links can be created and removed.
 - Manual sync imports one-time plus supported daily/weekly recurring external events into local Scheduling.
 - Worker-managed auto sync now processes due linked calendars on a fixed cadence.
 - Sync status is visible in Admin.
@@ -94,6 +94,12 @@
   - Key files touched: `PLANS.md`, integrations backend/contracts, admin UI, focused tests, docs if behavior changes materially
   - Validation status: passed
   - Notes: linked Google accounts can now list accessible calendars from Google Calendar API, refreshing expired access tokens server-side before discovery when needed.
+- `M13` Provider-managed calendar link creation
+  - Status: `done`
+  - Scope: let owners create a managed Google calendar link from a discovered OAuth calendar, while keeping imports one-way and Scheduling behavior unchanged.
+  - Key files touched: `PLANS.md`, integrations persistence/contracts/services, admin UI, focused tests, docs if behavior changes materially
+  - Validation status: passed
+  - Notes: discovered Google calendars can now be linked directly for import, using OAuth-backed event fetches with the same narrow recurrence limits and read-only imported-event behavior as the existing iCal path.
 
 ## Current milestone
 - None active. Awaiting confirmation for the next calendar-integrations milestone.
@@ -112,7 +118,7 @@
 - Recurring import now supports narrow `COUNT` handling only for the already-supported `DAILY` and `WEEKLY` shapes; broader RRULE features remain intentionally unsupported.
 - OAuth foundation is now implemented locally, but hosted callback validation is still a later real-world checkpoint before claiming production readiness.
 - Linked Google account tokens are now stored in the integrations persistence model; stronger secret-management/encryption can be a later hardening step.
-- OAuth-backed discovery is now implemented, but it does not yet create provider-managed calendar links from discovered calendars.
+- OAuth-managed calendar imports currently skip recurring exceptions/overrides and still only support the existing narrow daily/weekly recurrence subset.
 
 ## Validation log
 - 2026-04-11: Prior slice built successfully with `dotnet build src\backend\HouseholdOps.Api\HouseholdOps.Api.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false`.
@@ -146,6 +152,10 @@
 - 2026-04-12: `M12` focused tests passed with `dotnet test tests\HouseholdOps.Modules.Scheduling.Tests\HouseholdOps.Modules.Scheduling.Tests.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` (`45` passed).
 - 2026-04-12: `M12` API and Worker builds passed with `dotnet build src\backend\HouseholdOps.Api\HouseholdOps.Api.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` and `dotnet build src\backend\HouseholdOps.Worker\HouseholdOps.Worker.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false`.
 - 2026-04-12: Docker runtime validation passed with `$env:API_PORT='3001'; $env:WEB_PORT='3000'; docker compose up -d --build postgres api web`, followed by web-shell requests to `/api/auth/dev-login`, `/api/integrations/google-oauth/readiness`, `/api/integrations/google-oauth/accounts`, and `/api/integrations/google-oauth/calendars`, all returning `200`.
+- 2026-04-12: Initial parallel `M13` validation hit the same transient .NET build artifact lock pattern seen in earlier milestones; serial reruns passed without code changes.
+- 2026-04-12: `M13` focused tests passed with `dotnet test tests\HouseholdOps.Modules.Scheduling.Tests\HouseholdOps.Modules.Scheduling.Tests.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` (`47` passed).
+- 2026-04-12: `M13` API and Worker builds passed with `dotnet build src\backend\HouseholdOps.Api\HouseholdOps.Api.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` and `dotnet build src\backend\HouseholdOps.Worker\HouseholdOps.Worker.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false`.
+- 2026-04-12: Docker runtime validation passed with `$env:API_PORT='3001'; $env:WEB_PORT='3000'; docker compose up -d --build postgres api web`, then an authenticated POST to `/api/integrations/google-oauth/calendars/link` returned the expected `400` validation error for a nonexistent account link, confirming the new web-shell endpoint wiring.
 
 ## Next recommended step
-- Start `M13` provider-managed calendar link creation from discovered OAuth calendars, keeping one-way import ownership in Integrations and local scheduling behavior unchanged.
+- Start `M14` managed-link sync UX hardening: surface managed-link source details and skipped recurring-exception guidance more clearly in Admin without broadening recurrence semantics.

@@ -110,8 +110,18 @@ partial class HouseholdOpsDbContextModelSnapshot : ModelSnapshot
                     .HasColumnType("character varying(200)");
 
                 b.Property<string>("FeedUrl")
-                    .IsRequired()
                     .HasColumnType("text");
+
+                b.Property<string>("GoogleCalendarId")
+                    .HasMaxLength(320)
+                    .HasColumnType("character varying(320)");
+
+                b.Property<string>("GoogleCalendarTimeZone")
+                    .HasMaxLength(128)
+                    .HasColumnType("character varying(128)");
+
+                b.Property<Guid?>("GoogleOAuthAccountLinkId")
+                    .HasColumnType("uuid");
 
                 b.Property<Guid>("HouseholdId")
                     .HasColumnType("uuid");
@@ -142,9 +152,26 @@ partial class HouseholdOpsDbContextModelSnapshot : ModelSnapshot
                 b.Property<int>("SyncIntervalMinutes")
                     .HasColumnType("integer");
 
+                b.Property<string>("LinkMode")
+                    .IsRequired()
+                    .HasMaxLength(32)
+                    .HasColumnType("character varying(32)");
+
                 b.HasKey("Id");
 
+                b.HasIndex("GoogleOAuthAccountLinkId");
+
                 b.HasIndex("HouseholdId");
+
+                b.HasIndex("HouseholdId", "FeedUrl")
+                    .IsUnique()
+                    .HasDatabaseName("IX_google_calendar_connections_household_feed_url")
+                    .HasFilter("\"FeedUrl\" IS NOT NULL");
+
+                b.HasIndex("HouseholdId", "GoogleOAuthAccountLinkId", "GoogleCalendarId")
+                    .IsUnique()
+                    .HasDatabaseName("IX_google_calendar_connections_household_oauth_calendar")
+                    .HasFilter("\"GoogleOAuthAccountLinkId\" IS NOT NULL AND \"GoogleCalendarId\" IS NOT NULL");
 
                 b.ToTable("google_calendar_connections", "core");
             });
@@ -405,6 +432,11 @@ partial class HouseholdOpsDbContextModelSnapshot : ModelSnapshot
 
         modelBuilder.Entity("HouseholdOps.Modules.Integrations.GoogleCalendarConnection", b =>
             {
+                b.HasOne("HouseholdOps.Modules.Integrations.GoogleOAuthAccountLink", null)
+                    .WithMany()
+                    .HasForeignKey("GoogleOAuthAccountLinkId")
+                    .OnDelete(DeleteBehavior.Cascade);
+
                 b.HasOne("HouseholdOps.Modules.Households.Household", null)
                     .WithMany()
                     .HasForeignKey("HouseholdId")

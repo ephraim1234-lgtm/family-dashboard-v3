@@ -46,7 +46,7 @@ Default validation ports used in this repo:
 
 ## Google OAuth prep
 
-Google OAuth account linking and calendar discovery are implemented for local validation, while the existing iCal import path remains the active scheduling import workflow.
+Google OAuth account linking, calendar discovery, and managed Google calendar link creation are implemented for local validation. The original iCal path still remains available, and both import paths stay one-way into local Scheduling.
 
 1. Copy `.env.example` to `.env` if you have not already.
 2. Fill in these placeholders in your local `.env` only:
@@ -86,8 +86,8 @@ docker compose up -d --build postgres api web
 
 Current Google Calendar integration scope in validation:
 
-- Google OAuth account linking, readiness visibility, and calendar discovery
-- Google Calendar iCal feed links only
+- Google OAuth account linking, readiness visibility, calendar discovery, and managed calendar-link creation
+- Google Calendar iCal feed links and managed OAuth calendar links
 - manual sync from Admin
 - worker-managed automatic sync for linked calendars
 - one-time plus supported daily/weekly external event import into Scheduling

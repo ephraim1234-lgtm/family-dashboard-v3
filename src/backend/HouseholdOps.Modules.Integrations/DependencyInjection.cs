@@ -138,6 +138,40 @@ public static class DependencyInjection
             return Results.Ok(response);
         });
 
+        group.MapPost("/google-oauth/calendars/link", async (
+            CreateManagedGoogleCalendarLinkRequest? request,
+            IIdentityAccessService identityAccessService,
+            IGoogleCalendarIntegrationService integrationService,
+            IClock clock,
+            CancellationToken cancellationToken) =>
+        {
+            if (request is null)
+            {
+                return Results.BadRequest("A discovered Google calendar request is required.");
+            }
+
+            var session = identityAccessService.GetCurrentSession();
+
+            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var created = await integrationService.CreateManagedLinkAsync(
+                householdId,
+                request,
+                clock.UtcNow,
+                cancellationToken);
+
+            return created.Status switch
+            {
+                GoogleCalendarLinkMutationStatus.Succeeded => Results.Ok(created.Link),
+                GoogleCalendarLinkMutationStatus.ValidationFailed => Results.BadRequest(created.Error),
+                GoogleCalendarLinkMutationStatus.Duplicate => Results.Conflict(created.Error),
+                _ => Results.BadRequest("Unable to create the managed Google Calendar link.")
+            };
+        });
+
         group.MapGet("/google-oauth/readiness", (
             IGoogleCalendarIntegrationService integrationService) =>
             Results.Ok(integrationService.GetOAuthReadiness()));

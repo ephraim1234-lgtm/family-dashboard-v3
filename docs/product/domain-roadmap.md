@@ -218,7 +218,12 @@ Active expansion slice.
 **Current OAuth discovery slice**
 - linked Google accounts can discover accessible Google calendars through the Google Calendar API
 - expired OAuth access tokens are refreshed server-side before discovery when a refresh token is available
-- discovery is admin-visible only for now and does not yet create provider-managed calendar links automatically
+- discovery is admin-visible and can now create provider-managed Google calendar links for one-way import
+
+**Current OAuth-managed import slice**
+- managed Google calendar links can sync through Google Calendar API without requiring a copied private iCal URL
+- imported events still land in Scheduling as read-only external events
+- recurring support remains intentionally narrow and recurring exceptions/overrides are still skipped
 
 **Current hardening additions**
 - duplicate feed-link prevention per household
@@ -237,7 +242,6 @@ Active expansion slice.
 - continue skipping unsupported recurrence patterns explicitly
 
 **Still deferred**
-- provider-managed calendar-link creation from discovered OAuth calendars
 - broader external recurrence support beyond the current narrow subset
 - bidirectional sync and conflict resolution
 

@@ -1009,6 +1009,171 @@ public class GoogleCalendarIntegrationServiceTests
         Assert.Equal(1, oauthClient.RefreshCalls);
     }
 
+    [Fact]
+    public async Task CreateManagedLinkAsync_CreatesManagedGoogleCalendarLink_AndRejectsDuplicates()
+    {
+        await using var dbContext = CreateDbContext();
+        var accountLinkId = Guid.Parse("55555555-5555-5555-5555-555555555555");
+        dbContext.GoogleOAuthAccountLinks.Add(new GoogleOAuthAccountLink
+        {
+            Id = accountLinkId,
+            HouseholdId = HouseholdId,
+            LinkedByUserId = Guid.Parse("44444444-4444-4444-4444-444444444444"),
+            GoogleUserId = "google-user-1",
+            Email = "owner@example.com",
+            DisplayName = "Owner Example",
+            AccessToken = "access-token",
+            RefreshToken = "refresh-token",
+            TokenType = "Bearer",
+            Scope = "openid email profile https://www.googleapis.com/auth/calendar.readonly",
+            AccessTokenExpiresAtUtc = CreatedAtUtc.AddHours(1),
+            CreatedAtUtc = CreatedAtUtc,
+            UpdatedAtUtc = CreatedAtUtc
+        });
+        await dbContext.SaveChangesAsync();
+
+        var service = CreateService(dbContext, "BEGIN:VCALENDAR\r\nEND:VCALENDAR");
+
+        var created = await service.CreateManagedLinkAsync(
+            HouseholdId,
+            new CreateManagedGoogleCalendarLinkRequest(
+                accountLinkId,
+                "family@example.com",
+                "Family Calendar",
+                "America/Chicago"),
+            CreatedAtUtc,
+            CancellationToken.None);
+
+        var duplicate = await service.CreateManagedLinkAsync(
+            HouseholdId,
+            new CreateManagedGoogleCalendarLinkRequest(
+                accountLinkId,
+                "family@example.com",
+                "Family Calendar",
+                "America/Chicago"),
+            CreatedAtUtc.AddMinutes(1),
+            CancellationToken.None);
+
+        Assert.Equal(GoogleCalendarLinkMutationStatus.Succeeded, created.Status);
+        Assert.Equal("OAuthCalendar", created.Link!.LinkMode);
+        Assert.Equal(accountLinkId, created.Link.GoogleOAuthAccountLinkId);
+        Assert.Equal("family@example.com", created.Link.GoogleCalendarId);
+        Assert.Equal(GoogleCalendarLinkMutationStatus.Duplicate, duplicate.Status);
+    }
+
+    [Fact]
+    public async Task SyncAsync_ImportsManagedOAuthCalendarEvents()
+    {
+        await using var dbContext = CreateDbContext();
+        var accountLinkId = Guid.Parse("66666666-6666-6666-6666-666666666666");
+        dbContext.GoogleOAuthAccountLinks.Add(new GoogleOAuthAccountLink
+        {
+            Id = accountLinkId,
+            HouseholdId = HouseholdId,
+            LinkedByUserId = Guid.Parse("44444444-4444-4444-4444-444444444444"),
+            GoogleUserId = "google-user-2",
+            Email = "owner@example.com",
+            DisplayName = "Owner Example",
+            AccessToken = "access-token",
+            RefreshToken = "refresh-token",
+            TokenType = "Bearer",
+            Scope = "openid email profile https://www.googleapis.com/auth/calendar.readonly",
+            AccessTokenExpiresAtUtc = CreatedAtUtc.AddHours(1),
+            CreatedAtUtc = CreatedAtUtc,
+            UpdatedAtUtc = CreatedAtUtc
+        });
+        await dbContext.SaveChangesAsync();
+
+        var oauthClient = new FakeGoogleOAuthClient(
+            calendars:
+            [
+                new GoogleOAuthCalendarSummary(
+                    "family@example.com",
+                    "Family Calendar",
+                    true,
+                    "owner",
+                    "America/Chicago")
+            ],
+            events:
+            [
+                new GoogleOAuthCalendarEvent(
+                    "event-1",
+                    "School pickup",
+                    "Bring snacks",
+                    "confirmed",
+                    null,
+                    "2026-04-15T15:00:00Z",
+                    null,
+                    null,
+                    "2026-04-15T15:30:00Z",
+                    null,
+                    [],
+                    null),
+                new GoogleOAuthCalendarEvent(
+                    "event-2",
+                    "Daily prep",
+                    null,
+                    "confirmed",
+                    null,
+                    "2026-04-16T07:00:00Z",
+                    null,
+                    null,
+                    "2026-04-16T07:30:00Z",
+                    null,
+                    ["RRULE:FREQ=DAILY;COUNT=2"],
+                    null),
+                new GoogleOAuthCalendarEvent(
+                    "event-2-instance",
+                    "Daily prep instance",
+                    null,
+                    "confirmed",
+                    null,
+                    "2026-04-17T07:00:00Z",
+                    null,
+                    null,
+                    "2026-04-17T07:30:00Z",
+                    null,
+                    [],
+                    "event-2")
+            ]);
+
+        var service = new GoogleCalendarIntegrationService(
+            dbContext,
+            CreateConfiguration(),
+            oauthClient,
+            new FakeFeedFetcher("BEGIN:VCALENDAR\r\nEND:VCALENDAR"),
+            new ImportedScheduledEventSyncService(dbContext));
+
+        var created = await service.CreateManagedLinkAsync(
+            HouseholdId,
+            new CreateManagedGoogleCalendarLinkRequest(
+                accountLinkId,
+                "family@example.com",
+                "Family Calendar",
+                "America/Chicago"),
+            CreatedAtUtc,
+            CancellationToken.None);
+
+        var synced = await service.SyncAsync(
+            HouseholdId,
+            created.Link!.Id,
+            CreatedAtUtc.AddMinutes(5),
+            CancellationToken.None);
+
+        Assert.Equal(GoogleCalendarSyncResultStatus.Succeeded, synced.Status);
+        Assert.Equal(2, synced.Link!.ImportedEventCount);
+        Assert.Equal(1, synced.Link.SkippedRecurringEventCount);
+
+        var importedEvents = await dbContext.ScheduledEvents
+            .OrderBy(item => item.Title)
+            .ToListAsync();
+
+        Assert.Equal(2, importedEvents.Count);
+        Assert.All(importedEvents, item => Assert.Equal(EventSourceKinds.GoogleCalendarIcs, item.SourceKind));
+        Assert.Contains(importedEvents, item => item.Title == "School pickup");
+        Assert.Contains(importedEvents, item => item.RecurrencePattern == EventRecurrencePattern.Daily);
+    }
+
     private sealed class FakeFeedFetcher(string feedContent) : IGoogleCalendarFeedFetcher
     {
         public Task<string> FetchAsync(
@@ -1035,7 +1200,8 @@ public class GoogleCalendarIntegrationServiceTests
     private sealed class FakeGoogleOAuthClient(
         GoogleOAuthTokenResult? tokenResult = null,
         GoogleOAuthUserProfile? userProfile = null,
-        IReadOnlyList<GoogleOAuthCalendarSummary>? calendars = null) : IGoogleOAuthClient
+        IReadOnlyList<GoogleOAuthCalendarSummary>? calendars = null,
+        IReadOnlyList<GoogleOAuthCalendarEvent>? events = null) : IGoogleOAuthClient
     {
         private readonly GoogleOAuthTokenResult token =
             tokenResult
@@ -1055,6 +1221,10 @@ public class GoogleCalendarIntegrationServiceTests
 
         private readonly IReadOnlyList<GoogleOAuthCalendarSummary> discoveredCalendars =
             calendars
+            ?? [];
+
+        private readonly IReadOnlyList<GoogleOAuthCalendarEvent> discoveredEvents =
+            events
             ?? [];
 
         public int RefreshCalls { get; private set; }
@@ -1081,6 +1251,11 @@ public class GoogleCalendarIntegrationServiceTests
         public Task<IReadOnlyList<GoogleOAuthCalendarSummary>> GetCalendarsAsync(
             string accessToken,
             CancellationToken cancellationToken) => Task.FromResult(discoveredCalendars);
+
+        public Task<IReadOnlyList<GoogleOAuthCalendarEvent>> GetCalendarEventsAsync(
+            string accessToken,
+            string calendarId,
+            CancellationToken cancellationToken) => Task.FromResult(discoveredEvents);
     }
 
     private sealed class FakeClock(DateTimeOffset utcNow) : HouseholdOps.SharedKernel.Time.IClock

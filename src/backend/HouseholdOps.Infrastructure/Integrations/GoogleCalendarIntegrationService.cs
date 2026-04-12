@@ -21,11 +21,19 @@ public sealed class GoogleCalendarIntegrationService(
         Guid householdId,
         CancellationToken cancellationToken)
     {
-        var items = await dbContext.GoogleCalendarConnections
+        var links = await dbContext.GoogleCalendarConnections
             .Where(link => link.HouseholdId == householdId)
             .OrderByDescending(link => link.CreatedAtUtc)
-            .Select(link => MapSummary(link))
             .ToListAsync(cancellationToken);
+
+        var accountEmails = await LoadGoogleAccountEmailsAsync(links, cancellationToken);
+        var items = links
+            .Select(link => MapSummary(
+                link,
+                accountEmails.TryGetValue(link.GoogleOAuthAccountLinkId ?? Guid.Empty, out var accountEmail)
+                    ? accountEmail
+                    : null))
+            .ToList();
 
         return new GoogleCalendarLinkListResponse(items);
     }
@@ -220,6 +228,7 @@ public sealed class GoogleCalendarIntegrationService(
         var existingLink = await dbContext.GoogleCalendarConnections
             .AnyAsync(
                 link => link.HouseholdId == householdId
+                    && link.LinkMode == GoogleCalendarConnection.LinkModeIcsFeed
                     && link.FeedUrl == normalizedFeedUrl,
                 cancellationToken);
 
@@ -233,6 +242,7 @@ public sealed class GoogleCalendarIntegrationService(
         {
             HouseholdId = householdId,
             DisplayName = displayName,
+            LinkMode = GoogleCalendarConnection.LinkModeIcsFeed,
             FeedUrl = normalizedFeedUrl,
             CreatedAtUtc = createdAtUtc,
             AutoSyncEnabled = true,
@@ -243,7 +253,73 @@ public sealed class GoogleCalendarIntegrationService(
         dbContext.GoogleCalendarConnections.Add(link);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        return GoogleCalendarLinkMutationResult.Success(MapSummary(link));
+        return GoogleCalendarLinkMutationResult.Success(MapSummary(link, null));
+    }
+
+    public async Task<GoogleCalendarLinkMutationResult> CreateManagedLinkAsync(
+        Guid householdId,
+        CreateManagedGoogleCalendarLinkRequest request,
+        DateTimeOffset createdAtUtc,
+        CancellationToken cancellationToken)
+    {
+        var displayName = request.DisplayName?.Trim();
+        var calendarId = request.CalendarId?.Trim();
+
+        if (request.AccountLinkId == Guid.Empty)
+        {
+            return GoogleCalendarLinkMutationResult.ValidationFailure(
+                "A linked Google account is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(displayName) || string.IsNullOrWhiteSpace(calendarId))
+        {
+            return GoogleCalendarLinkMutationResult.ValidationFailure(
+                "A discovered Google calendar is required.");
+        }
+
+        var accountLink = await dbContext.GoogleOAuthAccountLinks
+            .SingleOrDefaultAsync(
+                item => item.HouseholdId == householdId && item.Id == request.AccountLinkId,
+                cancellationToken);
+
+        if (accountLink is null)
+        {
+            return GoogleCalendarLinkMutationResult.ValidationFailure(
+                "The linked Google account was not found.");
+        }
+
+        var duplicate = await dbContext.GoogleCalendarConnections
+            .AnyAsync(
+                link => link.HouseholdId == householdId
+                    && link.GoogleOAuthAccountLinkId == request.AccountLinkId
+                    && link.GoogleCalendarId == calendarId,
+                cancellationToken);
+
+        if (duplicate)
+        {
+            return GoogleCalendarLinkMutationResult.Duplicate(
+                "This discovered Google calendar is already linked for the current household.");
+        }
+
+        var link = new GoogleCalendarConnection
+        {
+            HouseholdId = householdId,
+            DisplayName = displayName,
+            LinkMode = GoogleCalendarConnection.LinkModeOAuthCalendar,
+            FeedUrl = null,
+            GoogleOAuthAccountLinkId = request.AccountLinkId,
+            GoogleCalendarId = calendarId,
+            GoogleCalendarTimeZone = request.CalendarTimeZone?.Trim(),
+            CreatedAtUtc = createdAtUtc,
+            AutoSyncEnabled = true,
+            SyncIntervalMinutes = DefaultSyncIntervalMinutes,
+            NextSyncDueAtUtc = createdAtUtc
+        };
+
+        dbContext.GoogleCalendarConnections.Add(link);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return GoogleCalendarLinkMutationResult.Success(MapSummary(link, accountLink.Email));
     }
 
     public async Task<bool> DeleteAsync(
@@ -303,7 +379,10 @@ public sealed class GoogleCalendarIntegrationService(
             : null;
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        return GoogleCalendarLinkMutationResult.Success(MapSummary(link));
+        return GoogleCalendarLinkMutationResult.Success(
+            MapSummary(
+                link,
+                await ResolveGoogleAccountEmailAsync(link, cancellationToken)));
     }
 
     public async Task<GoogleCalendarSyncResult> SyncAsync(
@@ -370,8 +449,7 @@ public sealed class GoogleCalendarIntegrationService(
 
         try
         {
-            var feed = await feedFetcher.FetchAsync(link.FeedUrl, cancellationToken);
-            var parsed = parser.Parse(feed);
+            var parsed = await ParseLinkEventsAsync(link, cancellationToken);
             if (!parsed.IsValidFeed)
             {
                 throw new InvalidOperationException(parsed.Error);
@@ -394,7 +472,10 @@ public sealed class GoogleCalendarIntegrationService(
                 : null;
             await dbContext.SaveChangesAsync(cancellationToken);
 
-            return GoogleCalendarSyncResult.Success(MapSummary(link));
+            return GoogleCalendarSyncResult.Success(
+                MapSummary(
+                    link,
+                    await ResolveGoogleAccountEmailAsync(link, cancellationToken)));
         }
         catch (Exception exception)
         {
@@ -408,24 +489,118 @@ public sealed class GoogleCalendarIntegrationService(
 
             return GoogleCalendarSyncResult.Failed(
                 exception.Message,
-                MapSummary(link));
+                MapSummary(
+                    link,
+                    await ResolveGoogleAccountEmailAsync(link, cancellationToken)));
         }
     }
 
-    private static GoogleCalendarLinkSummaryResponse MapSummary(
-        GoogleCalendarConnection link)
+    private async Task<GoogleCalendarParseResult> ParseLinkEventsAsync(
+        GoogleCalendarConnection link,
+        CancellationToken cancellationToken)
     {
-        var uri = new Uri(link.FeedUrl, UriKind.Absolute);
-        var pathHint = uri.AbsolutePath.Length <= 24
-            ? uri.AbsolutePath
-            : $"...{uri.AbsolutePath[^24..]}";
+        if (string.Equals(link.LinkMode, GoogleCalendarConnection.LinkModeOAuthCalendar, StringComparison.Ordinal))
+        {
+            if (!link.GoogleOAuthAccountLinkId.HasValue || string.IsNullOrWhiteSpace(link.GoogleCalendarId))
+            {
+                return GoogleCalendarParseResult.InvalidFeed(
+                    "This linked Google calendar is missing its OAuth calendar configuration.");
+            }
+
+            var accountLink = await dbContext.GoogleOAuthAccountLinks
+                .SingleOrDefaultAsync(
+                    item => item.HouseholdId == link.HouseholdId && item.Id == link.GoogleOAuthAccountLinkId.Value,
+                    cancellationToken);
+
+            if (accountLink is null)
+            {
+                return GoogleCalendarParseResult.InvalidFeed(
+                    "The linked Google account for this managed calendar could not be found.");
+            }
+
+            var accessToken = await EnsureActiveAccessTokenAsync(accountLink, cancellationToken);
+            var events = await googleOAuthClient.GetCalendarEventsAsync(
+                accessToken,
+                link.GoogleCalendarId,
+                cancellationToken);
+
+            return GoogleCalendarApiEventMapper.Parse(events, link.GoogleCalendarTimeZone);
+        }
+
+        if (string.IsNullOrWhiteSpace(link.FeedUrl))
+        {
+            return GoogleCalendarParseResult.InvalidFeed(
+                "This linked Google calendar is missing its iCal feed URL.");
+        }
+
+        var feed = await feedFetcher.FetchAsync(link.FeedUrl, cancellationToken);
+        return parser.Parse(feed);
+    }
+
+    private async Task<Dictionary<Guid, string>> LoadGoogleAccountEmailsAsync(
+        IReadOnlyCollection<GoogleCalendarConnection> links,
+        CancellationToken cancellationToken)
+    {
+        var accountIds = links
+            .Where(link => link.GoogleOAuthAccountLinkId.HasValue)
+            .Select(link => link.GoogleOAuthAccountLinkId!.Value)
+            .Distinct()
+            .ToList();
+
+        if (accountIds.Count == 0)
+        {
+            return [];
+        }
+
+        return await dbContext.GoogleOAuthAccountLinks
+            .Where(link => accountIds.Contains(link.Id))
+            .ToDictionaryAsync(link => link.Id, link => link.Email, cancellationToken);
+    }
+
+    private async Task<string?> ResolveGoogleAccountEmailAsync(
+        GoogleCalendarConnection link,
+        CancellationToken cancellationToken)
+    {
+        if (!link.GoogleOAuthAccountLinkId.HasValue)
+        {
+            return null;
+        }
+
+        return await dbContext.GoogleOAuthAccountLinks
+            .Where(item => item.Id == link.GoogleOAuthAccountLinkId.Value)
+            .Select(item => item.Email)
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+
+    private static GoogleCalendarLinkSummaryResponse MapSummary(
+        GoogleCalendarConnection link,
+        string? googleOAuthAccountEmail)
+    {
+        var feedUrlHost = "Managed Google calendar";
+        var feedUrlPathHint = link.GoogleCalendarId ?? "Unavailable";
+
+        if (string.Equals(link.LinkMode, GoogleCalendarConnection.LinkModeIcsFeed, StringComparison.Ordinal)
+            && !string.IsNullOrWhiteSpace(link.FeedUrl))
+        {
+            var uri = new Uri(link.FeedUrl, UriKind.Absolute);
+            feedUrlHost = uri.Host;
+            feedUrlPathHint = uri.AbsolutePath.Length <= 24
+                ? uri.AbsolutePath
+                : $"...{uri.AbsolutePath[^24..]}";
+        }
+
         var failureDetails = ResolveFailureDetails(link.LastSyncStatus, link.LastSyncError);
 
         return new GoogleCalendarLinkSummaryResponse(
             link.Id,
             link.DisplayName,
-            uri.Host,
-            pathHint,
+            link.LinkMode,
+            feedUrlHost,
+            feedUrlPathHint,
+            link.GoogleOAuthAccountLinkId,
+            googleOAuthAccountEmail,
+            link.GoogleCalendarId,
+            link.GoogleCalendarTimeZone,
             link.AutoSyncEnabled,
             link.SyncIntervalMinutes,
             link.NextSyncDueAtUtc,
