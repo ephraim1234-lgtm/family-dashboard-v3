@@ -110,6 +110,16 @@ function dayLabel(item: DisplayAgendaItem) {
 
 const MAX_CONSECUTIVE_FAILURES = 3;
 
+function formatCountdown(startsAtUtc: string, now: Date): string {
+  const diffMs = new Date(startsAtUtc).getTime() - now.getTime();
+  if (diffMs <= 0) return "Now";
+  const totalMinutes = Math.round(diffMs / 60_000);
+  if (totalMinutes < 60) return `in ${totalMinutes} min`;
+  const hours = Math.floor(totalMinutes / 60);
+  const mins = totalMinutes % 60;
+  return mins === 0 ? `in ${hours} hr` : `in ${hours} hr ${mins} min`;
+}
+
 function formatClockTime(date: Date) {
   return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
@@ -215,6 +225,14 @@ export function DisplaySurfacePanel({ token }: DisplaySurfacePanelProps) {
 
   const daySummaryLimit = snapshot?.agendaDensityMode === "Dense" ? 7 : 4;
 
+  const todayEventCount = useMemo(() => {
+    if (!snapshot) return 0;
+    const todayDate = now.toISOString().slice(0, 10);
+    return snapshot.agendaSection.items.filter(
+      (item) => item.startsAtUtc && item.startsAtUtc.slice(0, 10) === todayDate
+    ).length;
+  }, [snapshot, now]);
+
   return (
     <section className="display-surface">
       <section className="display-hero-card">
@@ -228,6 +246,14 @@ export function DisplaySurfacePanel({ token }: DisplaySurfacePanelProps) {
           <div className="display-clock-time">{formatClockTime(now)}</div>
           <div className="display-clock-date">{formatClockDate(now)}</div>
         </div>
+        {snapshot ? (
+          <div className="display-kicker">
+            <span>{todayEventCount === 0 ? "Clear day" : `${todayEventCount} event${todayEventCount === 1 ? "" : "s"} today`}</span>
+            {snapshot.agendaSection.allDayItems.length > 0 ? (
+              <span>{snapshot.agendaSection.allDayItems.length} all-day</span>
+            ) : null}
+          </div>
+        ) : null}
       </section>
 
       {snapshot && snapshot.upcomingReminders.length > 0 ? (
@@ -278,6 +304,11 @@ export function DisplaySurfacePanel({ token }: DisplaySurfacePanelProps) {
                     {formatHeadlineTime(snapshot.agendaSection.nextItem)}
                   </div>
                   <h3>{snapshot.agendaSection.nextItem.title}</h3>
+                  {snapshot.agendaSection.nextItem.startsAtUtc ? (
+                    <div className="display-countdown">
+                      {formatCountdown(snapshot.agendaSection.nextItem.startsAtUtc, now)}
+                    </div>
+                  ) : null}
                   {snapshot.agendaSection.nextItem.description ? (
                     <p className="display-next-description">
                       {snapshot.agendaSection.nextItem.description}

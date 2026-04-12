@@ -227,6 +227,12 @@
 
 - 2026-04-12: `M25` — live clock in display hero card. Static h2/lede replaced with `.display-clock` showing large time (`clamp(3rem,8vw,7rem)`) and full weekday+date below it. `now` state initialized to `new Date()` and ticked via a `setTimeout` aligned to the next whole minute then a `setInterval` every 60 s. `.display-clock`, `.display-clock-time`, `.display-clock-date` CSS added.
 
+- 2026-04-12: `M26` — countdown to next event in display hero. `formatCountdown(startsAtUtc, now)` computes "in X min" / "in X hr Y min" / "Now" from the live `now` clock. Rendered as `.display-countdown` (amber, `clamp(1.1rem,2.2vw,1.6rem)`) between the event title and description. Updates every minute automatically via the existing clock tick.
+
+- 2026-04-12: `M27` — Admin Reminders Overview panel (`admin-reminders-panel.tsx`). Fetches all household reminders from `GET /api/notifications/reminders`, splits into Pending (sorted by dueAtUtc asc) and Fired (sorted by firedAtUtc desc, capped at 20). Pending reminders have a Delete button. Renders as two side-by-side panels, added to admin page between Scheduling and Display Management.
+
+- 2026-04-12: `M28` — today's event count in display hero kicker. `todayEventCount` computed from `snapshot.agendaSection.items` filtered to today's UTC date. Hero card shows a second `.display-kicker` row with "X events today" (or "Clear day") and an all-day count pill when applicable. Updates with the 60 s refresh cycle.
+
 ## Next recommended step
-- `M25` is done. The kiosk now doubles as a household clock.
-- Next concrete code milestone: `M26` — add a "countdown to next event" label beneath the next-up title in the hero panel. Shows "in X min" or "in X hr Y min" computed client-side from `nextItem.startsAtUtc` and the live `now` clock, updating every minute alongside the clock tick.
+- `M26`–`M28` done. Display is now clock + countdown + today summary; admin has a full reminders overview.
+- Next concrete code milestone: `M29` — household member management in the admin panel. Currently the admin panel has "Members" as a placeholder pill. Add a panel that lists household members (name, role, joined date) and lets the owner invite/remove members. Requires backend: list members endpoint, invite endpoint, remove endpoint.
