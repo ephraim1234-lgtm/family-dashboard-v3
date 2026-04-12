@@ -221,6 +221,8 @@
 
 - 2026-04-12: `M22` Display/kiosk hardening — (a) `lastRefreshedAt` state shows "Refreshed HH:MM:SS" in the display footer, stamped on every successful projection fetch, so owners can confirm the kiosk is live. (b) `consecutiveFailuresRef` tracks back-to-back fetch errors; after 3 failures `window.location.reload()` is called to recover from stale service-worker or token issues; intermediate failures show a retry count message. `.display-footer-refresh` CSS added.
 
+- 2026-04-12: `M23` Display CSS polish for large-screen readability — `.display-page` class replaces `.page` on the display route (max-width 1440px, wider padding). `.display-shell` base font bumped to 1.08rem. `.display-next-time` clamp increased from `clamp(2rem,5vw,4.25rem)` to `clamp(3.5rem,7vw,6.5rem)` for legibility at 2+ metres. Panel h3 sizes up from 1.45rem → 1.75rem. Chip font and agenda-time bumped. Summary grid columns widened to `minmax(380px,1.4fr) repeat(2,minmax(260px,1fr))`. `@keyframes display-reminder-pulse` added — gentle amber border/glow fade at 3 s period applied to `.display-reminders-strip`.
+
 ## Next recommended step
-- `M22` is done. The kiosk now self-heals on persistent failures and shows a live refresh timestamp.
-- Next concrete code milestone: `M23` — Display mode CSS polish for large-screen readability. Target: increase base font sizes in the display shell, ensure the "Next up" hero time is always legible at 2+ metres, and add a subtle pulsing indicator to the reminders strip so it draws attention without being distracting.
+- `M23` is done. The kiosk display is now large-screen ready.
+- Next concrete code milestone: `M24` — add the display page to the admin panel so owners can access their kiosk URL without having to remember the token path. A "Display devices" card in the admin panel listing each device with its token hint and a direct link to its display URL.

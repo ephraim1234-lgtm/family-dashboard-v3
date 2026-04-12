@@ -8,7 +8,7 @@ export default async function DisplayPage({ params }: DisplayPageProps) {
   const { token } = await params;
 
   return (
-    <main className="page">
+    <main className="display-page">
       <DisplaySurfacePanel token={token} />
     </main>
   );
