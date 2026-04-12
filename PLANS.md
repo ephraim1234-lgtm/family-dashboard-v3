@@ -225,6 +225,8 @@
 
 - 2026-04-12: `M24` — admin display device link persistence. Device provisioning saves `displayPath` to `localStorage` (key `householdops:display-paths`, keyed by `deviceId`). The "Provisioned devices" list now shows an "Open Display ↗" pill-link for any device with a saved URL, and "URL not saved" for legacy devices provisioned before this change. No backend migration required; `.pill-link` CSS added.
 
+- 2026-04-12: `M25` — live clock in display hero card. Static h2/lede replaced with `.display-clock` showing large time (`clamp(3rem,8vw,7rem)`) and full weekday+date below it. `now` state initialized to `new Date()` and ticked via a `setTimeout` aligned to the next whole minute then a `setInterval` every 60 s. `.display-clock`, `.display-clock-time`, `.display-clock-date` CSS added.
+
 ## Next recommended step
-- `M24` is done. Owners can navigate directly to their kiosk from the admin panel after first provision.
-- Next concrete code milestone: `M25` — surface the active household's name and current UTC time on the display hero card, updating every minute, so the kiosk acts as a lightweight clock without a dedicated widget.
+- `M25` is done. The kiosk now doubles as a household clock.
+- Next concrete code milestone: `M26` — add a "countdown to next event" label beneath the next-up title in the hero panel. Shows "in X min" or "in X hr Y min" computed client-side from `nextItem.startsAtUtc` and the live `now` clock, updating every minute alongside the clock tick.

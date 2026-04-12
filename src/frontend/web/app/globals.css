@@ -204,6 +204,25 @@ a {
   color: rgba(247, 239, 224, 0.82);
 }
 
+.display-clock {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.display-clock-time {
+  font-size: clamp(3rem, 8vw, 7rem);
+  font-weight: 600;
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+}
+
+.display-clock-date {
+  font-size: clamp(1rem, 2vw, 1.5rem);
+  color: rgba(247, 239, 224, 0.72);
+  font-weight: 400;
+}
+
 .display-summary-grid {
   display: grid;
   gap: 20px;

@@ -110,12 +110,36 @@ function dayLabel(item: DisplayAgendaItem) {
 
 const MAX_CONSECUTIVE_FAILURES = 3;
 
+function formatClockTime(date: Date) {
+  return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
+function formatClockDate(date: Date) {
+  return date.toLocaleDateString([], {
+    weekday: "long",
+    month: "long",
+    day: "numeric"
+  });
+}
+
 export function DisplaySurfacePanel({ token }: DisplaySurfacePanelProps) {
   const [snapshot, setSnapshot] = useState<DisplaySnapshot | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
+  const [now, setNow] = useState(() => new Date());
   const [isPending, startTransition] = useTransition();
   const consecutiveFailuresRef = useRef(0);
+
+  useEffect(() => {
+    // Align the first tick to the next whole minute, then tick every 60 s.
+    const msUntilNextMinute = (60 - new Date().getSeconds()) * 1000 - new Date().getMilliseconds();
+    const timeout = setTimeout(() => {
+      setNow(new Date());
+      const interval = setInterval(() => setNow(new Date()), 60_000);
+      return () => clearInterval(interval);
+    }, msUntilNextMinute);
+    return () => clearTimeout(timeout);
+  }, []);
 
   async function refresh() {
     setError(null);
@@ -200,11 +224,10 @@ export function DisplaySurfacePanel({ token }: DisplaySurfacePanelProps) {
           {snapshot ? <span>{snapshot.presentationMode}</span> : null}
           {snapshot ? <span>{snapshot.agendaDensityMode}</span> : null}
         </div>
-        <h2>Ambient household view</h2>
-        <p className="display-lede">
-          The display stays token-only and consumes a Display-owned projection
-          that turns Scheduling output into an at-a-glance household agenda.
-        </p>
+        <div className="display-clock">
+          <div className="display-clock-time">{formatClockTime(now)}</div>
+          <div className="display-clock-date">{formatClockDate(now)}</div>
+        </div>
       </section>
 
       {snapshot && snapshot.upcomingReminders.length > 0 ? (
