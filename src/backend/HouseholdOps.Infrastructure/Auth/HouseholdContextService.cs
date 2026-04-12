@@ -29,4 +29,38 @@ public sealed class HouseholdContextService(
                 "Active"))
             .SingleOrDefaultAsync(cancellationToken);
     }
+
+    public async Task<HouseholdContextResponse?> RenameAsync(
+        string name,
+        CancellationToken cancellationToken)
+    {
+        if (!currentHouseholdContext.IsAuthenticated
+            || !Guid.TryParse(currentHouseholdContext.HouseholdId, out var householdId)
+            || !Guid.TryParse(currentHouseholdContext.UserId, out var userId))
+        {
+            return null;
+        }
+
+        var household = await dbContext.Households
+            .SingleOrDefaultAsync(h => h.Id == householdId, cancellationToken);
+
+        if (household is null)
+        {
+            return null;
+        }
+
+        household.Name = name.Trim();
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        var membership = await dbContext.Memberships
+            .SingleOrDefaultAsync(
+                m => m.HouseholdId == householdId && m.UserId == userId,
+                cancellationToken);
+
+        return new HouseholdContextResponse(
+            household.Id.ToString(),
+            household.Name,
+            membership?.Role.ToString() ?? "Member",
+            "Active");
+    }
 }

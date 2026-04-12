@@ -179,6 +179,32 @@ public static class DependencyInjection
             };
         });
 
+        var memberGroup = app.MapGroup("/api/scheduling")
+            .RequireAuthorization();
+
+        memberGroup.MapGet("/agenda", async (
+            IIdentityAccessService identityAccessService,
+            IAgendaQueryService agendaQueryService,
+            IClock clock,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+
+            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var windowStart = clock.UtcNow;
+            var windowEnd = windowStart.AddDays(14);
+
+            var response = await agendaQueryService.GetUpcomingEventsAsync(
+                new UpcomingEventsRequest(householdId, windowStart, windowEnd),
+                cancellationToken);
+
+            return Results.Ok(response);
+        });
+
         return app;
     }
 

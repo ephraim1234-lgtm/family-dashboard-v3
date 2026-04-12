@@ -36,6 +36,7 @@ public static class DependencyInjection
         services.AddScoped<PersistedSessionCookieEvents>();
         services.AddScoped<IIdentityAccessService, IdentityAccessService>();
         services.AddScoped<IHouseholdContextService, HouseholdContextService>();
+        services.AddScoped<IHouseholdMemberService, HouseholdMemberService>();
         services.AddScoped<IDisplayProjectionService, DisplayProjectionService>();
         services.AddScoped<IDisplayManagementService, DisplayManagementService>();
         services.AddScoped<IAgendaQueryService, AgendaQueryService>();
