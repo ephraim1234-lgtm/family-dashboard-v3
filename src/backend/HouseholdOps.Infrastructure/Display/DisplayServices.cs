@@ -3,6 +3,7 @@ using System.Text;
 using HouseholdOps.Infrastructure.Persistence;
 using HouseholdOps.Modules.Display;
 using HouseholdOps.Modules.Display.Contracts;
+using HouseholdOps.Modules.Notifications;
 using HouseholdOps.Modules.Scheduling;
 using HouseholdOps.Modules.Scheduling.Contracts;
 using HouseholdOps.SharedKernel.Time;
@@ -129,6 +130,16 @@ public sealed class DisplayProjectionService(
             })
             .ToList();
 
+        var reminderCutoff = windowStart.AddMinutes(30);
+        var upcomingReminders = await dbContext.EventReminders
+            .Where(r =>
+                r.HouseholdId == result.HouseholdId
+                && r.Status == EventReminderStatuses.Pending
+                && r.DueAtUtc <= reminderCutoff)
+            .OrderBy(r => r.DueAtUtc)
+            .Select(r => new DisplayReminderItem(r.EventTitle, r.MinutesBefore, r.DueAtUtc))
+            .ToListAsync(cancellationToken);
+
         return new DisplayProjectionResponse(
             AccessMode: "DisplayToken",
             DeviceName: result.DeviceName,
@@ -151,7 +162,8 @@ public sealed class DisplayProjectionService(
                 SoonItems: soonItems,
                 LaterTodayItems: laterTodayItems,
                 UpcomingDays: upcomingDays,
-                Items: agendaItems));
+                Items: agendaItems),
+            UpcomingReminders: upcomingReminders);
     }
 }
 

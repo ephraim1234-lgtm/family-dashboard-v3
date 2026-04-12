@@ -9,4 +9,5 @@ public sealed record DisplayProjectionResponse(
     string AccessTokenHint,
     DateTimeOffset GeneratedAtUtc,
     IReadOnlyList<DisplayProjectionSectionResponse> Sections,
-    DisplayAgendaSectionResponse AgendaSection);
+    DisplayAgendaSectionResponse AgendaSection,
+    IReadOnlyList<DisplayReminderItem> UpcomingReminders);

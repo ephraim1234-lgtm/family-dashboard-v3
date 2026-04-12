@@ -28,6 +28,12 @@ type DisplayAgendaSection = {
   items: DisplayAgendaItem[];
 };
 
+type DisplayReminderItem = {
+  eventTitle: string;
+  minutesBefore: number;
+  dueAtUtc: string;
+};
+
 type DisplaySnapshot = {
   accessMode: string;
   deviceName: string;
@@ -41,6 +47,7 @@ type DisplaySnapshot = {
     body: string;
   }>;
   agendaSection: DisplayAgendaSection;
+  upcomingReminders: DisplayReminderItem[];
 };
 
 type DisplaySurfacePanelProps = {
@@ -123,12 +130,18 @@ export function DisplaySurfacePanel({ token }: DisplaySurfacePanelProps) {
   }
 
   useEffect(() => {
-    startTransition(() => {
-      refresh().catch(() => {
-        setError("Unable to load the display surface right now.");
-        setSnapshot(null);
+    function doRefresh() {
+      startTransition(() => {
+        refresh().catch(() => {
+          setError("Unable to load the display surface right now.");
+          setSnapshot(null);
+        });
       });
-    });
+    }
+
+    doRefresh();
+    const interval = setInterval(doRefresh, 60_000);
+    return () => clearInterval(interval);
   }, [token]);
 
   const remainingAgendaItems = useMemo(() => {
@@ -178,6 +191,31 @@ export function DisplaySurfacePanel({ token }: DisplaySurfacePanelProps) {
           that turns Scheduling output into an at-a-glance household agenda.
         </p>
       </section>
+
+      {snapshot && snapshot.upcomingReminders.length > 0 ? (
+        <section className="display-reminders-strip">
+          <div className="display-reminders-label">Reminders</div>
+          <div className="display-reminders-list">
+            {snapshot.upcomingReminders.map((reminder) => (
+              <div className="display-reminder-chip" key={`${reminder.eventTitle}-${reminder.dueAtUtc}`}>
+                <span className="display-reminder-title">{reminder.eventTitle}</span>
+                <span className="display-reminder-meta">
+                  {reminder.minutesBefore < 60
+                    ? `${reminder.minutesBefore} min`
+                    : reminder.minutesBefore === 60
+                      ? "1 hr"
+                      : `${Math.round(reminder.minutesBefore / 60)} hr`}
+                  {" "}·{" "}
+                  {new Date(reminder.dueAtUtc).toLocaleTimeString([], {
+                    hour: "numeric",
+                    minute: "2-digit"
+                  })}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {isPending && !snapshot ? (
         <article className="panel">
