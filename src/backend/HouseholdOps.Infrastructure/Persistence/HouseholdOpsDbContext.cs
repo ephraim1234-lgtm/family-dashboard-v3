@@ -1,5 +1,6 @@
 using HouseholdOps.Modules.Chores;
 using HouseholdOps.Modules.Display;
+using HouseholdOps.Modules.Notes;
 using HouseholdOps.Modules.Households;
 using HouseholdOps.Modules.Identity;
 using HouseholdOps.Modules.Integrations;
@@ -35,6 +36,8 @@ public sealed class HouseholdOpsDbContext(DbContextOptions<HouseholdOpsDbContext
     public DbSet<Chore> Chores => Set<Chore>();
 
     public DbSet<ChoreCompletion> ChoreCompletions => Set<ChoreCompletion>();
+
+    public DbSet<Note> Notes => Set<Note>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -269,6 +272,24 @@ public sealed class HouseholdOpsDbContext(DbContextOptions<HouseholdOpsDbContext
                 .HasDatabaseName("IX_chore_completions_household_chore");
             entity.HasIndex(x => new { x.HouseholdId, x.CompletedAtUtc })
                 .HasDatabaseName("IX_chore_completions_household_completed");
+            entity.HasOne<Household>()
+                .WithMany()
+                .HasForeignKey(x => x.HouseholdId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Note>(entity =>
+        {
+            entity.ToTable("notes");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Title).HasMaxLength(200);
+            entity.Property(x => x.Body);
+            entity.Property(x => x.AuthorDisplayName).HasMaxLength(200);
+            entity.Property(x => x.IsPinned);
+            entity.Property(x => x.CreatedAtUtc);
+            entity.HasIndex(x => x.HouseholdId);
+            entity.HasIndex(x => new { x.HouseholdId, x.IsPinned })
+                .HasDatabaseName("IX_notes_household_pinned");
             entity.HasOne<Household>()
                 .WithMany()
                 .HasForeignKey(x => x.HouseholdId)

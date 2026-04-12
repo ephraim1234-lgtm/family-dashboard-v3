@@ -110,6 +110,47 @@ partial class HouseholdOpsDbContextModelSnapshot : ModelSnapshot
                 b.ToTable("chore_completions", "core");
             });
 
+        modelBuilder.Entity("HouseholdOps.Modules.Notes.Note", b =>
+            {
+                b.Property<Guid>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("uuid");
+
+                b.Property<Guid?>("AuthorMembershipId")
+                    .HasColumnType("uuid");
+
+                b.Property<string>("AuthorDisplayName")
+                    .IsRequired()
+                    .HasMaxLength(200)
+                    .HasColumnType("character varying(200)");
+
+                b.Property<string?>("Body")
+                    .HasColumnType("text");
+
+                b.Property<DateTimeOffset>("CreatedAtUtc")
+                    .HasColumnType("timestamp with time zone");
+
+                b.Property<Guid>("HouseholdId")
+                    .HasColumnType("uuid");
+
+                b.Property<bool>("IsPinned")
+                    .HasColumnType("boolean");
+
+                b.Property<string>("Title")
+                    .IsRequired()
+                    .HasMaxLength(200)
+                    .HasColumnType("character varying(200)");
+
+                b.HasKey("Id");
+
+                b.HasIndex("HouseholdId");
+
+                b.HasIndex("HouseholdId", "IsPinned")
+                    .HasDatabaseName("IX_notes_household_pinned");
+
+                b.ToTable("notes", "core");
+            });
+
         modelBuilder.Entity("HouseholdOps.Modules.Notifications.EventReminder", b =>
             {
                 b.Property<Guid>("Id")
@@ -580,6 +621,15 @@ partial class HouseholdOpsDbContextModelSnapshot : ModelSnapshot
             });
 
         modelBuilder.Entity("HouseholdOps.Modules.Chores.ChoreCompletion", b =>
+            {
+                b.HasOne("HouseholdOps.Modules.Households.Household", null)
+                    .WithMany()
+                    .HasForeignKey("HouseholdId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
+            });
+
+        modelBuilder.Entity("HouseholdOps.Modules.Notes.Note", b =>
             {
                 b.HasOne("HouseholdOps.Modules.Households.Household", null)
                     .WithMany()

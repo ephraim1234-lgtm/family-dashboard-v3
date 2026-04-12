@@ -11,4 +11,3 @@
     <ProjectReference Include="..\HouseholdOps.SharedKernel\HouseholdOps.SharedKernel.csproj" />
   </ItemGroup>
 </Project>
-

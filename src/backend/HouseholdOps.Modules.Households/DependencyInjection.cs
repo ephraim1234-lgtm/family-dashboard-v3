@@ -128,6 +128,25 @@ public static class DependencyInjection
             };
         }).RequireAuthorization("ActiveHouseholdOwner");
 
+        var appGroup = app.MapGroup("/api/app")
+            .RequireAuthorization();
+
+        appGroup.MapGet("/today", async (
+            IIdentityAccessService identityAccessService,
+            IHouseholdTodayService todayService,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+
+            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var result = await todayService.GetTodayAsync(householdId, cancellationToken);
+            return Results.Ok(result);
+        });
+
         return app;
     }
 }

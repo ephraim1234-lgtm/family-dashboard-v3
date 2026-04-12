@@ -11,4 +11,5 @@ public sealed record DisplayProjectionResponse(
     IReadOnlyList<DisplayProjectionSectionResponse> Sections,
     DisplayAgendaSectionResponse AgendaSection,
     IReadOnlyList<DisplayReminderItem> UpcomingReminders,
-    IReadOnlyList<DisplayChoreItem> DueChores);
+    IReadOnlyList<DisplayChoreItem> DueChores,
+    IReadOnlyList<DisplayNoteItem> PinnedNotes);

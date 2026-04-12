@@ -1,4 +1,5 @@
 using HouseholdOps.Modules.Administration.Contracts;
+using HouseholdOps.Modules.Identity;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -32,6 +33,22 @@ public static class DependencyInjection
                 });
 
             return Results.Ok(response);
+        }).RequireAuthorization("ActiveHouseholdOwner");
+
+        group.MapGet("/stats", async (
+            IIdentityAccessService identityAccessService,
+            IAdminStatsService adminStatsService,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+
+            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var stats = await adminStatsService.GetStatsAsync(householdId, cancellationToken);
+            return Results.Ok(stats);
         }).RequireAuthorization("ActiveHouseholdOwner");
 
         return app;

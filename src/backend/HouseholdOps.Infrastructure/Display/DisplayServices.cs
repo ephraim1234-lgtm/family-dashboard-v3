@@ -4,6 +4,7 @@ using HouseholdOps.Infrastructure.Persistence;
 using HouseholdOps.Modules.Chores;
 using HouseholdOps.Modules.Display;
 using HouseholdOps.Modules.Display.Contracts;
+using HouseholdOps.Modules.Notes;
 using HouseholdOps.Modules.Notifications;
 using HouseholdOps.Modules.Scheduling;
 using HouseholdOps.Modules.Scheduling.Contracts;
@@ -153,6 +154,13 @@ public sealed class DisplayProjectionService(
             .Select(c => new DisplayChoreItem(c.Title, c.AssignedMemberName, c.RecurrenceKind.ToString()))
             .ToListAsync(cancellationToken);
 
+        var pinnedNotes = await dbContext.Notes
+            .Where(n => n.HouseholdId == result.HouseholdId && n.IsPinned)
+            .OrderByDescending(n => n.CreatedAtUtc)
+            .Take(4)
+            .Select(n => new DisplayNoteItem(n.Title, n.Body, n.AuthorDisplayName))
+            .ToListAsync(cancellationToken);
+
         return new DisplayProjectionResponse(
             AccessMode: "DisplayToken",
             DeviceName: result.DeviceName,
@@ -177,7 +185,8 @@ public sealed class DisplayProjectionService(
                 UpcomingDays: upcomingDays,
                 Items: agendaItems),
             UpcomingReminders: upcomingReminders,
-            DueChores: dueChores);
+            DueChores: dueChores,
+            PinnedNotes: pinnedNotes);
     }
 }
 

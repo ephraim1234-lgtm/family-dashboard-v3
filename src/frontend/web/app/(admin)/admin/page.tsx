@@ -4,8 +4,10 @@ import { AdminChoresPanel } from "../../../components/admin-chores-panel";
 import { AdminDisplayManagementPanel } from "../../../components/admin-display-management-panel";
 import { AdminHouseholdSettingsPanel } from "../../../components/admin-household-settings-panel";
 import { AdminMembersPanel } from "../../../components/admin-members-panel";
+import { AdminNotesPanel } from "../../../components/admin-notes-panel";
 import { AdminRemindersPanel } from "../../../components/admin-reminders-panel";
 import { AdminSchedulingWorkspace } from "../../../components/admin-scheduling-workspace";
+import { AdminStatsPanel } from "../../../components/admin-stats-panel";
 
 export default function AdminPage() {
   return (
@@ -31,6 +33,9 @@ export default function AdminPage() {
       </section>
 
       <div className="section-spacer" />
+      <AdminStatsPanel />
+
+      <div className="section-spacer" />
       <AdminAccessPanel />
 
       <div className="section-spacer" />
@@ -41,6 +46,9 @@ export default function AdminPage() {
 
       <div className="section-spacer" />
       <AdminChoresPanel />
+
+      <div className="section-spacer" />
+      <AdminNotesPanel />
 
       <div className="section-spacer" />
       <AdminCalendarIntegrationsPanel />

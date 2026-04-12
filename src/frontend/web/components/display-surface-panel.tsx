@@ -40,6 +40,12 @@ type DisplayChoreItem = {
   recurrenceKind: string;
 };
 
+type DisplayNoteItem = {
+  title: string;
+  body: string | null;
+  authorDisplayName: string;
+};
+
 type DisplaySnapshot = {
   accessMode: string;
   deviceName: string;
@@ -55,6 +61,7 @@ type DisplaySnapshot = {
   agendaSection: DisplayAgendaSection;
   upcomingReminders: DisplayReminderItem[];
   dueChores: DisplayChoreItem[];
+  pinnedNotes: DisplayNoteItem[];
 };
 
 type DisplaySurfacePanelProps = {
@@ -297,6 +304,22 @@ export function DisplaySurfacePanel({ token }: DisplaySurfacePanelProps) {
                 <span>{chore.title}</span>
                 {chore.assignedMemberName ? (
                   <span className="display-chore-member"> · {chore.assignedMemberName}</span>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {snapshot && snapshot.pinnedNotes && snapshot.pinnedNotes.length > 0 ? (
+        <section className="display-notes-strip">
+          <div className="display-notes-label">Pinned notes</div>
+          <div className="display-chip-list">
+            {snapshot.pinnedNotes.map((note) => (
+              <div className="display-chip" key={note.title}>
+                <span>{note.title}</span>
+                {note.body ? (
+                  <span className="display-note-body"> — {note.body}</span>
                 ) : null}
               </div>
             ))}
