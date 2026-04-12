@@ -2,6 +2,7 @@ using HouseholdOps.Modules.Display;
 using HouseholdOps.Modules.Households;
 using HouseholdOps.Modules.Identity;
 using HouseholdOps.Modules.Integrations;
+using HouseholdOps.Modules.Notifications;
 using HouseholdOps.Modules.Scheduling;
 using Microsoft.EntityFrameworkCore;
 
@@ -27,6 +28,8 @@ public sealed class HouseholdOpsDbContext(DbContextOptions<HouseholdOpsDbContext
     public DbSet<GoogleCalendarConnection> GoogleCalendarConnections => Set<GoogleCalendarConnection>();
 
     public DbSet<GoogleOAuthAccountLink> GoogleOAuthAccountLinks => Set<GoogleOAuthAccountLink>();
+
+    public DbSet<EventReminder> EventReminders => Set<EventReminder>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -203,6 +206,27 @@ public sealed class HouseholdOpsDbContext(DbContextOptions<HouseholdOpsDbContext
             entity.Property(x => x.UpdatedAtUtc);
             entity.HasIndex(x => x.HouseholdId);
             entity.HasIndex(x => new { x.HouseholdId, x.GoogleUserId }).IsUnique();
+            entity.HasOne<Household>()
+                .WithMany()
+                .HasForeignKey(x => x.HouseholdId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<EventReminder>(entity =>
+        {
+            entity.ToTable("event_reminders");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.EventTitle).HasMaxLength(200);
+            entity.Property(x => x.MinutesBefore);
+            entity.Property(x => x.DueAtUtc);
+            entity.Property(x => x.Status).HasMaxLength(16);
+            entity.Property(x => x.FiredAtUtc);
+            entity.Property(x => x.CreatedAtUtc);
+            entity.HasIndex(x => x.HouseholdId);
+            entity.HasIndex(x => new { x.HouseholdId, x.ScheduledEventId })
+                .HasDatabaseName("IX_event_reminders_household_event");
+            entity.HasIndex(x => new { x.Status, x.DueAtUtc })
+                .HasDatabaseName("IX_event_reminders_status_due");
             entity.HasOne<Household>()
                 .WithMany()
                 .HasForeignKey(x => x.HouseholdId)

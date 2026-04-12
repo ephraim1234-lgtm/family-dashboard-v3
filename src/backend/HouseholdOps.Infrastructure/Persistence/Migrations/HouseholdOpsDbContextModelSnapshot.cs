@@ -2,6 +2,7 @@ using System;
 using HouseholdOps.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -19,6 +20,53 @@ partial class HouseholdOpsDbContextModelSnapshot : ModelSnapshot
             .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
         NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+
+        modelBuilder.Entity("HouseholdOps.Modules.Notifications.EventReminder", b =>
+            {
+                b.Property<Guid>("Id")
+                    .ValueGeneratedOnAdd()
+                    .HasColumnType("uuid");
+
+                b.Property<DateTimeOffset>("CreatedAtUtc")
+                    .HasColumnType("timestamp with time zone");
+
+                b.Property<DateTimeOffset>("DueAtUtc")
+                    .HasColumnType("timestamp with time zone");
+
+                b.Property<string>("EventTitle")
+                    .IsRequired()
+                    .HasMaxLength(200)
+                    .HasColumnType("character varying(200)");
+
+                b.Property<DateTimeOffset?>("FiredAtUtc")
+                    .HasColumnType("timestamp with time zone");
+
+                b.Property<Guid>("HouseholdId")
+                    .HasColumnType("uuid");
+
+                b.Property<int>("MinutesBefore")
+                    .HasColumnType("integer");
+
+                b.Property<Guid>("ScheduledEventId")
+                    .HasColumnType("uuid");
+
+                b.Property<string>("Status")
+                    .IsRequired()
+                    .HasMaxLength(16)
+                    .HasColumnType("character varying(16)");
+
+                b.HasKey("Id");
+
+                b.HasIndex("HouseholdId");
+
+                b.HasIndex("HouseholdId", "ScheduledEventId")
+                    .HasDatabaseName("IX_event_reminders_household_event");
+
+                b.HasIndex("Status", "DueAtUtc")
+                    .HasDatabaseName("IX_event_reminders_status_due");
+
+                b.ToTable("event_reminders", "core");
+            });
 
         modelBuilder.Entity("HouseholdOps.Modules.Display.DisplayAccessToken", b =>
             {
@@ -413,6 +461,15 @@ partial class HouseholdOpsDbContextModelSnapshot : ModelSnapshot
                     .IsUnique();
 
                 b.ToTable("users", "core");
+            });
+
+        modelBuilder.Entity("HouseholdOps.Modules.Notifications.EventReminder", b =>
+            {
+                b.HasOne("HouseholdOps.Modules.Households.Household", null)
+                    .WithMany()
+                    .HasForeignKey("HouseholdId")
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired();
             });
 
         modelBuilder.Entity("HouseholdOps.Modules.Display.DisplayAccessToken", b =>
