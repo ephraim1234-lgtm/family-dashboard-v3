@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useAdminOwnerSession } from "./use-admin-owner-session";
 
 type RecurrencePattern = "None" | "Daily" | "Weekly";
 
@@ -215,6 +216,7 @@ function formatFrameRange(startUtc: string, endUtc: string) {
 }
 
 export function AdminSchedulingWorkspace() {
+  const { isOwner, isLoading: isSessionLoading } = useAdminOwnerSession();
   const hydratedPreferencesRef = useRef(false);
   const initialState = useMemo(() => createDefaultState(), []);
   const [title, setTitle] = useState(initialState.title);
@@ -302,6 +304,10 @@ export function AdminSchedulingWorkspace() {
   }
 
   useEffect(() => {
+    if (isSessionLoading) {
+      return;
+    }
+
     let storedWindowDays = 14;
 
     if (typeof window !== "undefined") {
@@ -332,6 +338,13 @@ export function AdminSchedulingWorkspace() {
 
     hydratedPreferencesRef.current = true;
 
+    if (!isOwner) {
+      setBrowse(null);
+      setManagedEvents([]);
+      setError(null);
+      return;
+    }
+
     startTransition(() => {
       refreshAll({
         startUtc: getCurrentWindowStartIso(),
@@ -344,7 +357,7 @@ export function AdminSchedulingWorkspace() {
         );
       });
     });
-  }, []);
+  }, [isOwner, isSessionLoading]);
 
   useEffect(() => {
     if (!hydratedPreferencesRef.current || typeof window === "undefined") {
@@ -608,6 +621,11 @@ export function AdminSchedulingWorkspace() {
             Browse a clear, explicit schedule frame grouped by day, then jump
             straight into the series that owns each occurrence.
           </p>
+          {!isOwner && !isSessionLoading ? (
+            <p className="muted">
+              Sign in with an owner session to load the scheduling workspace.
+            </p>
+          ) : null}
           <div className="pill-row">
             <span className="pill">
               Window: {browse ? formatFrameRange(browse.windowStartUtc, browse.windowEndUtc) : "Loading"}

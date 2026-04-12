@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { useAdminOwnerSession } from "./use-admin-owner-session";
 
 type GoogleCalendarLinkSummary = {
   id: string;
@@ -67,6 +68,7 @@ type GoogleOAuthCalendarListResponse = {
 };
 
 export function AdminCalendarIntegrationsPanel() {
+  const { isOwner, isLoading: isSessionLoading } = useAdminOwnerSession();
   const [displayName, setDisplayName] = useState("Family Google Calendar");
   const [feedUrl, setFeedUrl] = useState("");
   const [links, setLinks] = useState<GoogleCalendarLinkSummary[]>([]);
@@ -204,6 +206,18 @@ export function AdminCalendarIntegrationsPanel() {
       }
     }
 
+    if (isSessionLoading) {
+      return;
+    }
+
+    if (!isOwner) {
+      setLinks([]);
+      setOauthReadiness(null);
+      setOauthAccounts([]);
+      setOauthCalendars([]);
+      return;
+    }
+
     startTransition(() => {
       Promise.all([
         refreshLinks(),
@@ -218,7 +232,7 @@ export function AdminCalendarIntegrationsPanel() {
         );
       });
     });
-  }, []);
+  }, [isOwner, isSessionLoading]);
 
   function handleCreate() {
     startTransition(() => {
@@ -444,6 +458,11 @@ export function AdminCalendarIntegrationsPanel() {
           This first slice is one-way import only. Integrations owns the link and
           sync state, while Scheduling stays the source of local event behavior.
         </p>
+        {!isOwner && !isSessionLoading ? (
+          <p className="muted">
+            Sign in with an owner session to manage Google calendar links.
+          </p>
+        ) : null}
 
         <div className="form-stack">
           <label className="field">
@@ -465,7 +484,7 @@ export function AdminCalendarIntegrationsPanel() {
         </div>
 
         <div className="action-row">
-          <button className="action-button" onClick={handleCreate} disabled={isPending}>
+          <button className="action-button" onClick={handleCreate} disabled={isPending || !isOwner}>
             Save Link
           </button>
           <button
@@ -481,7 +500,7 @@ export function AdminCalendarIntegrationsPanel() {
                 });
               })
             }
-            disabled={isPending}
+            disabled={isPending || !isOwner}
           >
             Refresh Links
           </button>
@@ -546,7 +565,7 @@ export function AdminCalendarIntegrationsPanel() {
           <button
             className="action-button"
             onClick={handleStartOAuthLink}
-            disabled={isPending || !oauthReadiness?.isReady}
+            disabled={isPending || !isOwner || !oauthReadiness?.isReady}
           >
             Link Google Account
           </button>
@@ -606,7 +625,7 @@ export function AdminCalendarIntegrationsPanel() {
                               <button
                                 className="action-button"
                                 onClick={() => handleCreateManagedLink(calendar)}
-                                disabled={isPending || existingLink != null || calendarLinkingKey === `${calendar.accountLinkId}:${calendar.calendarId}`}
+                                disabled={isPending || !isOwner || existingLink != null || calendarLinkingKey === `${calendar.accountLinkId}:${calendar.calendarId}`}
                               >
                                 {existingLink ? "Already Linked" : "Link for Import"}
                               </button>
@@ -717,6 +736,7 @@ export function AdminCalendarIntegrationsPanel() {
                               autoSyncEnabled: event.target.checked
                             })
                           }
+                          disabled={!isOwner}
                         />
                         <span>Enable automatic sync</span>
                       </label>
@@ -730,7 +750,7 @@ export function AdminCalendarIntegrationsPanel() {
                               syncIntervalMinutes: Number(event.target.value)
                             })
                           }
-                          disabled={!syncSettings[link.id].autoSyncEnabled}
+                          disabled={!isOwner || !syncSettings[link.id].autoSyncEnabled}
                         >
                           {[5, 15, 30, 60, 180, 360, 720, 1440].map((minutes) => (
                             <option key={minutes} value={minutes}>
@@ -745,21 +765,21 @@ export function AdminCalendarIntegrationsPanel() {
                       <button
                         className="action-button action-button-ghost"
                         onClick={() => handleSaveSyncSettings(link.id)}
-                        disabled={isPending}
+                        disabled={isPending || !isOwner}
                       >
                         Save Sync Settings
                       </button>
                       <button
                         className="action-button"
                         onClick={() => handleSync(link.id)}
-                        disabled={isPending}
+                        disabled={isPending || !isOwner}
                       >
                         Sync Now
                       </button>
                       <button
                         className="action-button action-button-secondary"
                         onClick={() => handleDelete(link.id)}
-                        disabled={isPending}
+                        disabled={isPending || !isOwner}
                       >
                         Remove Link
                       </button>

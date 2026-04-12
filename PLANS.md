@@ -12,6 +12,7 @@
 - Worker-managed auto sync now processes due linked calendars on a fixed cadence.
 - Sync status is visible in Admin.
 - Admin shows automatic sync cadence and next due time per linked calendar.
+- Admin panels now gate owner-only fetches behind the current owner session, avoiding anonymous `401` request noise from the web shell.
 - Unsupported recurrence patterns remain skipped explicitly.
 - Imported events are read-only in Scheduling and still appear in schedule/display projections.
 
@@ -106,6 +107,12 @@
   - Key files touched: `PLANS.md`, integrations contracts/services, admin UI, focused tests, docs if behavior changes materially
   - Validation status: passed
   - Notes: sync summaries now distinguish unsupported recurring rules from skipped recurring overrides/exceptions for managed Google links, and the Admin UI shows clearer source details for feed versus OAuth-managed links.
+- `M15` Owner-session gating for admin fetches
+  - Status: `done`
+  - Scope: stop anonymous admin loads from eagerly calling owner-only proxy routes while preserving owner-session behavior for integrations, scheduling, and display management.
+  - Key files touched: `PLANS.md`, admin UI components, focused Docker validation
+  - Validation status: passed
+  - Notes: the web shell now waits for the current session before firing owner-only fetches, which removes expected-but-noisy `401` traffic from anonymous `/admin` loads.
 
 ## Current milestone
 - None active. Awaiting confirmation for the next calendar-integrations milestone.
@@ -126,6 +133,7 @@
 - Linked Google account tokens are now stored in the integrations persistence model; stronger secret-management/encryption can be a later hardening step.
 - OAuth-managed calendar imports currently skip recurring exceptions/overrides and still only support the existing narrow daily/weekly recurrence subset.
 - The new recurring override/exception guidance is conditionally visible only when a managed link actually skips overrides, so Docker UI validation for that exact state still depends on seeded runtime data.
+- The admin shell still renders for anonymous users by design, so owner-only actions remain disabled and hidden behind session-gated fetches rather than route-level page blocking.
 
 ## Validation log
 - 2026-04-11: Prior slice built successfully with `dotnet build src\backend\HouseholdOps.Api\HouseholdOps.Api.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false`.
@@ -167,6 +175,11 @@
 - 2026-04-12: `M14` focused tests passed with `dotnet test tests\HouseholdOps.Modules.Scheduling.Tests\HouseholdOps.Modules.Scheduling.Tests.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` (`47` passed), including managed-link assertions for skipped recurring overrides/exceptions.
 - 2026-04-12: `M14` API and Worker builds passed with `dotnet build src\backend\HouseholdOps.Api\HouseholdOps.Api.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` and `dotnet build src\backend\HouseholdOps.Worker\HouseholdOps.Worker.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false`.
 - 2026-04-12: Docker runtime validation rebuilt `api` and `web` successfully with `$env:API_PORT='3001'; $env:WEB_PORT='3000'; docker compose up -d --build api web`, and the authenticated `/admin` shell returned `200`. The new override-specific UI copy is conditional on runtime data, so that exact branch remains unit-test-backed rather than fully demonstrated in the seeded Docker state.
+- 2026-04-12: Initial `M15` host builds hit the same transient .NET build-artifact lock pattern seen in earlier milestones; serial reruns passed without code changes.
+- 2026-04-12: `M15` API and Worker builds passed with `dotnet build src\backend\HouseholdOps.Api\HouseholdOps.Api.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` and `dotnet build src\backend\HouseholdOps.Worker\HouseholdOps.Worker.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false`.
+- 2026-04-12: Docker runtime validation rebuilt `api` and `web` with `$env:API_PORT='3001'; $env:WEB_PORT='3000'; docker compose up -d --build api web`.
+- 2026-04-12: `M15` owner-session verification through the web shell returned `200` for `/api/integrations/google-calendar-links`, `/api/integrations/google-oauth/accounts`, `/api/integrations/google-oauth/calendars`, `/api/integrations/google-oauth/readiness`, `/api/scheduling/events/series`, `/api/admin/display/devices`, and `/api/admin/overview` after `POST /api/auth/dev-login`.
+- 2026-04-12: Follow-up Docker log verification for `M15` showed a fresh anonymous `/admin` load returning `200` followed by `/api/auth/session` checks without the previous owner-only `401` burst in the recent `web` container log tail, while authenticated owner requests through the web shell still returned `200`.
 
 ## Next recommended step
-- Start `M15` managed-link failure guidance refinement: make OAuth-managed access failures and missing linked-account states more explicit than generic feed-oriented guidance, without widening provider scope.
+- Start `M16` managed-link failure guidance refinement: make OAuth-managed access failures and missing linked-account states more explicit than generic feed-oriented guidance, without widening provider scope.
