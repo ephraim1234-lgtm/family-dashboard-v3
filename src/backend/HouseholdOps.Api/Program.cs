@@ -6,6 +6,7 @@ using HouseholdOps.Modules.Administration;
 using HouseholdOps.Modules.Display;
 using HouseholdOps.Modules.Households;
 using HouseholdOps.Modules.Identity;
+using HouseholdOps.Modules.Integrations;
 using HouseholdOps.Modules.Scheduling;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
@@ -43,6 +44,7 @@ builder.Services.AddAuthorization(options =>
 builder.Services.AddHouseholdOpsPersistence(builder.Configuration);
 builder.Services.AddHouseholdsModule();
 builder.Services.AddIdentityModule();
+builder.Services.AddIntegrationsModule();
 builder.Services.AddSchedulingModule();
 builder.Services.AddDisplayModule();
 builder.Services.AddAdministrationModule();
@@ -74,6 +76,7 @@ app.MapGet("/", () => Results.Ok(new
     {
         "Households",
         "Identity",
+        "Integrations",
         "Scheduling",
         "Display",
         "Administration"
@@ -82,6 +85,7 @@ app.MapGet("/", () => Results.Ok(new
 
 app.MapHouseholdsModule();
 app.MapIdentityModule();
+app.MapIntegrationsModule();
 app.MapSchedulingModule();
 app.MapDisplayModule();
 app.MapAdministrationModule();

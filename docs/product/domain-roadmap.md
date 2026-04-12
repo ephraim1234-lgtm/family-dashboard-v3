@@ -208,10 +208,52 @@ Future provider work will likely need environment variables such as `GOOGLE_CLIE
 High.
 
 **Status**
-Active expansion.
+Active expansion slice.
 
 **Implementation bias**
 Prefer a first narrow provider path and clear sync ownership before broad integration coverage.
+
+**Current first slice**
+- Google Calendar iCal feed linking
+- manual one-way import into local scheduling
+- sync status visibility per linked calendar
+- imported events treated as read-only in Scheduling
+
+**Current OAuth foundation slice**
+- Google account linking start/callback flow through the web-shell callback path
+- persisted Google provider account links owned by Integrations
+- admin visibility for OAuth readiness and linked Google accounts
+- existing iCal import path remains the active scheduling import path for now
+
+**Current OAuth discovery slice**
+- linked Google accounts can discover accessible Google calendars through the Google Calendar API
+- expired OAuth access tokens are refreshed server-side before discovery when a refresh token is available
+- discovery is admin-visible and can now create provider-managed Google calendar links for one-way import
+
+**Current OAuth-managed import slice**
+- managed Google calendar links can sync through Google Calendar API without requiring a copied private iCal URL
+- imported events still land in Scheduling as read-only external events
+- recurring support remains intentionally narrow and recurring exceptions/overrides are still skipped
+
+**Current hardening additions**
+- duplicate feed-link prevention per household
+- `TZID` parsing support for imported timed events
+- invalid-feed failure handling with persisted sync errors
+- consistent read-only enforcement for imported event delete/update paths
+
+**Current next slice**
+- worker-managed scheduled sync for already-linked calendars
+- per-link next-due scheduling state with a fixed sync cadence
+- admin visibility for automatic sync cadence and next scheduled run
+
+**Current recurring import slice**
+- import supported `DAILY` recurring external events
+- import supported `WEEKLY` recurring external events with weekday mapping
+- continue skipping unsupported recurrence patterns explicitly
+
+**Still deferred**
+- broader external recurrence support beyond the current narrow subset
+- bidirectional sync and conflict resolution
 
 ---
 

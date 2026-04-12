@@ -33,6 +33,7 @@ These remain foundational and should stay coherent as the platform grows:
 - Households
 - Identity/Auth
 - Scheduling
+- Calendar integrations (narrow import-first slice)
 - Display
 - Administration
 - Worker foundation
@@ -71,6 +72,13 @@ Less desirable behavior:
 - treating every future-facing concern as a reason to defer implementation
 
 ---
+
+- household membership and context
+- scheduling and calendar events
+- one-way external calendar import foundation
+- recurrence support
+- display devices and display projections
+- admin/configuration for the above
 
 ## Future domains exist, but are not current implementation scope
 
@@ -177,6 +185,7 @@ Core active areas:
 
 - Households
 - Identity
+- Integrations
 - Scheduling
 - Display
 - Administration
@@ -184,7 +193,6 @@ Core active areas:
 Active expansion areas:
 
 - Notifications
-- Integrations
 - Chores
 
 Reserved future module areas include:
@@ -236,3 +244,4 @@ This file should be updated when any of the following become true:
 - a new domain/module is intentionally activated
 
 Do not let the documented active implementation scope become stale.
+

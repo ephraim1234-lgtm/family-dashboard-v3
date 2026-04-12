@@ -71,7 +71,9 @@ public sealed class ScheduleBrowseQueryService(
                     RecurrenceRequestMapper.ToSummary(
                         e.RecurrencePattern,
                         e.WeeklyDaysMask,
-                        e.RecursUntilUtc))))
+                        e.RecursUntilUtc),
+                    !string.IsNullOrWhiteSpace(e.SourceKind),
+                    e.SourceKind)))
             .OrderBy(item => item.StartsAtUtc)
             .GroupBy(item => DateOnly.FromDateTime(
                 item.StartsAtUtc?.UtcDateTime.Date ?? request.WindowStartUtc.UtcDateTime.Date))
@@ -164,6 +166,12 @@ public sealed class ScheduledEventManagementService(
             return ScheduledEventMutationResult.NotFound();
         }
 
+        if (!string.IsNullOrWhiteSpace(scheduledEvent.SourceKind))
+        {
+            return ScheduledEventMutationResult.ReadOnly(
+                "Imported calendar events are read-only in Scheduling. Resync or remove the linked calendar instead.");
+        }
+
         var validated = ValidateRequest(
             request.Title,
             request.Description,
@@ -191,7 +199,7 @@ public sealed class ScheduledEventManagementService(
         return ScheduledEventMutationResult.Success(MapSeriesItem(scheduledEvent));
     }
 
-    public async Task<bool> DeleteEventAsync(
+    public async Task<ScheduledEventMutationResult> DeleteEventAsync(
         Guid householdId,
         Guid eventId,
         CancellationToken cancellationToken)
@@ -203,13 +211,19 @@ public sealed class ScheduledEventManagementService(
 
         if (scheduledEvent is null)
         {
-            return false;
+            return ScheduledEventMutationResult.NotFound();
+        }
+
+        if (!string.IsNullOrWhiteSpace(scheduledEvent.SourceKind))
+        {
+            return ScheduledEventMutationResult.ReadOnly(
+                "Imported calendar events are read-only in Scheduling. Resync or remove the linked calendar instead.");
         }
 
         dbContext.ScheduledEvents.Remove(scheduledEvent);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        return true;
+        return ScheduledEventMutationResult.Success(MapSeriesItem(scheduledEvent));
     }
 
     private ScheduledEventSeriesItem MapSeriesItem(ScheduledEvent scheduledEvent) =>
@@ -228,6 +242,8 @@ public sealed class ScheduledEventManagementService(
                 scheduledEvent.RecursUntilUtc),
             RecurrenceRequestMapper.ToWeekdayNames(scheduledEvent.WeeklyDaysMask),
             scheduledEvent.RecursUntilUtc,
+            !string.IsNullOrWhiteSpace(scheduledEvent.SourceKind),
+            scheduledEvent.SourceKind,
             GetNextOccurrenceStartsAtUtc(scheduledEvent, clock.UtcNow),
             scheduledEvent.CreatedAtUtc);
 

@@ -1,6 +1,7 @@
 using HouseholdOps.Modules.Display;
 using HouseholdOps.Modules.Households;
 using HouseholdOps.Modules.Identity;
+using HouseholdOps.Modules.Integrations;
 using HouseholdOps.Modules.Scheduling;
 using Microsoft.EntityFrameworkCore;
 
@@ -22,6 +23,10 @@ public sealed class HouseholdOpsDbContext(DbContextOptions<HouseholdOpsDbContext
     public DbSet<DisplayAccessToken> DisplayAccessTokens => Set<DisplayAccessToken>();
 
     public DbSet<ScheduledEvent> ScheduledEvents => Set<ScheduledEvent>();
+
+    public DbSet<GoogleCalendarConnection> GoogleCalendarConnections => Set<GoogleCalendarConnection>();
+
+    public DbSet<GoogleOAuthAccountLink> GoogleOAuthAccountLinks => Set<GoogleOAuthAccountLink>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -126,8 +131,78 @@ public sealed class HouseholdOpsDbContext(DbContextOptions<HouseholdOpsDbContext
             entity.Property(x => x.RecurrencePattern).HasConversion<string>().HasMaxLength(16);
             entity.Property(x => x.WeeklyDaysMask);
             entity.Property(x => x.RecursUntilUtc);
+            entity.Property(x => x.SourceKind).HasMaxLength(32);
+            entity.Property(x => x.SourceEventId).HasMaxLength(256);
+            entity.Property(x => x.SourceCalendarId);
+            entity.Property(x => x.LastImportedAtUtc);
             entity.Property(x => x.CreatedAtUtc);
             entity.HasIndex(x => x.HouseholdId);
+            entity.HasIndex(x => new { x.HouseholdId, x.SourceKind, x.SourceCalendarId, x.SourceEventId })
+                .IsUnique()
+                .HasDatabaseName("IX_scheduled_events_source_identity")
+                .HasFilter("\"SourceKind\" IS NOT NULL AND \"SourceCalendarId\" IS NOT NULL AND \"SourceEventId\" IS NOT NULL");
+            entity.HasOne<Household>()
+                .WithMany()
+                .HasForeignKey(x => x.HouseholdId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<GoogleCalendarConnection>(entity =>
+        {
+            entity.ToTable("google_calendar_connections");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.DisplayName).HasMaxLength(200);
+            entity.Property(x => x.LinkMode).HasMaxLength(32);
+            entity.Property(x => x.FeedUrl);
+            entity.Property(x => x.GoogleOAuthAccountLinkId);
+            entity.Property(x => x.GoogleCalendarId).HasMaxLength(320);
+            entity.Property(x => x.GoogleCalendarTimeZone).HasMaxLength(128);
+            entity.Property(x => x.AutoSyncEnabled);
+            entity.Property(x => x.SyncIntervalMinutes);
+            entity.Property(x => x.NextSyncDueAtUtc);
+            entity.Property(x => x.LastSyncStatus).HasMaxLength(32);
+            entity.Property(x => x.LastSyncError);
+            entity.Property(x => x.CreatedAtUtc);
+            entity.Property(x => x.LastSyncStartedAtUtc);
+            entity.Property(x => x.LastSyncCompletedAtUtc);
+            entity.Property(x => x.ImportedEventCount);
+            entity.Property(x => x.SkippedRecurringEventCount);
+            entity.Property(x => x.SkippedRecurringOverrideCount);
+            entity.HasIndex(x => x.HouseholdId);
+            entity.HasIndex(x => new { x.HouseholdId, x.FeedUrl })
+                .IsUnique()
+                .HasDatabaseName("IX_google_calendar_connections_household_feed_url")
+                .HasFilter("\"FeedUrl\" IS NOT NULL");
+            entity.HasIndex(x => new { x.HouseholdId, x.GoogleOAuthAccountLinkId, x.GoogleCalendarId })
+                .IsUnique()
+                .HasDatabaseName("IX_google_calendar_connections_household_oauth_calendar")
+                .HasFilter("\"GoogleOAuthAccountLinkId\" IS NOT NULL AND \"GoogleCalendarId\" IS NOT NULL");
+            entity.HasOne<Household>()
+                .WithMany()
+                .HasForeignKey(x => x.HouseholdId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<GoogleOAuthAccountLink>()
+                .WithMany()
+                .HasForeignKey(x => x.GoogleOAuthAccountLinkId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<GoogleOAuthAccountLink>(entity =>
+        {
+            entity.ToTable("google_oauth_account_links");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.GoogleUserId).HasMaxLength(128);
+            entity.Property(x => x.Email).HasMaxLength(320);
+            entity.Property(x => x.DisplayName).HasMaxLength(200);
+            entity.Property(x => x.AccessToken);
+            entity.Property(x => x.RefreshToken);
+            entity.Property(x => x.TokenType).HasMaxLength(32);
+            entity.Property(x => x.Scope);
+            entity.Property(x => x.AccessTokenExpiresAtUtc);
+            entity.Property(x => x.CreatedAtUtc);
+            entity.Property(x => x.UpdatedAtUtc);
+            entity.HasIndex(x => x.HouseholdId);
+            entity.HasIndex(x => new { x.HouseholdId, x.GoogleUserId }).IsUnique();
             entity.HasOne<Household>()
                 .WithMany()
                 .HasForeignKey(x => x.HouseholdId)

@@ -81,6 +81,22 @@ Scheduling owns scheduling behavior, even when other modules consume its outputs
 
 ---
 
+### Integrations
+Owns:
+- external provider linking records
+- provider-specific sync state
+- external import/update orchestration
+
+Does not own:
+- local scheduling rules
+- recurrence semantics for household-managed events
+- display projections
+
+Important rule:
+Integrations can ingest external events, but Scheduling remains the owner of local schedule behavior and event query semantics.
+
+---
+
 ### Display
 
 Owns:
@@ -197,6 +213,8 @@ It should reuse core domain/application logic where appropriate, while maintaini
 
 The following are plausible future module areas but are not current implementation scope:
 
+- Notifications
+- Chores
 - Food
 - Notes
 - Documents
@@ -250,3 +268,4 @@ Stop and review architectural tradeoffs before major changes to:
 - notification scheduling semantics
 - external sync ownership/conflict rules
 - future-domain activation
+

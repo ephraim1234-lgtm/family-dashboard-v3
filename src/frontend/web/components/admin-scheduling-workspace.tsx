@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useAdminOwnerSession } from "./use-admin-owner-session";
 
 type RecurrencePattern = "None" | "Daily" | "Weekly";
 
@@ -16,6 +17,8 @@ type ScheduledEventSeriesItem = {
   recurrenceSummary: string;
   weeklyDays: string[];
   recursUntilUtc: string | null;
+  isImported: boolean;
+  sourceKind: string | null;
   nextOccurrenceStartsAtUtc: string | null;
   createdAtUtc: string;
 };
@@ -34,6 +37,8 @@ type ScheduleBrowseItem = {
   isRecurring: boolean;
   recurrencePattern: RecurrencePattern;
   recurrenceSummary: string;
+  isImported: boolean;
+  sourceKind: string | null;
 };
 
 type ScheduleBrowseDayGroup = {
@@ -135,6 +140,18 @@ function recurrenceBadge(item: { isRecurring: boolean; recurrencePattern: Recurr
   return item.recurrencePattern;
 }
 
+function sourceBadge(item: { isImported: boolean; sourceKind: string | null }) {
+  if (!item.isImported) {
+    return "Local";
+  }
+
+  if (item.sourceKind === "GoogleCalendarIcs") {
+    return "Imported from Google";
+  }
+
+  return "Imported";
+}
+
 function relativeDayLabel(date: string) {
   const target = new Date(`${date}T00:00:00Z`);
   const today = new Date();
@@ -199,6 +216,7 @@ function formatFrameRange(startUtc: string, endUtc: string) {
 }
 
 export function AdminSchedulingWorkspace() {
+  const { isOwner, isLoading: isSessionLoading } = useAdminOwnerSession();
   const hydratedPreferencesRef = useRef(false);
   const initialState = useMemo(() => createDefaultState(), []);
   const [title, setTitle] = useState(initialState.title);
@@ -286,6 +304,10 @@ export function AdminSchedulingWorkspace() {
   }
 
   useEffect(() => {
+    if (isSessionLoading) {
+      return;
+    }
+
     let storedWindowDays = 14;
 
     if (typeof window !== "undefined") {
@@ -316,6 +338,13 @@ export function AdminSchedulingWorkspace() {
 
     hydratedPreferencesRef.current = true;
 
+    if (!isOwner) {
+      setBrowse(null);
+      setManagedEvents([]);
+      setError(null);
+      return;
+    }
+
     startTransition(() => {
       refreshAll({
         startUtc: getCurrentWindowStartIso(),
@@ -328,7 +357,7 @@ export function AdminSchedulingWorkspace() {
         );
       });
     });
-  }, []);
+  }, [isOwner, isSessionLoading]);
 
   useEffect(() => {
     if (!hydratedPreferencesRef.current || typeof window === "undefined") {
@@ -592,6 +621,11 @@ export function AdminSchedulingWorkspace() {
             Browse a clear, explicit schedule frame grouped by day, then jump
             straight into the series that owns each occurrence.
           </p>
+          {!isOwner && !isSessionLoading ? (
+            <p className="muted">
+              Sign in with an owner session to load the scheduling workspace.
+            </p>
+          ) : null}
           <div className="pill-row">
             <span className="pill">
               Window: {browse ? formatFrameRange(browse.windowStartUtc, browse.windowEndUtc) : "Loading"}
@@ -614,8 +648,8 @@ export function AdminSchedulingWorkspace() {
           <h2>Whole-series lifecycle</h2>
           <p className="muted">
             One-time, daily, and weekly events are all edited or deleted at the
-            series level in this phase. Occurrence-only changes are intentionally
-            out of scope.
+            series level in this phase. Imported external events remain read-only,
+            and occurrence-only changes are intentionally out of scope.
           </p>
           <div className="pill-row">
             <button
@@ -800,27 +834,37 @@ export function AdminSchedulingWorkspace() {
                               {formatEventTime(item)}
                             </div>
                           </div>
-                          <span className="pill">{recurrenceBadge(item)}</span>
+                          <div className="pill-row">
+                            <span className="pill">{recurrenceBadge(item)}</span>
+                            <span className="pill">{sourceBadge(item)}</span>
+                          </div>
                         </div>
                         <div className="muted">{item.recurrenceSummary}</div>
                         {item.description ? <div>{item.description}</div> : null}
-                        <div className="action-row compact-action-row">
-                          <button
-                            className="action-button action-button-ghost"
-                            onClick={() => {
-                              const target = managedEvents.find(
-                                (managedEvent) => managedEvent.id === item.eventId
-                              );
+                        {item.isImported ? (
+                          <div className="muted">
+                            Imported events are managed from the Calendar integrations
+                            panel.
+                          </div>
+                        ) : (
+                          <div className="action-row compact-action-row">
+                            <button
+                              className="action-button action-button-ghost"
+                              onClick={() => {
+                                const target = managedEvents.find(
+                                  (managedEvent) => managedEvent.id === item.eventId
+                                );
 
-                              if (target) {
-                                beginEditing(target);
-                              }
-                            }}
-                            disabled={isPending}
-                          >
-                            Edit Owning Series
-                          </button>
-                        </div>
+                                if (target) {
+                                  beginEditing(target);
+                                }
+                              }}
+                              disabled={isPending}
+                            >
+                              Edit Owning Series
+                            </button>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -836,11 +880,12 @@ export function AdminSchedulingWorkspace() {
 
         <article className="panel">
           <div className="eyebrow">Series editor</div>
-          <h2>{editingEventId ? "Edit scheduled event series" : "Create scheduled event series"}</h2>
-          <p className="muted">
-            This form manages whole scheduled events. Recurrence stays narrow and
-            explicit: one-time, daily, or weekly with selected weekdays.
-          </p>
+        <h2>{editingEventId ? "Edit scheduled event series" : "Create scheduled event series"}</h2>
+        <p className="muted">
+          This form manages whole scheduled events. Recurrence stays narrow and
+          explicit: one-time, daily, or weekly with selected weekdays. Imported
+          calendars flow in separately and stay read-only here.
+        </p>
 
           <div className="form-stack">
             <label className="field">
@@ -967,6 +1012,7 @@ export function AdminSchedulingWorkspace() {
                   </div>
                   <div className="pill-row">
                     <span className="pill">{recurrenceBadge(item)}</span>
+                    <span className="pill">{sourceBadge(item)}</span>
                     <span className="pill">
                       {item.nextOccurrenceStartsAtUtc
                         ? `Next ${new Date(item.nextOccurrenceStartsAtUtc).toLocaleString()}`
@@ -981,22 +1027,29 @@ export function AdminSchedulingWorkspace() {
                     : ""}
                 </div>
                 {item.description ? <div>{item.description}</div> : null}
-                <div className="action-row compact-action-row">
-                  <button
-                    className="action-button action-button-ghost"
-                    onClick={() => beginEditing(item)}
-                    disabled={isPending}
-                  >
-                    Edit Series
-                  </button>
-                  <button
-                    className="action-button action-button-secondary"
-                    onClick={() => handleDelete(item.id)}
-                    disabled={isPending}
-                  >
-                    Delete Series
-                  </button>
-                </div>
+                {item.isImported ? (
+                  <div className="muted">
+                    Imported series update through Integration sync, not direct Scheduling
+                    edits.
+                  </div>
+                ) : (
+                  <div className="action-row compact-action-row">
+                    <button
+                      className="action-button action-button-ghost"
+                      onClick={() => beginEditing(item)}
+                      disabled={isPending}
+                    >
+                      Edit Series
+                    </button>
+                    <button
+                      className="action-button action-button-secondary"
+                      onClick={() => handleDelete(item.id)}
+                      disabled={isPending}
+                    >
+                      Delete Series
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>

@@ -12,5 +12,7 @@ public sealed record ScheduledEventSeriesItem(
     string RecurrenceSummary,
     IReadOnlyList<string> WeeklyDays,
     DateTimeOffset? RecursUntilUtc,
+    bool IsImported,
+    string? SourceKind,
     DateTimeOffset? NextOccurrenceStartsAtUtc,
     DateTimeOffset CreatedAtUtc);

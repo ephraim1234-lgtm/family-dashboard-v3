@@ -6,4 +6,6 @@ public sealed record UpcomingEventItem(
     string? Description,
     bool IsAllDay,
     DateTimeOffset? StartsAtUtc,
-    DateTimeOffset? EndsAtUtc);
+    DateTimeOffset? EndsAtUtc,
+    bool IsImported,
+    string? SourceKind);

@@ -6,7 +6,8 @@ public enum ScheduledEventMutationStatus
 {
     Succeeded,
     ValidationFailed,
-    NotFound
+    NotFound,
+    ReadOnly
 }
 
 public sealed record ScheduledEventMutationResult(
@@ -22,4 +23,7 @@ public sealed record ScheduledEventMutationResult(
 
     public static ScheduledEventMutationResult NotFound() =>
         new(ScheduledEventMutationStatus.NotFound, null, null);
+
+    public static ScheduledEventMutationResult ReadOnly(string error) =>
+        new(ScheduledEventMutationStatus.ReadOnly, error, null);
 }

@@ -68,7 +68,7 @@ These are the most likely and most appropriate adjacent expansions after the ini
 - external calendar integrations
 - chores / routines
 
-These should be treated as approved next implementation areas, not merely passive ideas.
+Calendar integrations are now actively underway with a narrow first slice focused on disciplined one-way import rather than broad sync.
 
 They should still be built in narrow, disciplined slices.
 
@@ -134,3 +134,5 @@ Product evolution should follow this pattern:
 5. repeat
 
 The goal is deliberate expansion, not static preservation of the original MVP boundary.
+
+
