@@ -324,6 +324,11 @@ a {
   color: rgba(247, 239, 224, 0.62);
 }
 
+.display-footer-refresh {
+  margin-left: auto;
+  opacity: 0.7;
+}
+
 .muted {
   color: var(--muted);
 }
