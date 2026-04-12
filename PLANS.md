@@ -129,11 +129,11 @@
   - Notes: `PersistedSessionCookieEvents` sets `ShouldRenew = true` on every authenticated request, which causes the callback and start responses to carry two `set-cookie` headers (session renewal + state cookie). Both `proxyApi` and the callback proxy were using `headers.get('set-cookie')`, which joins multiple values with `, ` and breaks cookie parsing. Fixed both to use `headers.getSetCookie()` and append each cookie individually. Existing integration endpoints validated at 200; readiness endpoint correctly reports unconfigured state when OAuth credentials are absent.
 
 - `M18` First real end-to-end OAuth consent run
-  - Status: `blocked`
+  - Status: `done`
   - Scope: run the full Google consent/callback flow with real credentials, verify account storage and post-link calendar discovery.
   - Key files touched: none — no code changes needed; validation only
-  - Validation status: partial
-  - Notes: readiness confirmed `isReady: true` with real credentials in `.env`. `start` flow returns HTTP 200, both `google_oauth_state` and `householdops.dev-session` cookies forwarded individually (M17 fix confirmed live). Authorization URL is well-formed with correct `client_id`, `redirect_uri`, scopes, `access_type=offline`, and `prompt=consent`. The interactive Google consent step is blocked — it requires a real browser session and cannot be driven from the CLI without explicit Playwright automation. All code paths for the consent and callback are in place; the only remaining gap is a human-driven consent click-through to validate account storage and post-link calendar discovery end to end.
+  - Validation status: passed
+  - Notes: user completed the interactive Google consent step in a browser. Account `lgbrownfamily@gmail.com` (Ephraim Brown) was linked and stored with `calendar.readonly` scope. Calendar discovery returned 2 calendars (primary + Holidays in United States). A managed link for the primary calendar was created and synced successfully, importing 12 events with 0 skipped. Imported events appeared correctly in `/api/scheduling/events` as `isImported: true, sourceKind: "GoogleCalendarIcs"`. Full end-to-end path confirmed in the real Google OAuth flow.
 
 ## Current milestone
 - None active. Awaiting confirmation for the next calendar-integrations milestone.
@@ -211,8 +211,8 @@
 - 2026-04-12: `M17` focused tests passed with `dotnet test tests\HouseholdOps.Modules.Scheduling.Tests\HouseholdOps.Modules.Scheduling.Tests.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` (`50` passed, no regressions).
 - 2026-04-12: `M17` Docker validation rebuilt `api` and `web` successfully; authenticated web-shell requests to `/api/integrations/google-calendar-links`, `/api/integrations/google-oauth/accounts`, `/api/integrations/google-oauth/calendars`, `/api/integrations/google-oauth/readiness`, and `/api/admin/overview` all returned `200`; readiness correctly reported unconfigured state.
 
-- 2026-04-12: `M18` partial validation — Docker containers rebuilt with real `.env` credentials; `/api/integrations/google-oauth/readiness` returned `isReady: true`; `POST /api/integrations/google-oauth/start` returned HTTP 200 with both `google_oauth_state` and `householdops.dev-session` cookies forwarded individually (M17 fix confirmed live in Docker); authorization URL well-formed with correct `client_id`, `redirect_uri`, scopes, and PKCE parameters. Interactive consent step blocked by CLI environment — requires browser.
+- 2026-04-12: `M18` full end-to-end validation — real Google consent completed by user; account `lgbrownfamily@gmail.com` linked with `calendar.readonly` scope; 2 calendars discovered; managed calendar link created and first sync succeeded importing 12 events; imported events confirmed in `/api/scheduling/events` as `isImported: true, sourceKind: "GoogleCalendarIcs"`.
 
 ## Next recommended step
-- `M18` is blocked on interactive browser consent. The OAuth code path is complete and verified up to the consent redirect. A human-driven browser session is needed to complete it.
+- `M18` is done. The full Google OAuth calendar import path is validated end to end with real credentials.
 - Next concrete code milestone: start `M19` — move into the active expansion track. Narrowest useful candidate is a first Notifications/Reminders slice: owner-visible reminder records tied to scheduled events, with a worker that detects due reminders. This keeps Scheduling as the event source and Notifications as a new narrow module without crossing module boundaries.
