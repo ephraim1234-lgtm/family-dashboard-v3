@@ -477,6 +477,40 @@ a {
   gap: 8px;
 }
 
+.reminder-section {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.reminder-add-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+
+.reminder-minutes-field {
+  min-width: 160px;
+}
+
+.reminder-minutes-field input {
+  width: 100%;
+}
+
+.reminder-preset-row {
+  flex-wrap: nowrap;
+}
+
+.reminder-list {
+  margin-top: 12px;
+}
+
+.reminder-card .stack-card-header {
+  align-items: center;
+}
+
 @media (max-width: 720px) {
   .page {
     padding: 24px 16px 44px;

@@ -53,6 +53,21 @@ type ScheduleBrowseResponse = {
   days: ScheduleBrowseDayGroup[];
 };
 
+type EventReminderItem = {
+  id: string;
+  scheduledEventId: string;
+  eventTitle: string;
+  minutesBefore: number;
+  dueAtUtc: string;
+  status: string;
+  firedAtUtc: string | null;
+  createdAtUtc: string;
+};
+
+type EventReminderListResponse = {
+  items: EventReminderItem[];
+};
+
 type BrowseFilter = "All" | "Recurring" | "OneTime";
 
 const browseWindowOptions = [7, 14, 30] as const;
@@ -236,6 +251,10 @@ export function AdminSchedulingWorkspace() {
   const [browseFilter, setBrowseFilter] = useState<BrowseFilter>("All");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [reminders, setReminders] = useState<EventReminderItem[]>([]);
+  const [reminderMinutesBefore, setReminderMinutesBefore] = useState(15);
+  const [reminderError, setReminderError] = useState<string | null>(null);
+  const [isReminderPending, startReminderTransition] = useTransition();
 
   function resetForm() {
     const next = createDefaultState();
@@ -248,6 +267,8 @@ export function AdminSchedulingWorkspace() {
     setWeeklyDays(next.weeklyDays);
     setRecursUntilLocal(next.recursUntilLocal);
     setEditingEventId(null);
+    setReminders([]);
+    setReminderError(null);
   }
 
   async function refreshBrowse(startUtc = browseStartUtc, windowDays = browseWindowDays) {
@@ -301,6 +322,99 @@ export function AdminSchedulingWorkspace() {
       ),
       refreshSeries()
     ]);
+  }
+
+  useEffect(() => {
+    if (!editingEventId) {
+      setReminders([]);
+      setReminderError(null);
+      return;
+    }
+
+    startReminderTransition(() => {
+      loadReminders(editingEventId).catch(() => {
+        setReminderError("Unable to load reminders.");
+      });
+    });
+  }, [editingEventId]);
+
+  async function loadReminders(eventId: string) {
+    setReminderError(null);
+
+    const response = await fetch("/api/notifications/reminders", {
+      credentials: "same-origin",
+      cache: "no-store"
+    });
+
+    if (!response.ok) {
+      throw new Error(`Reminders fetch failed with ${response.status}.`);
+    }
+
+    const data = (await response.json()) as EventReminderListResponse;
+    setReminders(data.items.filter((r) => r.scheduledEventId === eventId));
+  }
+
+  function handleAddReminder() {
+    if (!editingEventId) {
+      return;
+    }
+
+    startReminderTransition(() => {
+      addReminder(editingEventId).catch((addError: unknown) => {
+        setReminderError(
+          addError instanceof Error ? addError.message : "Unable to add reminder."
+        );
+      });
+    });
+  }
+
+  async function addReminder(eventId: string) {
+    setReminderError(null);
+
+    const response = await fetch("/api/notifications/reminders", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ scheduledEventId: eventId, minutesBefore: reminderMinutesBefore })
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || `Add reminder failed with ${response.status}.`);
+    }
+
+    await loadReminders(eventId);
+  }
+
+  function handleDeleteReminder(reminderId: string) {
+    if (!editingEventId) {
+      return;
+    }
+
+    const eventId = editingEventId;
+
+    startReminderTransition(() => {
+      deleteReminder(reminderId, eventId).catch((deleteError: unknown) => {
+        setReminderError(
+          deleteError instanceof Error ? deleteError.message : "Unable to delete reminder."
+        );
+      });
+    });
+  }
+
+  async function deleteReminder(reminderId: string, eventId: string) {
+    setReminderError(null);
+
+    const response = await fetch(`/api/notifications/reminders/${reminderId}`, {
+      method: "DELETE",
+      credentials: "same-origin"
+    });
+
+    if (!response.ok && response.status !== 404) {
+      throw new Error(`Delete reminder failed with ${response.status}.`);
+    }
+
+    await loadReminders(eventId);
   }
 
   useEffect(() => {
@@ -971,6 +1085,97 @@ export function AdminSchedulingWorkspace() {
               </label>
             ) : null}
           </div>
+
+          {editingEventId ? (
+            <div className="reminder-section">
+              <div className="eyebrow">Event reminders</div>
+              <p className="muted">
+                Reminders fire before the event starts. All-day events are not
+                supported.
+              </p>
+
+              <div className="reminder-add-row">
+                <label className="field reminder-minutes-field">
+                  <span>Minutes before</span>
+                  <input
+                    type="number"
+                    min={1}
+                    max={10080}
+                    value={reminderMinutesBefore}
+                    onChange={(event) =>
+                      setReminderMinutesBefore(Number(event.target.value))
+                    }
+                    disabled={isReminderPending}
+                  />
+                </label>
+                <div className="pill-row reminder-preset-row">
+                  {([15, 30, 60, 1440] as const).map((preset) => (
+                    <button
+                      key={preset}
+                      className={`pill-button${reminderMinutesBefore === preset ? " pill-button-active" : ""}`}
+                      onClick={() => setReminderMinutesBefore(preset)}
+                      disabled={isReminderPending}
+                    >
+                      {preset < 60
+                        ? `${preset} min`
+                        : preset === 60
+                          ? "1 hr"
+                          : "1 day"}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  className="action-button"
+                  onClick={handleAddReminder}
+                  disabled={isReminderPending}
+                >
+                  {isReminderPending ? "Saving..." : "Add Reminder"}
+                </button>
+              </div>
+
+              {reminderError ? (
+                <p className="error-text">{reminderError}</p>
+              ) : null}
+
+              {reminders.length > 0 ? (
+                <div className="stack-list reminder-list">
+                  {reminders.map((reminder) => (
+                    <div className="stack-card reminder-card" key={reminder.id}>
+                      <div className="stack-card-header">
+                        <div>
+                          <strong>
+                            {reminder.minutesBefore < 60
+                              ? `${reminder.minutesBefore} min before`
+                              : reminder.minutesBefore === 60
+                                ? "1 hr before"
+                                : reminder.minutesBefore % 60 === 0
+                                  ? `${reminder.minutesBefore / 60} hr before`
+                                  : `${reminder.minutesBefore} min before`}
+                          </strong>
+                          <div className="muted">
+                            Due{" "}
+                            {new Date(reminder.dueAtUtc).toLocaleString()}
+                          </div>
+                        </div>
+                        <div className="pill-row">
+                          <span className="pill">{reminder.status}</span>
+                          <button
+                            className="action-button action-button-secondary"
+                            onClick={() => handleDeleteReminder(reminder.id)}
+                            disabled={isReminderPending}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="muted">No reminders set for this event.</p>
+              )}
+            </div>
+          ) : null}
 
           <div className="action-row">
             <button className="action-button" onClick={handleSubmit} disabled={isPending}>
