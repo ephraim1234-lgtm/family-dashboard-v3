@@ -91,6 +91,7 @@ internal sealed class GoogleCalendarIcsParser
         return GoogleCalendarParseResult.Success(
             events,
             skippedRecurringEventCount,
+            0,
             invalidEventCount,
             encounteredEventCount);
     }
@@ -284,6 +285,7 @@ internal sealed record ImportedRecurrence(
 internal sealed record GoogleCalendarParseResult(
     IReadOnlyList<ImportedScheduledEvent> Events,
     int SkippedRecurringEventCount,
+    int SkippedRecurringOverrideCount,
     int InvalidEventCount,
     int EncounteredEventCount,
     bool IsValidFeed,
@@ -292,11 +294,13 @@ internal sealed record GoogleCalendarParseResult(
     public static GoogleCalendarParseResult Success(
         IReadOnlyList<ImportedScheduledEvent> events,
         int skippedRecurringEventCount,
+        int skippedRecurringOverrideCount,
         int invalidEventCount,
         int encounteredEventCount) =>
         new(
             events,
             skippedRecurringEventCount,
+            skippedRecurringOverrideCount,
             invalidEventCount,
             encounteredEventCount,
             true,
@@ -305,6 +309,7 @@ internal sealed record GoogleCalendarParseResult(
     public static GoogleCalendarParseResult InvalidFeed(string error) =>
         new(
             [],
+            0,
             0,
             0,
             0,

@@ -40,4 +40,6 @@ public sealed class GoogleCalendarConnection
     public int ImportedEventCount { get; set; }
 
     public int SkippedRecurringEventCount { get; set; }
+
+    public int SkippedRecurringOverrideCount { get; set; }
 }

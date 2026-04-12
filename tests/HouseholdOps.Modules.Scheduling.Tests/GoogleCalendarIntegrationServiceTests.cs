@@ -1162,7 +1162,8 @@ public class GoogleCalendarIntegrationServiceTests
 
         Assert.Equal(GoogleCalendarSyncResultStatus.Succeeded, synced.Status);
         Assert.Equal(2, synced.Link!.ImportedEventCount);
-        Assert.Equal(1, synced.Link.SkippedRecurringEventCount);
+        Assert.Equal(0, synced.Link.SkippedRecurringEventCount);
+        Assert.Equal(1, synced.Link.SkippedRecurringOverrideCount);
 
         var importedEvents = await dbContext.ScheduledEvents
             .OrderBy(item => item.Title)

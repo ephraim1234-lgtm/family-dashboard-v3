@@ -21,4 +21,5 @@ public sealed record GoogleCalendarLinkSummaryResponse(
     string? LastSyncRecoveryHint,
     int ImportedEventCount,
     int SkippedRecurringEventCount,
+    int SkippedRecurringOverrideCount,
     DateTimeOffset CreatedAtUtc);

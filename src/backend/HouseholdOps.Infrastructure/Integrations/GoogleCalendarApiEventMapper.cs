@@ -11,6 +11,7 @@ internal static class GoogleCalendarApiEventMapper
     {
         var importedEvents = new List<ImportedScheduledEvent>();
         var skippedRecurringEventCount = 0;
+        var skippedRecurringOverrideCount = 0;
         var invalidEventCount = 0;
         var encounteredEventCount = 0;
 
@@ -32,6 +33,10 @@ internal static class GoogleCalendarApiEventMapper
             {
                 importedEvents.Add(imported);
             }
+            else if (calendarEvent.RecurringEventId is not null)
+            {
+                skippedRecurringOverrideCount++;
+            }
             else if (skippedUnsupportedRecurrence)
             {
                 skippedRecurringEventCount++;
@@ -45,6 +50,7 @@ internal static class GoogleCalendarApiEventMapper
         return GoogleCalendarParseResult.Success(
             importedEvents,
             skippedRecurringEventCount,
+            skippedRecurringOverrideCount,
             invalidEventCount,
             encounteredEventCount);
     }

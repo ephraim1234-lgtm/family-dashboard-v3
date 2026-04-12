@@ -23,6 +23,7 @@ type GoogleCalendarLinkSummary = {
   lastSyncRecoveryHint: string | null;
   importedEventCount: number;
   skippedRecurringEventCount: number;
+  skippedRecurringOverrideCount: number;
   createdAtUtc: string;
 };
 
@@ -415,6 +416,25 @@ export function AdminCalendarIntegrationsPanel() {
     }
   }
 
+  function renderSourceSummary(link: GoogleCalendarLinkSummary) {
+    if (link.linkMode === "OAuthCalendar") {
+      return (
+        <>
+          {link.googleOAuthAccountEmail ?? "Linked Google account"}
+          {" · "}
+          {link.googleCalendarId ?? link.feedUrlPathHint}
+        </>
+      );
+    }
+
+    return (
+      <>
+        {link.feedUrlHost}
+        {link.feedUrlPathHint}
+      </>
+    );
+  }
+
   return (
     <section className="grid">
       <article className="panel">
@@ -550,9 +570,7 @@ export function AdminCalendarIntegrationsPanel() {
                     </div>
                     <span className="pill">Linked</span>
                   </div>
-                  <div className="muted">
-                    Scope: {account.scope}
-                  </div>
+                  <div className="muted">Scope: {account.scope}</div>
                   <div className="muted">
                     Updated {new Date(account.updatedAtUtc).toLocaleString()}
                   </div>
@@ -615,137 +633,137 @@ export function AdminCalendarIntegrationsPanel() {
               <div className="stack-card" key={link.id}>
                 {syncSettings[link.id] == null ? null : (
                   <>
-                <div className="stack-card-header">
-                  <div>
-                    <strong>{link.displayName}</strong>
-                    <div className="muted">
-                      {link.linkMode === "OAuthCalendar" ? (
-                        <>
-                          {link.googleOAuthAccountEmail ?? "Linked Google account"}
-                          {" · "}
-                          {link.googleCalendarId ?? link.feedUrlPathHint}
-                        </>
-                      ) : (
-                        <>
-                          {link.feedUrlHost}
-                          {link.feedUrlPathHint}
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  <div className="pill-row">
-                    <span className="pill">{link.lastSyncStatus}</span>
-                    <span className="pill">{link.importedEventCount} imported</span>
-                    <span className="pill">
-                      {link.linkMode === "OAuthCalendar" ? "OAuth managed" : "iCal feed"}
-                    </span>
-                    {link.autoSyncEnabled ? (
-                      <span className="pill">Auto every {link.syncIntervalMinutes}m</span>
-                    ) : null}
-                  </div>
-                </div>
-
-                <div className="muted">
-                  Source time zone {link.googleCalendarTimeZone ?? "Not provided"}
-                </div>
-                <div className="muted">
-                  Last completed{" "}
-                  {link.lastSyncCompletedAtUtc
-                    ? new Date(link.lastSyncCompletedAtUtc).toLocaleString()
-                    : "Never"}
-                </div>
-                <div className="muted">
-                  Next auto sync{" "}
-                  {link.nextSyncDueAtUtc
-                    ? new Date(link.nextSyncDueAtUtc).toLocaleString()
-                    : "Not scheduled"}
-                </div>
-                <div className="muted">
-                  Skipped recurring events: {link.skippedRecurringEventCount}
-                </div>
-                {link.lastSyncError ? (
-                  <div className="stack-card" style={{ marginTop: "0.75rem" }}>
                     <div className="stack-card-header">
-                      <strong>Sync needs attention</strong>
-                      {renderFailureCategory(link.lastSyncFailureCategory) ? (
+                      <div>
+                        <strong>{link.displayName}</strong>
+                        <div className="muted">{renderSourceSummary(link)}</div>
+                      </div>
+                      <div className="pill-row">
+                        <span className="pill">{link.lastSyncStatus}</span>
+                        <span className="pill">{link.importedEventCount} imported</span>
                         <span className="pill">
-                          {renderFailureCategory(link.lastSyncFailureCategory)}
+                          {link.linkMode === "OAuthCalendar" ? "OAuth managed" : "iCal feed"}
                         </span>
-                      ) : null}
+                        {link.autoSyncEnabled ? (
+                          <span className="pill">Auto every {link.syncIntervalMinutes}m</span>
+                        ) : null}
+                      </div>
                     </div>
-                    <div className="error-text">{link.lastSyncError}</div>
-                    {link.lastSyncRecoveryHint ? (
-                      <p className="muted">{link.lastSyncRecoveryHint}</p>
+
+                    <div className="muted">
+                      Source: {link.linkMode === "OAuthCalendar" ? "OAuth-managed Google calendar" : "Private Google iCal feed"}
+                    </div>
+                    <div className="muted">
+                      Source time zone: {link.googleCalendarTimeZone ?? "Not provided"}
+                    </div>
+                    <div className="muted">
+                      Last completed{" "}
+                      {link.lastSyncCompletedAtUtc
+                        ? new Date(link.lastSyncCompletedAtUtc).toLocaleString()
+                        : "Never"}
+                    </div>
+                    <div className="muted">
+                      Next auto sync{" "}
+                      {link.nextSyncDueAtUtc
+                        ? new Date(link.nextSyncDueAtUtc).toLocaleString()
+                        : "Not scheduled"}
+                    </div>
+                    <div className="muted">
+                      Unsupported recurring events skipped: {link.skippedRecurringEventCount}
+                    </div>
+                    {link.linkMode === "OAuthCalendar" ? (
+                      <div className="muted">
+                        Recurring overrides/exceptions skipped: {link.skippedRecurringOverrideCount}
+                      </div>
                     ) : null}
-                    <p className="muted">
-                      {link.autoSyncEnabled
-                        ? `Automatic sync will retry ${
-                            link.nextSyncDueAtUtc
-                              ? new Date(link.nextSyncDueAtUtc).toLocaleString()
-                              : "on the next schedule"
-                          }.`
-                        : "Automatic sync is disabled, so this link will only retry when you run Sync Now."}
-                    </p>
-                  </div>
-                ) : null}
+                    {link.linkMode === "OAuthCalendar" && link.skippedRecurringOverrideCount > 0 ? (
+                      <p className="muted">
+                        This managed import keeps the base recurring series when it can, but it does not yet model Google recurring exceptions or one-off overrides in local Scheduling.
+                      </p>
+                    ) : null}
+                    {link.lastSyncError ? (
+                      <div className="stack-card" style={{ marginTop: "0.75rem" }}>
+                        <div className="stack-card-header">
+                          <strong>Sync needs attention</strong>
+                          {renderFailureCategory(link.lastSyncFailureCategory) ? (
+                            <span className="pill">
+                              {renderFailureCategory(link.lastSyncFailureCategory)}
+                            </span>
+                          ) : null}
+                        </div>
+                        <div className="error-text">{link.lastSyncError}</div>
+                        {link.lastSyncRecoveryHint ? (
+                          <p className="muted">{link.lastSyncRecoveryHint}</p>
+                        ) : null}
+                        <p className="muted">
+                          {link.autoSyncEnabled
+                            ? `Automatic sync will retry ${
+                                link.nextSyncDueAtUtc
+                                  ? new Date(link.nextSyncDueAtUtc).toLocaleString()
+                                  : "on the next schedule"
+                              }.`
+                            : "Automatic sync is disabled, so this link will only retry when you run Sync Now."}
+                        </p>
+                      </div>
+                    ) : null}
 
-                <div className="form-stack">
-                  <label className="field checkbox-field">
-                    <input
-                      type="checkbox"
-                      checked={syncSettings[link.id].autoSyncEnabled}
-                      onChange={(event) =>
-                        handleSyncSettingsChange(link.id, {
-                          autoSyncEnabled: event.target.checked
-                        })
-                      }
-                    />
-                    <span>Enable automatic sync</span>
-                  </label>
+                    <div className="form-stack">
+                      <label className="field checkbox-field">
+                        <input
+                          type="checkbox"
+                          checked={syncSettings[link.id].autoSyncEnabled}
+                          onChange={(event) =>
+                            handleSyncSettingsChange(link.id, {
+                              autoSyncEnabled: event.target.checked
+                            })
+                          }
+                        />
+                        <span>Enable automatic sync</span>
+                      </label>
 
-                  <label className="field">
-                    <span>Auto sync interval (minutes)</span>
-                    <select
-                      value={syncSettings[link.id].syncIntervalMinutes}
-                      onChange={(event) =>
-                        handleSyncSettingsChange(link.id, {
-                          syncIntervalMinutes: Number(event.target.value)
-                        })
-                      }
-                      disabled={!syncSettings[link.id].autoSyncEnabled}
-                    >
-                      {[5, 15, 30, 60, 180, 360, 720, 1440].map((minutes) => (
-                        <option key={minutes} value={minutes}>
-                          {minutes}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                </div>
+                      <label className="field">
+                        <span>Auto sync interval (minutes)</span>
+                        <select
+                          value={syncSettings[link.id].syncIntervalMinutes}
+                          onChange={(event) =>
+                            handleSyncSettingsChange(link.id, {
+                              syncIntervalMinutes: Number(event.target.value)
+                            })
+                          }
+                          disabled={!syncSettings[link.id].autoSyncEnabled}
+                        >
+                          {[5, 15, 30, 60, 180, 360, 720, 1440].map((minutes) => (
+                            <option key={minutes} value={minutes}>
+                              {minutes}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
 
-                <div className="action-row compact-action-row">
-                  <button
-                    className="action-button action-button-ghost"
-                    onClick={() => handleSaveSyncSettings(link.id)}
-                    disabled={isPending}
-                  >
-                    Save Sync Settings
-                  </button>
-                  <button
-                    className="action-button"
-                    onClick={() => handleSync(link.id)}
-                    disabled={isPending}
-                  >
-                    Sync Now
-                  </button>
-                  <button
-                    className="action-button action-button-secondary"
-                    onClick={() => handleDelete(link.id)}
-                    disabled={isPending}
-                  >
-                    Remove Link
-                  </button>
-                </div>
+                    <div className="action-row compact-action-row">
+                      <button
+                        className="action-button action-button-ghost"
+                        onClick={() => handleSaveSyncSettings(link.id)}
+                        disabled={isPending}
+                      >
+                        Save Sync Settings
+                      </button>
+                      <button
+                        className="action-button"
+                        onClick={() => handleSync(link.id)}
+                        disabled={isPending}
+                      >
+                        Sync Now
+                      </button>
+                      <button
+                        className="action-button action-button-secondary"
+                        onClick={() => handleDelete(link.id)}
+                        disabled={isPending}
+                      >
+                        Remove Link
+                      </button>
+                    </div>
                   </>
                 )}
               </div>

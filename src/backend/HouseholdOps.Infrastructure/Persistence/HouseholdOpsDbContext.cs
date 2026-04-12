@@ -167,6 +167,7 @@ public sealed class HouseholdOpsDbContext(DbContextOptions<HouseholdOpsDbContext
             entity.Property(x => x.LastSyncCompletedAtUtc);
             entity.Property(x => x.ImportedEventCount);
             entity.Property(x => x.SkippedRecurringEventCount);
+            entity.Property(x => x.SkippedRecurringOverrideCount);
             entity.HasIndex(x => x.HouseholdId);
             entity.HasIndex(x => new { x.HouseholdId, x.FeedUrl })
                 .IsUnique()

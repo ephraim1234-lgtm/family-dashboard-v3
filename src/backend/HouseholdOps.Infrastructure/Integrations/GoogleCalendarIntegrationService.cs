@@ -467,6 +467,7 @@ public sealed class GoogleCalendarIntegrationService(
             link.LastSyncCompletedAtUtc = requestedAtUtc;
             link.ImportedEventCount = syncResult.ActiveCount;
             link.SkippedRecurringEventCount = parsed.SkippedRecurringEventCount;
+            link.SkippedRecurringOverrideCount = parsed.SkippedRecurringOverrideCount;
             link.NextSyncDueAtUtc = link.AutoSyncEnabled
                 ? requestedAtUtc.AddMinutes(link.SyncIntervalMinutes)
                 : null;
@@ -612,6 +613,7 @@ public sealed class GoogleCalendarIntegrationService(
             failureDetails.RecoveryHint,
             link.ImportedEventCount,
             link.SkippedRecurringEventCount,
+            link.SkippedRecurringOverrideCount,
             link.CreatedAtUtc);
     }
 

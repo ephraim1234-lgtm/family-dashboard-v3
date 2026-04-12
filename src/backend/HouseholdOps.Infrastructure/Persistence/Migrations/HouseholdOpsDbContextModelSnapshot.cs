@@ -149,6 +149,9 @@ partial class HouseholdOpsDbContextModelSnapshot : ModelSnapshot
                 b.Property<int>("SkippedRecurringEventCount")
                     .HasColumnType("integer");
 
+                b.Property<int>("SkippedRecurringOverrideCount")
+                    .HasColumnType("integer");
+
                 b.Property<int>("SyncIntervalMinutes")
                     .HasColumnType("integer");
 

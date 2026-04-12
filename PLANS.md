@@ -100,6 +100,12 @@
   - Key files touched: `PLANS.md`, integrations persistence/contracts/services, admin UI, focused tests, docs if behavior changes materially
   - Validation status: passed
   - Notes: discovered Google calendars can now be linked directly for import, using OAuth-backed event fetches with the same narrow recurrence limits and read-only imported-event behavior as the existing iCal path.
+- `M14` Managed-link sync UX hardening
+  - Status: `done`
+  - Scope: make managed-link source details and skipped recurring-exception guidance clearer in Admin without broadening recurrence semantics.
+  - Key files touched: `PLANS.md`, integrations contracts/services, admin UI, focused tests, docs if behavior changes materially
+  - Validation status: passed
+  - Notes: sync summaries now distinguish unsupported recurring rules from skipped recurring overrides/exceptions for managed Google links, and the Admin UI shows clearer source details for feed versus OAuth-managed links.
 
 ## Current milestone
 - None active. Awaiting confirmation for the next calendar-integrations milestone.
@@ -119,6 +125,7 @@
 - OAuth foundation is now implemented locally, but hosted callback validation is still a later real-world checkpoint before claiming production readiness.
 - Linked Google account tokens are now stored in the integrations persistence model; stronger secret-management/encryption can be a later hardening step.
 - OAuth-managed calendar imports currently skip recurring exceptions/overrides and still only support the existing narrow daily/weekly recurrence subset.
+- The new recurring override/exception guidance is conditionally visible only when a managed link actually skips overrides, so Docker UI validation for that exact state still depends on seeded runtime data.
 
 ## Validation log
 - 2026-04-11: Prior slice built successfully with `dotnet build src\backend\HouseholdOps.Api\HouseholdOps.Api.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false`.
@@ -156,6 +163,10 @@
 - 2026-04-12: `M13` focused tests passed with `dotnet test tests\HouseholdOps.Modules.Scheduling.Tests\HouseholdOps.Modules.Scheduling.Tests.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` (`47` passed).
 - 2026-04-12: `M13` API and Worker builds passed with `dotnet build src\backend\HouseholdOps.Api\HouseholdOps.Api.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` and `dotnet build src\backend\HouseholdOps.Worker\HouseholdOps.Worker.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false`.
 - 2026-04-12: Docker runtime validation passed with `$env:API_PORT='3001'; $env:WEB_PORT='3000'; docker compose up -d --build postgres api web`, then an authenticated POST to `/api/integrations/google-oauth/calendars/link` returned the expected `400` validation error for a nonexistent account link, confirming the new web-shell endpoint wiring.
+- 2026-04-12: Initial parallel `M14` validation hit the same transient .NET build artifact lock pattern seen in earlier milestones; serial reruns passed without code changes.
+- 2026-04-12: `M14` focused tests passed with `dotnet test tests\HouseholdOps.Modules.Scheduling.Tests\HouseholdOps.Modules.Scheduling.Tests.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` (`47` passed), including managed-link assertions for skipped recurring overrides/exceptions.
+- 2026-04-12: `M14` API and Worker builds passed with `dotnet build src\backend\HouseholdOps.Api\HouseholdOps.Api.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` and `dotnet build src\backend\HouseholdOps.Worker\HouseholdOps.Worker.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false`.
+- 2026-04-12: Docker runtime validation rebuilt `api` and `web` successfully with `$env:API_PORT='3001'; $env:WEB_PORT='3000'; docker compose up -d --build api web`, and the authenticated `/admin` shell returned `200`. The new override-specific UI copy is conditional on runtime data, so that exact branch remains unit-test-backed rather than fully demonstrated in the seeded Docker state.
 
 ## Next recommended step
-- Start `M14` managed-link sync UX hardening: surface managed-link source details and skipped recurring-exception guidance more clearly in Admin without broadening recurrence semantics.
+- Start `M15` managed-link failure guidance refinement: make OAuth-managed access failures and missing linked-account states more explicit than generic feed-oriented guidance, without widening provider scope.
