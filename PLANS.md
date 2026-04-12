@@ -13,6 +13,7 @@
 - Sync status is visible in Admin.
 - Admin shows automatic sync cadence and next due time per linked calendar.
 - Admin panels now gate owner-only fetches behind the current owner session, avoiding anonymous `401` request noise from the web shell.
+- Managed OAuth calendar links now surface provider-specific failure guidance instead of generic feed-only recovery text.
 - Unsupported recurrence patterns remain skipped explicitly.
 - Imported events are read-only in Scheduling and still appear in schedule/display projections.
 
@@ -113,6 +114,12 @@
   - Key files touched: `PLANS.md`, admin UI components, focused Docker validation
   - Validation status: passed
   - Notes: the web shell now waits for the current session before firing owner-only fetches, which removes expected-but-noisy `401` traffic from anonymous `/admin` loads.
+- `M16` Managed-link failure guidance refinement
+  - Status: `done`
+  - Scope: make OAuth-managed access failures and missing linked-account states more explicit than generic feed-oriented guidance, without widening provider scope.
+  - Key files touched: `PLANS.md`, integrations service failure classification, admin UI copy, focused tests
+  - Validation status: passed
+  - Notes: added managed-link-specific sync failure categories for missing linked accounts, OAuth access rejection, token reconnect needs, and missing calendars; also refreshed stale admin copy that still described OAuth setup as callback-blocked.
 
 ## Current milestone
 - None active. Awaiting confirmation for the next calendar-integrations milestone.
@@ -120,7 +127,7 @@
 ## Decisions
 - Keep Scheduling as owner of local event behavior; imported events stay read-only.
 - Keep Integrations responsible for link records, sync state, and import orchestration.
-- Stay Google-only and iCal-only for now.
+- Stay Google-only and one-way import-only for now.
 - Keep recurring external event import deferred until the non-recurring path is more robust.
 
 ## Risks / blockers
@@ -134,6 +141,7 @@
 - OAuth-managed calendar imports currently skip recurring exceptions/overrides and still only support the existing narrow daily/weekly recurrence subset.
 - The new recurring override/exception guidance is conditionally visible only when a managed link actually skips overrides, so Docker UI validation for that exact state still depends on seeded runtime data.
 - The admin shell still renders for anonymous users by design, so owner-only actions remain disabled and hidden behind session-gated fetches rather than route-level page blocking.
+- Local Google OAuth credentials and the web-shell redirect URI can now be configured successfully, but full end-to-end Google consent/callback validation still depends on a real interactive login run.
 
 ## Validation log
 - 2026-04-11: Prior slice built successfully with `dotnet build src\backend\HouseholdOps.Api\HouseholdOps.Api.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false`.
@@ -180,6 +188,10 @@
 - 2026-04-12: Docker runtime validation rebuilt `api` and `web` with `$env:API_PORT='3001'; $env:WEB_PORT='3000'; docker compose up -d --build api web`.
 - 2026-04-12: `M15` owner-session verification through the web shell returned `200` for `/api/integrations/google-calendar-links`, `/api/integrations/google-oauth/accounts`, `/api/integrations/google-oauth/calendars`, `/api/integrations/google-oauth/readiness`, `/api/scheduling/events/series`, `/api/admin/display/devices`, and `/api/admin/overview` after `POST /api/auth/dev-login`.
 - 2026-04-12: Follow-up Docker log verification for `M15` showed a fresh anonymous `/admin` load returning `200` followed by `/api/auth/session` checks without the previous owner-only `401` burst in the recent `web` container log tail, while authenticated owner requests through the web shell still returned `200`.
+- 2026-04-12: Initial parallel `M16` validation hit the same transient .NET build-artifact lock pattern seen in earlier milestones; serial reruns passed after fixing a test enum typo, without further production code changes.
+- 2026-04-12: `M16` focused tests passed with `dotnet test tests\HouseholdOps.Modules.Scheduling.Tests\HouseholdOps.Modules.Scheduling.Tests.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` (`50` passed), including managed-link failure classification coverage for missing linked accounts, OAuth access rejection, and reconnect-required token failures.
+- 2026-04-12: `M16` API and Worker builds passed with `dotnet build src\backend\HouseholdOps.Api\HouseholdOps.Api.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` and `dotnet build src\backend\HouseholdOps.Worker\HouseholdOps.Worker.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false`.
+- 2026-04-12: Docker runtime validation rebuilt `api` and `web` successfully with `$env:API_PORT='3001'; $env:WEB_PORT='3000'; docker compose up -d --build api web`, and authenticated web-shell requests to `/api/integrations/google-calendar-links`, `/api/integrations/google-oauth/accounts`, `/api/integrations/google-oauth/calendars`, `/api/integrations/google-oauth/readiness`, and `/api/admin/overview` all returned `200` after `POST /api/auth/dev-login`.
 
 ## Next recommended step
-- Start `M16` managed-link failure guidance refinement: make OAuth-managed access failures and missing linked-account states more explicit than generic feed-oriented guidance, without widening provider scope.
+- Start `M17` local OAuth callback validation and hardening: run the real Google linking flow against the Docker web shell, capture any callback/session issues, and make the narrowest fixes needed without broadening provider scope.

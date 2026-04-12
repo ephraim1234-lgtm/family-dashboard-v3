@@ -590,7 +590,7 @@ public sealed class GoogleCalendarIntegrationService(
                 : $"...{uri.AbsolutePath[^24..]}";
         }
 
-        var failureDetails = ResolveFailureDetails(link.LastSyncStatus, link.LastSyncError);
+        var failureDetails = ResolveFailureDetails(link);
 
         return new GoogleCalendarLinkSummaryResponse(
             link.Id,
@@ -618,13 +618,54 @@ public sealed class GoogleCalendarIntegrationService(
     }
 
     private static SyncFailureDetails ResolveFailureDetails(
-        string lastSyncStatus,
-        string? lastSyncError)
+        GoogleCalendarConnection link)
     {
+        var lastSyncStatus = link.LastSyncStatus;
+        var lastSyncError = link.LastSyncError;
+
         if (!string.Equals(lastSyncStatus, GoogleCalendarSyncStatuses.Failed, StringComparison.OrdinalIgnoreCase)
             || string.IsNullOrWhiteSpace(lastSyncError))
         {
             return SyncFailureDetails.None;
+        }
+
+        var isManagedOAuthLink = string.Equals(
+            link.LinkMode,
+            GoogleCalendarConnection.LinkModeOAuthCalendar,
+            StringComparison.Ordinal);
+
+        if (isManagedOAuthLink)
+        {
+            if (lastSyncError.Contains("missing its OAuth calendar configuration", StringComparison.OrdinalIgnoreCase))
+            {
+                return new SyncFailureDetails(
+                    "managed_link_invalid",
+                    "This managed Google calendar link is missing required provider details. Remove it and relink the calendar from Google discovery.");
+            }
+
+            if (lastSyncError.Contains("linked Google account for this managed calendar could not be found", StringComparison.OrdinalIgnoreCase))
+            {
+                return new SyncFailureDetails(
+                    "linked_account_missing",
+                    "The Google account behind this managed link is no longer available for the household. Relink the Google account, then recreate or reconnect this managed calendar link.");
+            }
+
+            if (lastSyncError.Contains("event lookup failed with 404", StringComparison.OrdinalIgnoreCase)
+                || lastSyncError.Contains("calendar list lookup failed with 404", StringComparison.OrdinalIgnoreCase))
+            {
+                return new SyncFailureDetails(
+                    "calendar_missing",
+                    "Google could not find this calendar anymore. Confirm the calendar still exists for the linked Google account, then rediscover and relink it if needed.");
+            }
+
+            if (lastSyncError.Contains("invalid_grant", StringComparison.OrdinalIgnoreCase)
+                || lastSyncError.Contains("token refresh failed", StringComparison.OrdinalIgnoreCase)
+                || lastSyncError.Contains("OAuth token", StringComparison.OrdinalIgnoreCase))
+            {
+                return new SyncFailureDetails(
+                    "oauth_reauth_required",
+                    "Google rejected the saved OAuth token state. Reconnect the linked Google account from Admin, then retry this managed calendar sync.");
+            }
         }
 
         if (lastSyncError.Contains("none could be imported", StringComparison.OrdinalIgnoreCase)
@@ -652,13 +693,17 @@ public sealed class GoogleCalendarIntegrationService(
             || lastSyncError.Contains("unauthorized", StringComparison.OrdinalIgnoreCase))
         {
             return new SyncFailureDetails(
-                "access",
-                "Google rejected access to this feed. Re-copy the private iCal URL or confirm the calendar is still shared appropriately.");
+                isManagedOAuthLink ? "oauth_access" : "access",
+                isManagedOAuthLink
+                    ? "Google rejected access to this managed calendar. Confirm the linked Google account still has calendar access, then reconnect the account if the problem persists."
+                    : "Google rejected access to this feed. Re-copy the private iCal URL or confirm the calendar is still shared appropriately.");
         }
 
         return new SyncFailureDetails(
             "unknown",
-            "Retry the sync once. If the failure repeats, inspect the saved error text and verify the linked feed still exists and is reachable.");
+            isManagedOAuthLink
+                ? "Retry the sync once. If the failure repeats, inspect the saved error text and verify the linked Google account and managed calendar still exist."
+                : "Retry the sync once. If the failure repeats, inspect the saved error text and verify the linked feed still exists and is reachable.");
     }
 }
 

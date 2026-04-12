@@ -1175,6 +1175,163 @@ public class GoogleCalendarIntegrationServiceTests
         Assert.Contains(importedEvents, item => item.RecurrencePattern == EventRecurrencePattern.Daily);
     }
 
+    [Fact]
+    public async Task SyncAsync_ClassifiesMissingManagedGoogleAccount_ForRecoveryGuidance()
+    {
+        await using var dbContext = CreateDbContext();
+        var accountLinkId = Guid.Parse("77777777-7777-7777-7777-777777777777");
+        var service = new GoogleCalendarIntegrationService(
+            dbContext,
+            CreateConfiguration(),
+            new FakeGoogleOAuthClient(),
+            new FakeFeedFetcher("BEGIN:VCALENDAR\r\nEND:VCALENDAR"),
+            new ImportedScheduledEventSyncService(dbContext));
+
+        var created = await service.CreateManagedLinkAsync(
+            HouseholdId,
+            new CreateManagedGoogleCalendarLinkRequest(
+                accountLinkId,
+                "family@example.com",
+                "Family Calendar",
+                "America/Chicago"),
+            CreatedAtUtc,
+            CancellationToken.None);
+
+        Assert.Equal(GoogleCalendarLinkMutationStatus.ValidationFailed, created.Status);
+
+        dbContext.GoogleCalendarConnections.Add(new GoogleCalendarConnection
+        {
+            Id = Guid.Parse("88888888-8888-8888-8888-888888888888"),
+            HouseholdId = HouseholdId,
+            DisplayName = "Managed family calendar",
+            LinkMode = GoogleCalendarConnection.LinkModeOAuthCalendar,
+            GoogleOAuthAccountLinkId = accountLinkId,
+            GoogleCalendarId = "family@example.com",
+            GoogleCalendarTimeZone = "America/Chicago",
+            CreatedAtUtc = CreatedAtUtc,
+            AutoSyncEnabled = true,
+            SyncIntervalMinutes = 30,
+            NextSyncDueAtUtc = CreatedAtUtc
+        });
+        await dbContext.SaveChangesAsync();
+
+        var synced = await service.SyncAsync(
+            HouseholdId,
+            Guid.Parse("88888888-8888-8888-8888-888888888888"),
+            CreatedAtUtc.AddMinutes(5),
+            CancellationToken.None);
+
+        Assert.Equal(GoogleCalendarSyncResultStatus.Failed, synced.Status);
+        Assert.Equal("linked_account_missing", synced.Link!.LastSyncFailureCategory);
+        Assert.Contains("Relink", synced.Link.LastSyncRecoveryHint!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task SyncAsync_ClassifiesManagedGoogleAccessFailures_WithoutFeedGuidance()
+    {
+        await using var dbContext = CreateDbContext();
+        var accountLinkId = Guid.Parse("99999999-9999-9999-9999-999999999999");
+        dbContext.GoogleOAuthAccountLinks.Add(new GoogleOAuthAccountLink
+        {
+            Id = accountLinkId,
+            HouseholdId = HouseholdId,
+            LinkedByUserId = Guid.Parse("44444444-4444-4444-4444-444444444444"),
+            GoogleUserId = "google-user-3",
+            Email = "owner@example.com",
+            DisplayName = "Owner Example",
+            AccessToken = "access-token",
+            RefreshToken = "refresh-token",
+            TokenType = "Bearer",
+            Scope = "openid email profile https://www.googleapis.com/auth/calendar.readonly",
+            AccessTokenExpiresAtUtc = CreatedAtUtc.AddHours(1),
+            CreatedAtUtc = CreatedAtUtc,
+            UpdatedAtUtc = CreatedAtUtc
+        });
+        await dbContext.SaveChangesAsync();
+
+        var service = new GoogleCalendarIntegrationService(
+            dbContext,
+            CreateConfiguration(),
+            new FakeGoogleOAuthClient(
+                getCalendarEventsException: new InvalidOperationException(
+                    "Google Calendar event lookup failed with 403.")),
+            new FakeFeedFetcher("BEGIN:VCALENDAR\r\nEND:VCALENDAR"),
+            new ImportedScheduledEventSyncService(dbContext));
+
+        var created = await service.CreateManagedLinkAsync(
+            HouseholdId,
+            new CreateManagedGoogleCalendarLinkRequest(
+                accountLinkId,
+                "family@example.com",
+                "Family Calendar",
+                "America/Chicago"),
+            CreatedAtUtc,
+            CancellationToken.None);
+
+        var synced = await service.SyncAsync(
+            HouseholdId,
+            created.Link!.Id,
+            CreatedAtUtc.AddMinutes(5),
+            CancellationToken.None);
+
+        Assert.Equal(GoogleCalendarSyncResultStatus.Failed, synced.Status);
+        Assert.Equal("oauth_access", synced.Link!.LastSyncFailureCategory);
+        Assert.Contains("linked Google account", synced.Link.LastSyncRecoveryHint!, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("iCal URL", synced.Link.LastSyncRecoveryHint!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task SyncAsync_ClassifiesManagedGoogleTokenFailures_AsReconnectRequired()
+    {
+        await using var dbContext = CreateDbContext();
+        var accountLinkId = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
+        dbContext.GoogleOAuthAccountLinks.Add(new GoogleOAuthAccountLink
+        {
+            Id = accountLinkId,
+            HouseholdId = HouseholdId,
+            LinkedByUserId = Guid.Parse("44444444-4444-4444-4444-444444444444"),
+            GoogleUserId = "google-user-4",
+            Email = "owner@example.com",
+            DisplayName = "Owner Example",
+            AccessToken = "stale-access-token",
+            RefreshToken = "refresh-token",
+            TokenType = "Bearer",
+            Scope = "openid email profile https://www.googleapis.com/auth/calendar.readonly",
+            AccessTokenExpiresAtUtc = CreatedAtUtc.AddMinutes(-5),
+            CreatedAtUtc = CreatedAtUtc,
+            UpdatedAtUtc = CreatedAtUtc
+        });
+        await dbContext.SaveChangesAsync();
+
+        var service = new GoogleCalendarIntegrationService(
+            dbContext,
+            CreateConfiguration(),
+            new FakeGoogleOAuthClient(
+                refreshAccessTokenException: new InvalidOperationException("invalid_grant")),
+            new FakeFeedFetcher("BEGIN:VCALENDAR\r\nEND:VCALENDAR"),
+            new ImportedScheduledEventSyncService(dbContext));
+
+        var created = await service.CreateManagedLinkAsync(
+            HouseholdId,
+            new CreateManagedGoogleCalendarLinkRequest(
+                accountLinkId,
+                "family@example.com",
+                "Family Calendar",
+                "America/Chicago"),
+            CreatedAtUtc,
+            CancellationToken.None);
+
+        var synced = await service.SyncAsync(
+            HouseholdId,
+            created.Link!.Id,
+            CreatedAtUtc.AddMinutes(5),
+            CancellationToken.None);
+
+        Assert.Equal(GoogleCalendarSyncResultStatus.Failed, synced.Status);
+        Assert.Equal("oauth_reauth_required", synced.Link!.LastSyncFailureCategory);
+        Assert.Contains("Reconnect", synced.Link.LastSyncRecoveryHint!, StringComparison.OrdinalIgnoreCase);
+    }
+
     private sealed class FakeFeedFetcher(string feedContent) : IGoogleCalendarFeedFetcher
     {
         public Task<string> FetchAsync(
@@ -1202,7 +1359,10 @@ public class GoogleCalendarIntegrationServiceTests
         GoogleOAuthTokenResult? tokenResult = null,
         GoogleOAuthUserProfile? userProfile = null,
         IReadOnlyList<GoogleOAuthCalendarSummary>? calendars = null,
-        IReadOnlyList<GoogleOAuthCalendarEvent>? events = null) : IGoogleOAuthClient
+        IReadOnlyList<GoogleOAuthCalendarEvent>? events = null,
+        Exception? refreshAccessTokenException = null,
+        Exception? getCalendarsException = null,
+        Exception? getCalendarEventsException = null) : IGoogleOAuthClient
     {
         private readonly GoogleOAuthTokenResult token =
             tokenResult
@@ -1242,6 +1402,11 @@ public class GoogleCalendarIntegrationServiceTests
             CancellationToken cancellationToken)
         {
             RefreshCalls++;
+            if (refreshAccessTokenException is not null)
+            {
+                return Task.FromException<GoogleOAuthTokenResult>(refreshAccessTokenException);
+            }
+
             return Task.FromResult(token);
         }
 
@@ -1251,12 +1416,18 @@ public class GoogleCalendarIntegrationServiceTests
 
         public Task<IReadOnlyList<GoogleOAuthCalendarSummary>> GetCalendarsAsync(
             string accessToken,
-            CancellationToken cancellationToken) => Task.FromResult(discoveredCalendars);
+            CancellationToken cancellationToken) =>
+            getCalendarsException is null
+                ? Task.FromResult(discoveredCalendars)
+                : Task.FromException<IReadOnlyList<GoogleOAuthCalendarSummary>>(getCalendarsException);
 
         public Task<IReadOnlyList<GoogleOAuthCalendarEvent>> GetCalendarEventsAsync(
             string accessToken,
             string calendarId,
-            CancellationToken cancellationToken) => Task.FromResult(discoveredEvents);
+            CancellationToken cancellationToken) =>
+            getCalendarEventsException is null
+                ? Task.FromResult(discoveredEvents)
+                : Task.FromException<IReadOnlyList<GoogleOAuthCalendarEvent>>(getCalendarEventsException);
     }
 
     private sealed class FakeClock(DateTimeOffset utcNow) : HouseholdOps.SharedKernel.Time.IClock

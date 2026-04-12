@@ -417,6 +417,16 @@ export function AdminCalendarIntegrationsPanel() {
 
   function renderFailureCategory(category: string | null) {
     switch (category) {
+      case "managed_link_invalid":
+        return "Managed link invalid";
+      case "linked_account_missing":
+        return "Linked account missing";
+      case "calendar_missing":
+        return "Calendar missing";
+      case "oauth_reauth_required":
+        return "Reconnect Google";
+      case "oauth_access":
+        return "Google access problem";
       case "invalid_feed":
         return "Invalid feed";
       case "network":
@@ -531,9 +541,9 @@ export function AdminCalendarIntegrationsPanel() {
         <div className="eyebrow">OAuth readiness</div>
         <h2>Google account linking setup</h2>
         <p className="muted">
-          OAuth linking is still blocked on callback wiring and hosted validation, but the
-          config surface is now visible here so you can confirm local readiness without
-          exposing secrets in the repo.
+          Local Google OAuth linking now runs through the web-shell callback route. Keep
+          secrets in your local `.env`, and still treat hosted callback verification as a
+          later production-readiness check.
         </p>
         <div className="pill-row">
           <span className="pill">
@@ -711,6 +721,13 @@ export function AdminCalendarIntegrationsPanel() {
                           ) : null}
                         </div>
                         <div className="error-text">{link.lastSyncError}</div>
+                        {link.linkMode === "OAuthCalendar" ? (
+                          <p className="muted">
+                            Managed Google source: {link.googleOAuthAccountEmail ?? "Linked account unavailable"}
+                            {" · "}
+                            {link.googleCalendarId ?? "Calendar ID unavailable"}
+                          </p>
+                        ) : null}
                         {link.lastSyncRecoveryHint ? (
                           <p className="muted">{link.lastSyncRecoveryHint}</p>
                         ) : null}
