@@ -2,15 +2,15 @@
 
 ## Purpose
 
-This document tracks active domains, near-term candidates, and future candidate domains.
+This document tracks active core domains, active expansion domains, and future candidate domains.
 
 It exists to preserve long-term product intent while keeping implementation scope disciplined.
 
-A domain listed here is not automatically in active development.
+A domain listed here is not automatically fully implemented, but domains marked as active expansion are approved areas for real implementation work.
 
 ---
 
-## Active domains
+## Active core domains
 
 ### Households
 
@@ -31,7 +31,7 @@ Provide the household context that all other domains operate within.
 - HouseholdSettings
 
 **Current scope**
-Active.
+Active core.
 
 **Notes**
 This is foundational and should remain simple early on.
@@ -57,7 +57,7 @@ Provide authentication and user/session resolution into household context.
 - DisplayAccessToken or DisplayDeviceCredential
 
 **Current scope**
-Active.
+Active core.
 
 **Notes**
 Keep this boring and coherent. Do not build an elaborate permission system in v1.
@@ -84,7 +84,7 @@ Manage the household schedule and provide agenda-oriented planning views.
 - EventOccurrence projection or query model
 
 **Current scope**
-Active.
+Active core.
 
 **Notes**
 This is a primary product core and a high-risk domain because of recurrence and time semantics.
@@ -110,7 +110,7 @@ Provide ambient household visibility on shared screens and display devices.
 - DisplaySnapshot DTO / projection
 
 **Current scope**
-Active.
+Active core.
 
 **Notes**
 Display must consume projection/read-model APIs. It should not own scheduling rules.
@@ -133,14 +133,18 @@ Provide management workflows for household owners/admins.
 - Admin-facing view models and workflows around existing domains
 
 **Current scope**
-Active.
+Active core.
 
 **Notes**
 This is partly a dedicated functional area and partly an application-layer grouping.
 
 ---
 
-## Near-term candidate domains
+## Active expansion domains
+
+These are approved next implementation areas.
+
+They should be built in narrow, useful slices once the current task justifies forward feature movement. They are not merely “maybe later” ideas.
 
 ### Notifications / Reminders
 
@@ -168,7 +172,10 @@ The scheduling system becomes much more useful once it can actively remind house
 High.
 
 **Status**
-Near-term candidate, not active.
+Active expansion.
+
+**Implementation bias**
+Prefer a narrow first slice such as event reminders or a simple household digest before broader notification infrastructure.
 
 ---
 
@@ -201,7 +208,10 @@ Future provider work will likely need environment variables such as `GOOGLE_CLIE
 High.
 
 **Status**
-Near-term candidate, not active.
+Active expansion.
+
+**Implementation bias**
+Prefer a first narrow provider path and clear sync ownership before broad integration coverage.
 
 ---
 
@@ -228,11 +238,16 @@ Households often need recurring operational task management in addition to sched
 - generalized workflow abstractions
 
 **Status**
-Near-term or mid-term candidate, not active.
+Active expansion.
+
+**Implementation bias**
+Prefer a basic recurring chores/routines model with clear ownership and simple completion flows before richer engagement ideas.
 
 ---
 
 ## Future candidate domains
+
+These remain intentionally deferred. They should influence naming and architectural discipline, but should not receive speculative code until explicitly promoted.
 
 ### Food Operations
 
@@ -357,3 +372,17 @@ Some households may eventually want due-date and budgeting coordination.
 
 **Status**
 Future candidate, uncertain priority.
+
+---
+
+## Promotion rule
+
+A future candidate should be promoted to active expansion when:
+
+- it is intentionally selected as a real next product area
+- there is a concrete first slice worth implementing
+- the module boundary can be described clearly enough to avoid speculative design
+
+An active expansion area may later be treated as part of the active core once it becomes a stable, ongoing part of normal product reality.
+
+This document should be updated as that progression occurs.

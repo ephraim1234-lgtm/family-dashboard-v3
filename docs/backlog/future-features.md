@@ -6,22 +6,74 @@ This file is the repo parking lot for ideas that should be remembered without be
 
 Items here are not commitments. They are captured ideas for future evaluation.
 
+This file should not become a hidden backlog for things that have already been promoted into active implementation elsewhere.
+
 ---
 
-## Strong candidates
+## Promotion rule
 
-- reminders tied to upcoming household events
-- digest or daily summary features
+When an idea becomes an approved active implementation area, the main ownership/status should move to the roadmap and agent guidance docs.
+
+This file may still keep deferred sub-ideas, but it should not be the main home for currently active product work.
+
+---
+
+## Active expansion follow-ons
+
+The following areas are now active expansion tracks elsewhere in the repo docs:
+
+- reminders / notifications
 - external calendar sync
-- chores and routines
+- chores / routines
+
+Keep only deferred sub-ideas or future enhancements for those areas here.
+
+---
+
+## Notifications / reminders follow-ons
+
+- richer reminder timing options
+- household digest customization
+- more delivery channels
+- reminder preference tuning
+- reminder grouping / batching behavior
+
+Notes:
+Do not build a broad generalized notification engine before a narrow useful reminder slice proves itself.
+
+---
+
+## Calendar integration follow-ons
+
+- multi-provider support
+- deeper sync controls
+- conflict-management UX
+- import-review flows
+- bidirectional sync for selected cases
+
+Notes:
+Start narrow. Do not assume broad provider coverage or complex sync semantics up front.
+
+---
+
+## Chores / routines follow-ons
+
+- child-specific task views
+- due-today household work items
+- completion streaks
+- gentle accountability views
+- display integration for chores
+
+Notes:
+Avoid designing reward systems or gamification until the basic task/routine model proves useful.
+
+---
+
+## Strong future candidates
+
 - richer display agenda modes
 - display messages / pinned notices
 - household-specific quick actions
-
----
-
-## Nice-to-have ideas
-
 - multiple display layouts by room/device
 - more personalized member views
 - color coding or affinity views by household member
@@ -42,20 +94,6 @@ Items here are not commitments. They are captured ideas for future evaluation.
 
 Notes:
 Keep these grouped as a future Food domain rather than scattering them into unrelated modules early.
-
----
-
-## Chores / routines ideas
-
-- recurring chores
-- child-specific task views
-- due-today household work items
-- completion streaks
-- gentle accountability views
-- display integration for chores
-
-Notes:
-Avoid designing reward systems or gamification until the basic task/routine model proves useful.
 
 ---
 
