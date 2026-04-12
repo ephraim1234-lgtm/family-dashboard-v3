@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { siteConfig } from "@/lib/site-config";
+import { siteConfig } from "../../../../../lib/site-config";
 
 export async function GET(request: NextRequest) {
   const targetUrl = new URL(

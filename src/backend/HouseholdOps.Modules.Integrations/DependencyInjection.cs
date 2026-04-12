@@ -119,6 +119,25 @@ public static class DependencyInjection
             return Results.Ok(response);
         });
 
+        group.MapGet("/google-oauth/calendars", async (
+            IIdentityAccessService identityAccessService,
+            IGoogleCalendarIntegrationService integrationService,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+
+            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var response = await integrationService.ListOAuthCalendarsAsync(
+                householdId,
+                cancellationToken);
+
+            return Results.Ok(response);
+        });
+
         group.MapGet("/google-oauth/readiness", (
             IGoogleCalendarIntegrationService integrationService) =>
             Results.Ok(integrationService.GetOAuthReadiness()));

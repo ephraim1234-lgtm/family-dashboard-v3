@@ -8,7 +8,15 @@ public interface IGoogleOAuthClient
         string code,
         CancellationToken cancellationToken);
 
+    Task<GoogleOAuthTokenResult> RefreshAccessTokenAsync(
+        string refreshToken,
+        CancellationToken cancellationToken);
+
     Task<GoogleOAuthUserProfile> GetUserProfileAsync(
+        string accessToken,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<GoogleOAuthCalendarSummary>> GetCalendarsAsync(
         string accessToken,
         CancellationToken cancellationToken);
 }
@@ -24,3 +32,10 @@ public sealed record GoogleOAuthUserProfile(
     string Subject,
     string Email,
     string? Name);
+
+public sealed record GoogleOAuthCalendarSummary(
+    string Id,
+    string Summary,
+    bool IsPrimary,
+    string? AccessRole,
+    string? TimeZone);

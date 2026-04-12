@@ -215,6 +215,11 @@ Active expansion slice.
 - admin visibility for OAuth readiness and linked Google accounts
 - existing iCal import path remains the active scheduling import path for now
 
+**Current OAuth discovery slice**
+- linked Google accounts can discover accessible Google calendars through the Google Calendar API
+- expired OAuth access tokens are refreshed server-side before discovery when a refresh token is available
+- discovery is admin-visible only for now and does not yet create provider-managed calendar links automatically
+
 **Current hardening additions**
 - duplicate feed-link prevention per household
 - `TZID` parsing support for imported timed events
@@ -232,7 +237,7 @@ Active expansion slice.
 - continue skipping unsupported recurrence patterns explicitly
 
 **Still deferred**
-- OAuth-backed calendar discovery/selection beyond the account-linking foundation
+- provider-managed calendar-link creation from discovered OAuth calendars
 - broader external recurrence support beyond the current narrow subset
 - bidirectional sync and conflict resolution
 

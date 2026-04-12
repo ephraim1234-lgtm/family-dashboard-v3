@@ -67,6 +67,40 @@ public sealed class GoogleCalendarIntegrationService(
         return new GoogleOAuthAccountLinkListResponse(items);
     }
 
+    public async Task<GoogleOAuthCalendarListResponse> ListOAuthCalendarsAsync(
+        Guid householdId,
+        CancellationToken cancellationToken)
+    {
+        var accountLinks = await dbContext.GoogleOAuthAccountLinks
+            .Where(link => link.HouseholdId == householdId)
+            .OrderBy(link => link.Email)
+            .ToListAsync(cancellationToken);
+
+        var calendars = new List<GoogleOAuthCalendarSummaryResponse>();
+
+        foreach (var accountLink in accountLinks)
+        {
+            var accessToken = await EnsureActiveAccessTokenAsync(
+                accountLink,
+                cancellationToken);
+
+            var discoveredCalendars = await googleOAuthClient.GetCalendarsAsync(
+                accessToken,
+                cancellationToken);
+
+            calendars.AddRange(discoveredCalendars.Select(calendar => new GoogleOAuthCalendarSummaryResponse(
+                accountLink.Id,
+                accountLink.Email,
+                calendar.Id,
+                calendar.Summary,
+                calendar.IsPrimary,
+                calendar.AccessRole,
+                calendar.TimeZone)));
+        }
+
+        return new GoogleOAuthCalendarListResponse(calendars);
+    }
+
     public GoogleOAuthStartResponse BeginOAuthLink(string state) =>
         new(googleOAuthClient.BuildAuthorizationUrl(state));
 
@@ -122,6 +156,38 @@ public sealed class GoogleCalendarIntegrationService(
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<string> EnsureActiveAccessTokenAsync(
+        GoogleOAuthAccountLink accountLink,
+        CancellationToken cancellationToken)
+    {
+        if (accountLink.AccessTokenExpiresAtUtc.HasValue
+            && accountLink.AccessTokenExpiresAtUtc.Value > DateTimeOffset.UtcNow.AddMinutes(1))
+        {
+            return accountLink.AccessToken;
+        }
+
+        if (string.IsNullOrWhiteSpace(accountLink.RefreshToken))
+        {
+            return accountLink.AccessToken;
+        }
+
+        var refreshedToken = await googleOAuthClient.RefreshAccessTokenAsync(
+            accountLink.RefreshToken,
+            cancellationToken);
+
+        accountLink.AccessToken = refreshedToken.AccessToken;
+        accountLink.RefreshToken = string.IsNullOrWhiteSpace(refreshedToken.RefreshToken)
+            ? accountLink.RefreshToken
+            : refreshedToken.RefreshToken;
+        accountLink.TokenType = refreshedToken.TokenType;
+        accountLink.Scope = refreshedToken.Scope;
+        accountLink.AccessTokenExpiresAtUtc = DateTimeOffset.UtcNow.AddSeconds(refreshedToken.ExpiresInSeconds);
+        accountLink.UpdatedAtUtc = DateTimeOffset.UtcNow;
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return accountLink.AccessToken;
     }
 
     public async Task<GoogleCalendarLinkMutationResult> CreateAsync(

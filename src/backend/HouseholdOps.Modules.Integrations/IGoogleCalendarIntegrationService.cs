@@ -14,6 +14,10 @@ public interface IGoogleCalendarIntegrationService
         Guid householdId,
         CancellationToken cancellationToken);
 
+    Task<GoogleOAuthCalendarListResponse> ListOAuthCalendarsAsync(
+        Guid householdId,
+        CancellationToken cancellationToken);
+
     GoogleOAuthStartResponse BeginOAuthLink(
         string state);
 

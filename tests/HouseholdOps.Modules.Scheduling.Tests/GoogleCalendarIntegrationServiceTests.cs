@@ -947,6 +947,68 @@ public class GoogleCalendarIntegrationServiceTests
         Assert.Equal("refresh-token", linked.RefreshToken);
     }
 
+    [Fact]
+    public async Task ListOAuthCalendarsAsync_UsesLinkedAccountAndRefreshesExpiredToken()
+    {
+        await using var dbContext = CreateDbContext();
+        dbContext.GoogleOAuthAccountLinks.Add(new GoogleOAuthAccountLink
+        {
+            HouseholdId = HouseholdId,
+            LinkedByUserId = Guid.Parse("44444444-4444-4444-4444-444444444444"),
+            GoogleUserId = "google-user-1",
+            Email = "owner@example.com",
+            DisplayName = "Owner Example",
+            AccessToken = "expired-access-token",
+            RefreshToken = "refresh-token",
+            TokenType = "Bearer",
+            Scope = "openid email profile https://www.googleapis.com/auth/calendar.readonly",
+            AccessTokenExpiresAtUtc = CreatedAtUtc.AddMinutes(-5),
+            CreatedAtUtc = CreatedAtUtc,
+            UpdatedAtUtc = CreatedAtUtc
+        });
+        await dbContext.SaveChangesAsync();
+
+        var oauthClient = new FakeGoogleOAuthClient(
+            new GoogleOAuthTokenResult(
+                "fresh-access-token",
+                "Bearer",
+                3600,
+                "openid email profile https://www.googleapis.com/auth/calendar.readonly",
+                "refresh-token"),
+            new GoogleOAuthUserProfile(
+                "google-user-1",
+                "owner@example.com",
+                "Owner Example"),
+            [
+                new GoogleOAuthCalendarSummary(
+                    "primary-calendar",
+                    "Family Calendar",
+                    true,
+                    "owner",
+                    "America/Chicago")
+            ]);
+
+        var service = new GoogleCalendarIntegrationService(
+            dbContext,
+            CreateConfiguration(),
+            oauthClient,
+            new FakeFeedFetcher("BEGIN:VCALENDAR\r\nEND:VCALENDAR"),
+            new ImportedScheduledEventSyncService(dbContext));
+
+        var calendars = await service.ListOAuthCalendarsAsync(
+            HouseholdId,
+            CancellationToken.None);
+
+        var calendar = Assert.Single(calendars.Items);
+        Assert.Equal("owner@example.com", calendar.AccountEmail);
+        Assert.Equal("Family Calendar", calendar.DisplayName);
+        Assert.True(calendar.IsPrimary);
+
+        var linked = await dbContext.GoogleOAuthAccountLinks.SingleAsync();
+        Assert.Equal("fresh-access-token", linked.AccessToken);
+        Assert.Equal(1, oauthClient.RefreshCalls);
+    }
+
     private sealed class FakeFeedFetcher(string feedContent) : IGoogleCalendarFeedFetcher
     {
         public Task<string> FetchAsync(
@@ -972,7 +1034,8 @@ public class GoogleCalendarIntegrationServiceTests
 
     private sealed class FakeGoogleOAuthClient(
         GoogleOAuthTokenResult? tokenResult = null,
-        GoogleOAuthUserProfile? userProfile = null) : IGoogleOAuthClient
+        GoogleOAuthUserProfile? userProfile = null,
+        IReadOnlyList<GoogleOAuthCalendarSummary>? calendars = null) : IGoogleOAuthClient
     {
         private readonly GoogleOAuthTokenResult token =
             tokenResult
@@ -990,6 +1053,12 @@ public class GoogleCalendarIntegrationServiceTests
                 "user@example.com",
                 "User Example");
 
+        private readonly IReadOnlyList<GoogleOAuthCalendarSummary> discoveredCalendars =
+            calendars
+            ?? [];
+
+        public int RefreshCalls { get; private set; }
+
         public string BuildAuthorizationUrl(string state) =>
             $"https://accounts.google.com/o/oauth2/v2/auth?state={state}";
 
@@ -997,9 +1066,21 @@ public class GoogleCalendarIntegrationServiceTests
             string code,
             CancellationToken cancellationToken) => Task.FromResult(token);
 
+        public Task<GoogleOAuthTokenResult> RefreshAccessTokenAsync(
+            string refreshToken,
+            CancellationToken cancellationToken)
+        {
+            RefreshCalls++;
+            return Task.FromResult(token);
+        }
+
         public Task<GoogleOAuthUserProfile> GetUserProfileAsync(
             string accessToken,
             CancellationToken cancellationToken) => Task.FromResult(profile);
+
+        public Task<IReadOnlyList<GoogleOAuthCalendarSummary>> GetCalendarsAsync(
+            string accessToken,
+            CancellationToken cancellationToken) => Task.FromResult(discoveredCalendars);
     }
 
     private sealed class FakeClock(DateTimeOffset utcNow) : HouseholdOps.SharedKernel.Time.IClock

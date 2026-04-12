@@ -46,12 +46,27 @@ type GoogleOAuthAccountLinkListResponse = {
   items: GoogleOAuthAccountLinkSummary[];
 };
 
+type GoogleOAuthCalendarSummary = {
+  accountLinkId: string;
+  accountEmail: string;
+  calendarId: string;
+  displayName: string;
+  isPrimary: boolean;
+  accessRole: string | null;
+  timeZone: string | null;
+};
+
+type GoogleOAuthCalendarListResponse = {
+  items: GoogleOAuthCalendarSummary[];
+};
+
 export function AdminCalendarIntegrationsPanel() {
   const [displayName, setDisplayName] = useState("Family Google Calendar");
   const [feedUrl, setFeedUrl] = useState("");
   const [links, setLinks] = useState<GoogleCalendarLinkSummary[]>([]);
   const [oauthReadiness, setOauthReadiness] = useState<GoogleOAuthReadiness | null>(null);
   const [oauthAccounts, setOauthAccounts] = useState<GoogleOAuthAccountLinkSummary[]>([]);
+  const [oauthCalendars, setOauthCalendars] = useState<GoogleOAuthCalendarSummary[]>([]);
   const [recommendedRedirectUri, setRecommendedRedirectUri] = useState<string | null>(null);
   const [oauthMessage, setOauthMessage] = useState<string | null>(null);
   const [syncSettings, setSyncSettings] = useState<Record<string, {
@@ -115,6 +130,20 @@ export function AdminCalendarIntegrationsPanel() {
     setOauthAccounts(data.items);
   }
 
+  async function refreshOAuthCalendars() {
+    const response = await fetch("/api/integrations/google-oauth/calendars", {
+      credentials: "same-origin",
+      cache: "no-store"
+    });
+
+    if (!response.ok) {
+      throw new Error(`Google OAuth calendar lookup failed with ${response.status}.`);
+    }
+
+    const data = (await response.json()) as GoogleOAuthCalendarListResponse;
+    setOauthCalendars(data.items);
+  }
+
   useEffect(() => {
     setRecommendedRedirectUri(
       typeof window === "undefined"
@@ -141,7 +170,12 @@ export function AdminCalendarIntegrationsPanel() {
     }
 
     startTransition(() => {
-      Promise.all([refreshLinks(), refreshOAuthReadiness(), refreshOAuthAccounts()]).catch((refreshError: unknown) => {
+      Promise.all([
+        refreshLinks(),
+        refreshOAuthReadiness(),
+        refreshOAuthAccounts(),
+        refreshOAuthCalendars()
+      ]).catch((refreshError: unknown) => {
         setError(
           refreshError instanceof Error
             ? refreshError.message
@@ -455,23 +489,54 @@ export function AdminCalendarIntegrationsPanel() {
           <p className="muted">No Google OAuth accounts have been linked yet.</p>
         ) : (
           <div className="stack-list">
-            {oauthAccounts.map((account) => (
-              <div className="stack-card" key={account.id}>
-                <div className="stack-card-header">
-                  <div>
-                    <strong>{account.displayName ?? account.email}</strong>
-                    <div className="muted">{account.email}</div>
+            {oauthAccounts.map((account) => {
+              const calendars = oauthCalendars.filter(
+                (calendar) => calendar.accountLinkId === account.id
+              );
+
+              return (
+                <div className="stack-card" key={account.id}>
+                  <div className="stack-card-header">
+                    <div>
+                      <strong>{account.displayName ?? account.email}</strong>
+                      <div className="muted">{account.email}</div>
+                    </div>
+                    <span className="pill">Linked</span>
                   </div>
-                  <span className="pill">Linked</span>
+                  <div className="muted">
+                    Scope: {account.scope}
+                  </div>
+                  <div className="muted">
+                    Updated {new Date(account.updatedAtUtc).toLocaleString()}
+                  </div>
+                  {calendars.length === 0 ? (
+                    <p className="muted">No calendars discovered yet for this account.</p>
+                  ) : (
+                    <div className="stack-list" style={{ marginTop: "0.75rem" }}>
+                      {calendars.map((calendar) => (
+                        <div className="stack-card" key={`${account.id}:${calendar.calendarId}`}>
+                          <div className="stack-card-header">
+                            <div>
+                              <strong>{calendar.displayName}</strong>
+                              <div className="muted">{calendar.calendarId}</div>
+                            </div>
+                            <div className="pill-row">
+                              {calendar.isPrimary ? <span className="pill">Primary</span> : null}
+                              {calendar.accessRole ? (
+                                <span className="pill">{calendar.accessRole}</span>
+                              ) : null}
+                            </div>
+                          </div>
+                          <div className="muted">
+                            Time zone: {calendar.timeZone ?? "Not provided"}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <div className="muted">
-                  Scope: {account.scope}
-                </div>
-                <div className="muted">
-                  Updated {new Date(account.updatedAtUtc).toLocaleString()}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </article>

@@ -6,6 +6,7 @@
 ## Current capability
 - Google OAuth account linking foundation can start from Admin and complete through the web-shell callback path.
 - Admin shows Google OAuth readiness, recommended callback URI, and linked Google accounts.
+- Admin can discover accessible Google calendars from linked OAuth accounts.
 - Google Calendar iCal feed links can be created and removed.
 - Manual sync imports one-time plus supported daily/weekly recurring external events into local Scheduling.
 - Worker-managed auto sync now processes due linked calendars on a fixed cadence.
@@ -88,14 +89,14 @@
   - Notes: added an owner-visible OAuth readiness endpoint/UI, surfaced the exact local callback pattern, and set the ignored local `.env` redirect URI to `http://localhost:3000/api/integrations/google-oauth/callback`.
 
 - `M12` OAuth-backed calendar selection
-  - Status: `planned`
-  - Scope: use a linked Google account to discover calendars and create a provider-managed calendar link without changing local scheduling ownership or jumping to bidirectional sync.
+  - Status: `done`
+  - Scope: use a linked Google account to discover accessible calendars without changing local scheduling ownership or jumping to bidirectional sync.
   - Key files touched: `PLANS.md`, integrations backend/contracts, admin UI, focused tests, docs if behavior changes materially
-  - Validation status: pending
-  - Notes: best next step after account linking because it turns the OAuth foundation into a directly usable calendar-management workflow.
+  - Validation status: passed
+  - Notes: linked Google accounts can now list accessible calendars from Google Calendar API, refreshing expired access tokens server-side before discovery when needed.
 
 ## Current milestone
-- `M5` OAuth-based Google account linking completed and paused at milestone boundary awaiting confirmation.
+- None active. Awaiting confirmation for the next calendar-integrations milestone.
 
 ## Decisions
 - Keep Scheduling as owner of local event behavior; imported events stay read-only.
@@ -111,6 +112,7 @@
 - Recurring import now supports narrow `COUNT` handling only for the already-supported `DAILY` and `WEEKLY` shapes; broader RRULE features remain intentionally unsupported.
 - OAuth foundation is now implemented locally, but hosted callback validation is still a later real-world checkpoint before claiming production readiness.
 - Linked Google account tokens are now stored in the integrations persistence model; stronger secret-management/encryption can be a later hardening step.
+- OAuth-backed discovery is now implemented, but it does not yet create provider-managed calendar links from discovered calendars.
 
 ## Validation log
 - 2026-04-11: Prior slice built successfully with `dotnet build src\backend\HouseholdOps.Api\HouseholdOps.Api.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false`.
@@ -141,6 +143,9 @@
 - 2026-04-12: `M5` focused tests passed with `dotnet test tests\HouseholdOps.Modules.Scheduling.Tests\HouseholdOps.Modules.Scheduling.Tests.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` (`44` passed).
 - 2026-04-12: `M5` API and Worker builds passed with `dotnet build src\backend\HouseholdOps.Api\HouseholdOps.Api.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` and `dotnet build src\backend\HouseholdOps.Worker\HouseholdOps.Worker.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false`.
 - 2026-04-12: `npm run build` in `src/frontend/web` still failed because `next` is not installed in the local environment.
+- 2026-04-12: `M12` focused tests passed with `dotnet test tests\HouseholdOps.Modules.Scheduling.Tests\HouseholdOps.Modules.Scheduling.Tests.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` (`45` passed).
+- 2026-04-12: `M12` API and Worker builds passed with `dotnet build src\backend\HouseholdOps.Api\HouseholdOps.Api.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false` and `dotnet build src\backend\HouseholdOps.Worker\HouseholdOps.Worker.csproj -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false`.
+- 2026-04-12: Docker runtime validation passed with `$env:API_PORT='3001'; $env:WEB_PORT='3000'; docker compose up -d --build postgres api web`, followed by web-shell requests to `/api/auth/dev-login`, `/api/integrations/google-oauth/readiness`, `/api/integrations/google-oauth/accounts`, and `/api/integrations/google-oauth/calendars`, all returning `200`.
 
 ## Next recommended step
-- Start `M12` OAuth-backed calendar selection so a linked Google account can become a directly usable managed calendar link while keeping Scheduling and one-way import ownership unchanged.
+- Start `M13` provider-managed calendar link creation from discovered OAuth calendars, keeping one-way import ownership in Integrations and local scheduling behavior unchanged.
