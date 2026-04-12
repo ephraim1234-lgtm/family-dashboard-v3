@@ -93,6 +93,17 @@ a {
   background: rgba(255, 255, 255, 0.64);
 }
 
+.pill-link {
+  color: var(--text);
+  text-decoration: none;
+  background: rgba(15, 118, 110, 0.1);
+  border-color: rgba(15, 118, 110, 0.4);
+}
+
+.pill-link:hover {
+  background: rgba(15, 118, 110, 0.18);
+}
+
 .pill-button {
   appearance: none;
   border-radius: 999px;

@@ -223,6 +223,8 @@
 
 - 2026-04-12: `M23` Display CSS polish for large-screen readability — `.display-page` class replaces `.page` on the display route (max-width 1440px, wider padding). `.display-shell` base font bumped to 1.08rem. `.display-next-time` clamp increased from `clamp(2rem,5vw,4.25rem)` to `clamp(3.5rem,7vw,6.5rem)` for legibility at 2+ metres. Panel h3 sizes up from 1.45rem → 1.75rem. Chip font and agenda-time bumped. Summary grid columns widened to `minmax(380px,1.4fr) repeat(2,minmax(260px,1fr))`. `@keyframes display-reminder-pulse` added — gentle amber border/glow fade at 3 s period applied to `.display-reminders-strip`.
 
+- 2026-04-12: `M24` — admin display device link persistence. Device provisioning saves `displayPath` to `localStorage` (key `householdops:display-paths`, keyed by `deviceId`). The "Provisioned devices" list now shows an "Open Display ↗" pill-link for any device with a saved URL, and "URL not saved" for legacy devices provisioned before this change. No backend migration required; `.pill-link` CSS added.
+
 ## Next recommended step
-- `M23` is done. The kiosk display is now large-screen ready.
-- Next concrete code milestone: `M24` — add the display page to the admin panel so owners can access their kiosk URL without having to remember the token path. A "Display devices" card in the admin panel listing each device with its token hint and a direct link to its display URL.
+- `M24` is done. Owners can navigate directly to their kiosk from the admin panel after first provision.
+- Next concrete code milestone: `M25` — surface the active household's name and current UTC time on the display hero card, updating every minute, so the kiosk acts as a lightweight clock without a dedicated widget.

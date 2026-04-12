@@ -29,14 +29,36 @@ type CreateDisplayDeviceState = {
   createdAtUtc: string;
 } | null;
 
+const SAVED_PATHS_KEY = "householdops:display-paths";
+
+function loadSavedPaths(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  try {
+    return JSON.parse(window.localStorage.getItem(SAVED_PATHS_KEY) ?? "{}") as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
+
+function savePath(deviceId: string, displayPath: string) {
+  if (typeof window === "undefined") return;
+  const existing = loadSavedPaths();
+  window.localStorage.setItem(SAVED_PATHS_KEY, JSON.stringify({ ...existing, [deviceId]: displayPath }));
+}
+
 export function AdminDisplayManagementPanel() {
   const { isOwner, isLoading: isSessionLoading } = useAdminOwnerSession();
   const [devices, setDevices] = useState<DisplayDeviceSummary[]>([]);
+  const [savedPaths, setSavedPaths] = useState<Record<string, string>>({});
   const [latestCreated, setLatestCreated] =
     useState<CreateDisplayDeviceState>(null);
   const [status, setStatus] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    setSavedPaths(loadSavedPaths());
+  }, []);
 
   async function updatePresentationMode(
     deviceId: string,
@@ -183,7 +205,12 @@ export function AdminDisplayManagementPanel() {
       return;
     }
 
-    setLatestCreated((await response.json()) as CreateDisplayDeviceState);
+    const created = (await response.json()) as CreateDisplayDeviceState;
+    setLatestCreated(created);
+    if (created) {
+      savePath(created.deviceId, created.displayPath);
+      setSavedPaths(loadSavedPaths());
+    }
     await refresh();
   }
 
@@ -275,6 +302,20 @@ export function AdminDisplayManagementPanel() {
                     <div className="pill-row">
                       <span className="pill">{device.presentationMode}</span>
                       <span className="pill">{device.agendaDensityMode}</span>
+                      {savedPaths[device.deviceId] ? (
+                        <Link
+                          href={savedPaths[device.deviceId]}
+                          className="pill pill-link"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          Open Display ↗
+                        </Link>
+                      ) : (
+                        <span className="pill muted" title="Reprovision this device to get a saved URL">
+                          URL not saved
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className="pill-row">
