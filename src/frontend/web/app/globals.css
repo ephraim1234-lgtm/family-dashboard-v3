@@ -731,6 +731,15 @@ a {
   align-items: center;
 }
 
+.home-attention-label {
+  color: #9a3412;
+}
+
+.home-attention-card {
+  border-color: rgba(194, 65, 12, 0.3);
+  background: rgba(255, 237, 213, 0.5);
+}
+
 @media (max-width: 720px) {
   .page {
     padding: 24px 16px 44px;
