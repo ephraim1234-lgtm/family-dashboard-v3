@@ -163,6 +163,22 @@ public static class DependencyInjection
             return Results.Ok(result);
         });
 
+        appGroup.MapGet("/home", async (
+            IIdentityAccessService identityAccessService,
+            IHouseholdHomeService homeService,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+
+            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var result = await homeService.GetHomeAsync(householdId, cancellationToken);
+            return Results.Ok(result);
+        });
+
         return app;
     }
 }

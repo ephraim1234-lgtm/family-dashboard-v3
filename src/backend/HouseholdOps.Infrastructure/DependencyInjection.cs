@@ -56,6 +56,7 @@ public static class DependencyInjection
         services.AddScoped<INotesService, NotesService>();
         services.AddScoped<IHouseholdTodayService, HouseholdTodayService>();
         services.AddScoped<IActivityFeedService, ActivityFeedService>();
+        services.AddScoped<IHouseholdHomeService, HouseholdHomeService>();
         services.AddScoped<IAdminStatsService, AdminStatsService>();
         services.AddScoped<IAdminChoreInsightsService, AdminChoreInsightsService>();
         services.AddHttpClient<IGoogleCalendarFeedFetcher, GoogleCalendarFeedFetcher>();
