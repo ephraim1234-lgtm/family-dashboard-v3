@@ -314,13 +314,14 @@ export function DisplaySurfacePanel({ token }: DisplaySurfacePanelProps) {
       {snapshot && snapshot.pinnedNotes && snapshot.pinnedNotes.length > 0 ? (
         <section className="display-notes-strip">
           <div className="display-notes-label">Pinned notes</div>
-          <div className="display-chip-list">
+          <div className="display-notes-cards">
             {snapshot.pinnedNotes.map((note) => (
-              <div className="display-chip" key={note.title}>
-                <span>{note.title}</span>
+              <div className="display-note-card" key={note.title}>
+                <div className="display-note-card-title">{note.title}</div>
                 {note.body ? (
-                  <span className="display-note-body"> — {note.body}</span>
+                  <div className="display-note-card-body">{note.body}</div>
                 ) : null}
+                <div className="display-note-card-author">{note.authorDisplayName}</div>
               </div>
             ))}
           </div>

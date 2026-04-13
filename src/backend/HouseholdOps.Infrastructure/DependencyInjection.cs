@@ -55,7 +55,9 @@ public static class DependencyInjection
         services.AddScoped<IChoreService, ChoreService>();
         services.AddScoped<INotesService, NotesService>();
         services.AddScoped<IHouseholdTodayService, HouseholdTodayService>();
+        services.AddScoped<IActivityFeedService, ActivityFeedService>();
         services.AddScoped<IAdminStatsService, AdminStatsService>();
+        services.AddScoped<IAdminChoreInsightsService, AdminChoreInsightsService>();
         services.AddHttpClient<IGoogleCalendarFeedFetcher, GoogleCalendarFeedFetcher>();
         services.AddHttpClient<IGoogleOAuthClient, GoogleOAuthClient>();
         services.AddSingleton<IClock, SystemClock>();

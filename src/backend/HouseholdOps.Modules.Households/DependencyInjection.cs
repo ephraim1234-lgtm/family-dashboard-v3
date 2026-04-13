@@ -131,6 +131,22 @@ public static class DependencyInjection
         var appGroup = app.MapGroup("/api/app")
             .RequireAuthorization();
 
+        appGroup.MapGet("/activity", async (
+            IIdentityAccessService identityAccessService,
+            IActivityFeedService activityFeedService,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+
+            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var result = await activityFeedService.GetRecentActivityAsync(householdId, cancellationToken);
+            return Results.Ok(result);
+        });
+
         appGroup.MapGet("/today", async (
             IIdentityAccessService identityAccessService,
             IHouseholdTodayService todayService,

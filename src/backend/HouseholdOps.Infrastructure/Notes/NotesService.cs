@@ -101,6 +101,51 @@ public sealed class NotesService(HouseholdOpsDbContext dbContext) : INotesServic
         return (NoteMutationResult.Success(), ToItem(note));
     }
 
+    public async Task<(NoteMutationResult Result, NoteItem? Item)> UpdateNoteAsync(
+        Guid householdId,
+        Guid noteId,
+        Guid userId,
+        UpdateNoteRequest request,
+        CancellationToken cancellationToken)
+    {
+        var note = await dbContext.Notes
+            .SingleOrDefaultAsync(n => n.HouseholdId == householdId && n.Id == noteId, cancellationToken);
+
+        if (note is null)
+        {
+            return (NoteMutationResult.NotFound(), null);
+        }
+
+        var membershipId = await dbContext.Memberships
+            .Where(m => m.HouseholdId == householdId && m.UserId == userId)
+            .Select(m => (Guid?)m.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (note.AuthorMembershipId != membershipId)
+        {
+            return (NoteMutationResult.Forbidden(), null);
+        }
+
+        if (request.Title is not null)
+        {
+            var title = request.Title.Trim();
+            if (string.IsNullOrWhiteSpace(title))
+            {
+                return (NoteMutationResult.ValidationFailure("Title cannot be empty."), null);
+            }
+            note.Title = title;
+        }
+
+        if (request.Body is not null)
+        {
+            note.Body = request.Body.Trim() is { Length: > 0 } trimmed ? trimmed : null;
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return (NoteMutationResult.Success(), ToItem(note));
+    }
+
     private static NoteItem ToItem(Note n) =>
         new(n.Id, n.Title, n.Body, n.AuthorDisplayName, n.IsPinned, n.CreatedAtUtc);
 }

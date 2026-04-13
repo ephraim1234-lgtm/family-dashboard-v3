@@ -19,6 +19,13 @@ public interface INotesService
         Guid householdId,
         Guid noteId,
         CancellationToken cancellationToken);
+
+    Task<(NoteMutationResult Result, NoteItem? Item)> UpdateNoteAsync(
+        Guid householdId,
+        Guid noteId,
+        Guid userId,
+        UpdateNoteRequest request,
+        CancellationToken cancellationToken);
 }
 
 public sealed record NoteMutationResult(NoteMutationStatus Status, string? Error = null)
@@ -27,6 +34,7 @@ public sealed record NoteMutationResult(NoteMutationStatus Status, string? Error
     public static NoteMutationResult Deleted() => new(NoteMutationStatus.Deleted);
     public static NoteMutationResult ValidationFailure(string error) => new(NoteMutationStatus.ValidationFailed, error);
     public static NoteMutationResult NotFound() => new(NoteMutationStatus.NotFound);
+    public static NoteMutationResult Forbidden() => new(NoteMutationStatus.Forbidden);
 }
 
 public enum NoteMutationStatus
@@ -34,5 +42,6 @@ public enum NoteMutationStatus
     Succeeded,
     Deleted,
     ValidationFailed,
-    NotFound
+    NotFound,
+    Forbidden
 }

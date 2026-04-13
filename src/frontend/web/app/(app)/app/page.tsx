@@ -1,3 +1,4 @@
+import { ActivityFeedPanel } from "../../../components/activity-feed-panel";
 import { AddEventPanel } from "../../../components/add-event-panel";
 import { AuthStatusPanel } from "../../../components/auth-status-panel";
 import { MyChoresPanel } from "../../../components/my-chores-panel";
@@ -31,6 +32,9 @@ export default function AppHomePage() {
 
       <div className="section-spacer" />
       <NotesPanel />
+
+      <div className="section-spacer" />
+      <ActivityFeedPanel />
 
       <div className="section-spacer" />
       <UpcomingAgendaPanel />
