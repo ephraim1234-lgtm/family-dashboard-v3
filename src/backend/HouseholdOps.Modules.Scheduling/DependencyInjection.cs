@@ -182,6 +182,47 @@ public static class DependencyInjection
         var memberGroup = app.MapGroup("/api/scheduling")
             .RequireAuthorization();
 
+        memberGroup.MapPost("/events/member", async (
+            CreateMemberEventRequest? request,
+            IIdentityAccessService identityAccessService,
+            IScheduledEventManagementService eventManagementService,
+            IClock clock,
+            CancellationToken cancellationToken) =>
+        {
+            if (request is null || string.IsNullOrWhiteSpace(request.Title))
+            {
+                return Results.BadRequest("Title is required.");
+            }
+
+            var session = identityAccessService.GetCurrentSession();
+
+            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var createRequest = new CreateScheduledEventRequest(
+                request.Title,
+                request.Description,
+                request.IsAllDay,
+                request.StartsAtUtc,
+                request.EndsAtUtc,
+                Recurrence: null);
+
+            var created = await eventManagementService.CreateEventAsync(
+                householdId,
+                createRequest,
+                clock.UtcNow,
+                cancellationToken);
+
+            return created.Status switch
+            {
+                ScheduledEventMutationStatus.Succeeded => Results.Ok(created.Event),
+                ScheduledEventMutationStatus.ValidationFailed => Results.BadRequest(created.Error),
+                _ => Results.BadRequest("Unable to create event.")
+            };
+        });
+
         memberGroup.MapGet("/agenda", async (
             IIdentityAccessService identityAccessService,
             IAgendaQueryService agendaQueryService,
