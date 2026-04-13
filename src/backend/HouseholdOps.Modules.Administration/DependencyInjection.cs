@@ -51,6 +51,22 @@ public static class DependencyInjection
             return Results.Ok(stats);
         }).RequireAuthorization("ActiveHouseholdOwner");
 
+        group.MapGet("/chore-insights", async (
+            IIdentityAccessService identityAccessService,
+            IAdminChoreInsightsService adminChoreInsightsService,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+
+            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var insights = await adminChoreInsightsService.GetChoreInsightsAsync(householdId, cancellationToken);
+            return Results.Ok(insights);
+        }).RequireAuthorization("ActiveHouseholdOwner");
+
         return app;
     }
 }

@@ -8,3 +8,12 @@ export async function DELETE(
   const { noteId } = await params;
   return proxyApi(req, `/api/notes/${noteId}`, { method: "DELETE" });
 }
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ noteId: string }> }
+) {
+  const { noteId } = await params;
+  const body = await req.text();
+  return proxyApi(req, `/api/notes/${noteId}`, { method: "PATCH", body });
+}

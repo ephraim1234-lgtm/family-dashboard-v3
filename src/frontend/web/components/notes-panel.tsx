@@ -19,6 +19,9 @@ export function NotesPanel() {
   const [showForm, setShowForm] = useState(false);
   const [titleInput, setTitleInput] = useState("");
   const [bodyInput, setBodyInput] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editBody, setEditBody] = useState("");
 
   async function load() {
     const res = await fetch("/api/notes", {
@@ -75,6 +78,44 @@ export function NotesPanel() {
     await load();
   }
 
+  function startEdit(note: NoteItem) {
+    setEditingId(note.id);
+    setEditTitle(note.title);
+    setEditBody(note.body ?? "");
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditTitle("");
+    setEditBody("");
+  }
+
+  function handleSaveEdit(noteId: string) {
+    if (!editTitle.trim()) return;
+    startTransition(() => {
+      saveEdit(noteId).catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : "Unable to update note.");
+      });
+    });
+  }
+
+  async function saveEdit(noteId: string) {
+    const res = await fetch(`/api/notes/${noteId}`, {
+      method: "PATCH",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: editTitle.trim(), body: editBody.trim() || null })
+    });
+
+    if (!res.ok) {
+      if (res.status === 403) throw new Error("You can only edit your own notes.");
+      throw new Error(`Update note failed with ${res.status}.`);
+    }
+
+    cancelEdit();
+    await load();
+  }
+
   if (!loaded) return null;
 
   return (
@@ -90,22 +131,68 @@ export function NotesPanel() {
 
         {notes.length > 0 ? (
           <div className="stack-list" style={{ marginTop: "12px" }}>
-            {notes.map((n) => (
-              <div className="stack-card" key={n.id}>
-                <div className="stack-card-header">
-                  <div>
-                    <strong>
-                      {n.isPinned ? "📌 " : ""}
-                      {n.title}
-                    </strong>
-                    {n.body ? <div className="muted">{n.body}</div> : null}
-                    <div className="muted" style={{ fontSize: "0.8rem" }}>
-                      {n.authorDisplayName}
-                    </div>
+            {notes.map((n) =>
+              editingId === n.id ? (
+                <div className="stack-card" key={n.id}>
+                  <div className="form-row">
+                    <label className="form-label">Title</label>
+                    <input
+                      className="form-input"
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                    />
+                  </div>
+                  <div className="form-row">
+                    <label className="form-label">Body</label>
+                    <textarea
+                      className="form-input"
+                      value={editBody}
+                      onChange={(e) => setEditBody(e.target.value)}
+                      rows={3}
+                    />
+                  </div>
+                  <div className="pill-row" style={{ marginTop: "8px" }}>
+                    <button
+                      className="action-button"
+                      onClick={() => handleSaveEdit(n.id)}
+                      disabled={isPending || !editTitle.trim()}
+                    >
+                      Save
+                    </button>
+                    <button
+                      className="action-button-secondary"
+                      onClick={cancelEdit}
+                      disabled={isPending}
+                    >
+                      Cancel
+                    </button>
                   </div>
                 </div>
-              </div>
-            ))}
+              ) : (
+                <div className="stack-card" key={n.id}>
+                  <div className="stack-card-header">
+                    <div style={{ flex: 1 }}>
+                      <strong>
+                        {n.isPinned ? "📌 " : ""}
+                        {n.title}
+                      </strong>
+                      {n.body ? <div className="muted">{n.body}</div> : null}
+                      <div className="muted" style={{ fontSize: "0.8rem" }}>
+                        {n.authorDisplayName}
+                      </div>
+                    </div>
+                    <button
+                      className="action-button-secondary"
+                      style={{ alignSelf: "flex-start", fontSize: "0.8rem" }}
+                      onClick={() => startEdit(n)}
+                      disabled={isPending}
+                    >
+                      Edit
+                    </button>
+                  </div>
+                </div>
+              )
+            )}
           </div>
         ) : null}
 

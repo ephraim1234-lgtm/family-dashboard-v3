@@ -33,6 +33,39 @@ public static class DependencyInjection
             return Results.Ok(result);
         });
 
+        memberGroup.MapPatch("/{noteId:guid}", async (
+            Guid noteId,
+            UpdateNoteRequest? request,
+            IIdentityAccessService identityAccessService,
+            INotesService notesService,
+            CancellationToken cancellationToken) =>
+        {
+            if (request is null)
+            {
+                return Results.BadRequest("Request body is required.");
+            }
+
+            var session = identityAccessService.GetCurrentSession();
+
+            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId)
+                || !Guid.TryParse(session.UserId, out var userId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var (result, item) = await notesService.UpdateNoteAsync(
+                householdId, noteId, userId, request, cancellationToken);
+
+            return result.Status switch
+            {
+                NoteMutationStatus.Succeeded => Results.Ok(item),
+                NoteMutationStatus.ValidationFailed => Results.BadRequest(result.Error),
+                NoteMutationStatus.Forbidden => Results.Forbid(),
+                NoteMutationStatus.NotFound => Results.NotFound(),
+                _ => Results.BadRequest("Unable to update note.")
+            };
+        });
+
         memberGroup.MapPost("", async (
             CreateNoteRequest? request,
             IIdentityAccessService identityAccessService,
