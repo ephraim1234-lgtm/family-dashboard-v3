@@ -20,8 +20,15 @@ public sealed class HouseholdTodayService(
         CancellationToken cancellationToken)
     {
         var nowUtc = clock.UtcNow;
-        var todayStart = new DateTimeOffset(nowUtc.UtcDateTime.Date, TimeSpan.Zero);
-        var todayEnd = todayStart.AddDays(1);
+
+        // Anchor "today" to household-local midnight so the digest matches the
+        // family's wall clock rather than server UTC.
+        var timeZoneId = await dbContext.Households
+            .Where(h => h.Id == householdId)
+            .Select(h => h.TimeZoneId)
+            .SingleOrDefaultAsync(cancellationToken) ?? "UTC";
+        var timeZone = HouseholdTimeBoundary.ResolveTimeZone(timeZoneId);
+        var (todayStart, todayEnd) = HouseholdTimeBoundary.GetTodayWindowUtc(nowUtc, timeZone);
 
         var agenda = await agendaQueryService.GetUpcomingEventsAsync(
             new UpcomingEventsRequest(householdId, todayStart, todayEnd),
@@ -31,7 +38,8 @@ public sealed class HouseholdTodayService(
             .Select(i => new HouseholdTodayEvent(i.Title, i.StartsAtUtc, i.EndsAtUtc, i.IsAllDay))
             .ToList();
 
-        var todayDayBit = 1 << (int)nowUtc.UtcDateTime.DayOfWeek;
+        var localNow = TimeZoneInfo.ConvertTime(nowUtc, timeZone);
+        var todayDayBit = 1 << (int)localNow.DayOfWeek;
         var todayChores = await dbContext.Chores
             .Where(c => c.HouseholdId == householdId
                 && c.IsActive

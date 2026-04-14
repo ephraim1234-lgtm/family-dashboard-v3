@@ -4,6 +4,7 @@ using HouseholdOps.Infrastructure.Persistence;
 using HouseholdOps.Modules.Chores;
 using HouseholdOps.Modules.Display;
 using HouseholdOps.Modules.Display.Contracts;
+using HouseholdOps.Modules.Households;
 using HouseholdOps.Modules.Notes;
 using HouseholdOps.Modules.Notifications;
 using HouseholdOps.Modules.Scheduling;
@@ -18,14 +19,14 @@ public sealed class DisplayProjectionService(
     IClock clock,
     IAgendaQueryService agendaQueryService) : IDisplayProjectionService
 {
-    private static string ToDayLabel(DateOnly date, DateTime todayUtcDate)
+    private static string ToDayLabel(DateOnly date, DateOnly today)
     {
-        if (date == DateOnly.FromDateTime(todayUtcDate))
+        if (date == today)
         {
             return "Today";
         }
 
-        if (date == DateOnly.FromDateTime(todayUtcDate.AddDays(1)))
+        if (date == today.AddDays(1))
         {
             return "Tomorrow";
         }
@@ -53,6 +54,7 @@ public sealed class DisplayProjectionService(
                 device.AgendaDensityMode,
                 HouseholdName = household.Name,
                 HouseholdId = household.Id,
+                HouseholdTimeZoneId = household.TimeZoneId,
                 token.TokenHint
             })
             .SingleOrDefaultAsync(cancellationToken);
@@ -62,8 +64,14 @@ public sealed class DisplayProjectionService(
             return null;
         }
 
-        var windowStart = clock.UtcNow;
-        var windowEnd = windowStart.AddDays(7);
+        // Anchor the 7-day agenda window to the household's local midnight so
+        // kiosk grouping and "Today/Tomorrow" labels match the family's wall
+        // clock, not server UTC.
+        var nowUtc = clock.UtcNow;
+        var timeZone = HouseholdTimeBoundary.ResolveTimeZone(result.HouseholdTimeZoneId);
+        var (todayStartUtc, todayEndUtc) = HouseholdTimeBoundary.GetTodayWindowUtc(nowUtc, timeZone);
+        var windowStart = nowUtc;
+        var windowEnd = todayEndUtc.AddDays(6);
 
         var agenda = await agendaQueryService.GetUpcomingEventsAsync(
             new UpcomingEventsRequest(result.HouseholdId, windowStart, windowEnd),
@@ -90,7 +98,7 @@ public sealed class DisplayProjectionService(
         var nextItem = timedItems
             .FirstOrDefault();
 
-        var today = windowStart.UtcDateTime.Date;
+        var today = HouseholdTimeBoundary.ToLocalDate(nowUtc, timeZone);
         var soonCutoff = windowStart.AddHours(6);
 
         var soonItems = timedItems
@@ -105,14 +113,14 @@ public sealed class DisplayProjectionService(
         var laterTodayItems = timedItems
             .Where(i =>
                 i.StartsAtUtc.HasValue
-                && i.StartsAtUtc.Value.UtcDateTime.Date == today
+                && HouseholdTimeBoundary.ToLocalDate(i.StartsAtUtc.Value, timeZone) == today
                 && i.StartsAtUtc.Value > soonCutoff)
             .ToList();
 
         var upcomingDays = agendaItems
             .GroupBy(i =>
-                DateOnly.FromDateTime(
-                    (i.StartsAtUtc ?? windowStart).UtcDateTime.Date))
+                HouseholdTimeBoundary.ToLocalDate(
+                    i.StartsAtUtc ?? windowStart, timeZone))
             .OrderBy(group => group.Key)
             .Select(group =>
             {
@@ -142,7 +150,10 @@ public sealed class DisplayProjectionService(
             .Select(r => new DisplayReminderItem(r.EventTitle, r.MinutesBefore, r.DueAtUtc))
             .ToListAsync(cancellationToken);
 
-        var todayDayBit = 1 << (int)windowStart.UtcDateTime.DayOfWeek;
+        // Chore weekday bitmask anchored to the household's local day so a
+        // "Monday" chore lights up when it is Monday at home.
+        var localNow = TimeZoneInfo.ConvertTime(nowUtc, timeZone);
+        var todayDayBit = 1 << (int)localNow.DayOfWeek;
         var dueChores = await dbContext.Chores
             .Where(c => c.HouseholdId == result.HouseholdId
                 && c.IsActive
