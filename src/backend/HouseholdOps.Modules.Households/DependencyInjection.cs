@@ -50,6 +50,29 @@ public static class DependencyInjection
             return Results.Ok(result);
         }).RequireAuthorization("ActiveHouseholdOwner");
 
+        group.MapPatch("/current/time-zone", async (
+            UpdateHouseholdTimeZoneRequest? request,
+            IHouseholdContextService service,
+            CancellationToken cancellationToken) =>
+        {
+            if (request is null)
+            {
+                return Results.BadRequest("Request body is required.");
+            }
+
+            var result = await service.UpdateTimeZoneAsync(
+                request.TimeZoneId,
+                cancellationToken);
+
+            return result.Status switch
+            {
+                HouseholdTimeZoneUpdateStatus.Succeeded => Results.Ok(result.Household),
+                HouseholdTimeZoneUpdateStatus.ValidationFailed => Results.BadRequest(result.Error),
+                HouseholdTimeZoneUpdateStatus.Unauthorized => Results.Unauthorized(),
+                _ => Results.BadRequest("Unable to update time zone.")
+            };
+        }).RequireAuthorization("ActiveHouseholdOwner");
+
         group.MapGet("/members", async (
             IIdentityAccessService identityAccessService,
             IHouseholdMemberService memberService,

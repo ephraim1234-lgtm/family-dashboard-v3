@@ -22,9 +22,17 @@ public sealed class HouseholdHomeService(
         CancellationToken cancellationToken)
     {
         var nowUtc = clock.UtcNow;
-        var todayStart = new DateTimeOffset(nowUtc.UtcDateTime.Date, TimeSpan.Zero);
-        var todayEnd = todayStart.AddDays(1);
-        var weekEnd = todayStart.AddDays(7);
+
+        // Resolve the household's time zone so "today" and day-grouping are
+        // anchored to local midnight for the members, not server UTC.
+        var timeZoneId = await dbContext.Households
+            .Where(h => h.Id == householdId)
+            .Select(h => h.TimeZoneId)
+            .SingleOrDefaultAsync(cancellationToken) ?? "UTC";
+        var timeZone = HouseholdTimeBoundary.ResolveTimeZone(timeZoneId);
+
+        var (todayStart, todayEnd) = HouseholdTimeBoundary.GetTodayWindowUtc(nowUtc, timeZone);
+        var weekEnd = todayEnd.AddDays(6); // next 7 local days (today + 6)
 
         // Today's events
         var agenda = await agendaQueryService.GetUpcomingEventsAsync(
@@ -36,7 +44,10 @@ public sealed class HouseholdHomeService(
             .ToList();
 
         // Today's chores (daily or matching today's weekday)
-        var todayDayBit = 1 << (int)nowUtc.UtcDateTime.DayOfWeek;
+        // Weekday bitmask anchored to the household's local day, not UTC, so a
+        // chore scheduled for "Monday" lights up when it is Monday at home.
+        var localNowForDay = TimeZoneInfo.ConvertTime(nowUtc, timeZone);
+        var todayDayBit = 1 << (int)localNowForDay.DayOfWeek;
         var todayChoreEntities = await dbContext.Chores
             .Where(c => c.HouseholdId == householdId
                 && c.IsActive
@@ -100,8 +111,8 @@ public sealed class HouseholdHomeService(
         var upcomingEventCount = upcomingAgenda.Items.Count;
 
         var upcomingDays = upcomingAgenda.Items
-            .GroupBy(i => DateOnly.FromDateTime(
-                (i.StartsAtUtc ?? todayEnd).UtcDateTime))
+            .GroupBy(i => HouseholdTimeBoundary.ToLocalDate(
+                i.StartsAtUtc ?? todayEnd, timeZone))
             .OrderBy(g => g.Key)
             .Select(g => new HomeUpcomingDay(
                 g.Key,
@@ -126,9 +137,9 @@ public sealed class HouseholdHomeService(
             {
                 var completionsThisWeek = g.Count(c => c.CompletedAtUtc >= weekStart);
                 var daysWithCompletions = g
-                    .Select(c => DateOnly.FromDateTime(c.CompletedAtUtc.UtcDateTime))
+                    .Select(c => HouseholdTimeBoundary.ToLocalDate(c.CompletedAtUtc, timeZone))
                     .ToHashSet();
-                var today = DateOnly.FromDateTime(nowUtc.UtcDateTime);
+                var today = HouseholdTimeBoundary.ToLocalDate(nowUtc, timeZone);
                 var streak = 0;
                 for (var i = 0; i < 30; i++)
                 {

@@ -498,6 +498,13 @@ partial class HouseholdOpsDbContextModelSnapshot : ModelSnapshot
                     .HasMaxLength(200)
                     .HasColumnType("character varying(200)");
 
+                b.Property<string>("TimeZoneId")
+                    .IsRequired()
+                    .ValueGeneratedOnAdd()
+                    .HasMaxLength(100)
+                    .HasColumnType("character varying(100)")
+                    .HasDefaultValue("UTC");
+
                 b.HasKey("Id");
 
                 b.ToTable("households", "core");
