@@ -44,6 +44,7 @@ public sealed record HomeUpcomingEvent(
 public sealed record HomeChore(
     Guid Id,
     string Title,
+    Guid? AssignedMembershipId,
     string? AssignedMemberName,
     bool CompletedToday);
 

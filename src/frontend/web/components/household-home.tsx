@@ -1,6 +1,12 @@
 "use client";
 
 import { useEffect, useState, useTransition, useCallback } from "react";
+import { useAdminOwnerSession } from "./use-admin-owner-session";
+
+type HouseholdMemberOption = {
+  membershipId: string;
+  displayName: string;
+};
 
 type HomeEvent = {
   title: string;
@@ -13,6 +19,7 @@ type HomeEvent = {
 type HomeChore = {
   id: string;
   title: string;
+  assignedMembershipId: string | null;
   assignedMemberName: string | null;
   completedToday: boolean;
 };
@@ -110,6 +117,8 @@ export function HouseholdHome() {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
+  const { isOwner } = useAdminOwnerSession();
+  const [members, setMembers] = useState<HouseholdMemberOption[]>([]);
 
   // Note creation state
   const [showNoteForm, setShowNoteForm] = useState(false);
@@ -160,6 +169,61 @@ export function HouseholdHome() {
       });
     });
   }, [load]);
+
+  // Owners get a members list so they can inline-reassign chores from a
+  // dropdown on each row. Non-owners skip the fetch entirely.
+  useEffect(() => {
+    if (!isOwner) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/households/members", {
+          credentials: "same-origin",
+          cache: "no-store"
+        });
+        if (!res.ok) return;
+        const body = (await res.json()) as {
+          items: { membershipId: string; displayName: string }[];
+        };
+        if (!cancelled) {
+          setMembers(
+            body.items.map((m) => ({
+              membershipId: m.membershipId,
+              displayName: m.displayName
+            }))
+          );
+        }
+      } catch {
+        // Best-effort; reassign dropdown just won't render.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOwner]);
+
+  async function reassignChore(choreId: string, membershipId: string | null) {
+    const res = await fetch(`/api/chores/${choreId}/assignee`, {
+      method: "PATCH",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ assignedMembershipId: membershipId })
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || `Reassign failed with ${res.status}.`);
+    }
+    await load();
+  }
+
+  function handleReassign(choreId: string, membershipId: string | null) {
+    setError(null);
+    startTransition(() => {
+      reassignChore(choreId, membershipId).catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : "Unable to reassign chore.");
+      });
+    });
+  }
 
   function showSuccess(msg: string) {
     setSuccessMsg(msg);
@@ -449,9 +513,31 @@ export function HouseholdHome() {
                 {incompleteChores.map((c) => (
                   <div className="stack-card home-attention-card" key={c.id}>
                     <div className="stack-card-header">
-                      <div>
+                      <div style={{ flex: 1 }}>
                         <strong>{c.title}</strong>
-                        {c.assignedMemberName ? (
+                        {isOwner && members.length > 0 ? (
+                          <div style={{ marginTop: "4px" }}>
+                            <select
+                              value={c.assignedMembershipId ?? ""}
+                              onChange={(e) =>
+                                handleReassign(
+                                  c.id,
+                                  e.target.value === "" ? null : e.target.value
+                                )
+                              }
+                              disabled={isPending}
+                              style={{ fontSize: "0.82rem" }}
+                              aria-label={`Reassign ${c.title}`}
+                            >
+                              <option value="">Unassigned</option>
+                              {members.map((m) => (
+                                <option key={m.membershipId} value={m.membershipId}>
+                                  {m.displayName}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        ) : c.assignedMemberName ? (
                           <div className="muted" style={{ fontSize: "0.82rem" }}>
                             {c.assignedMemberName}
                           </div>

@@ -115,6 +115,39 @@ public static class DependencyInjection
             };
         });
 
+        // Inline reassignment from the home chore row. Owner-only so children
+        // can't silently move chores off themselves.
+        ownerGroup.MapPatch("/{choreId:guid}/assignee", async (
+            Guid choreId,
+            ReassignChoreRequest? request,
+            IIdentityAccessService identityAccessService,
+            IChoreService choreService,
+            CancellationToken cancellationToken) =>
+        {
+            if (request is null)
+            {
+                return Results.BadRequest("A reassignment request is required.");
+            }
+
+            var session = identityAccessService.GetCurrentSession();
+
+            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var (result, item) = await choreService.ReassignChoreAsync(
+                householdId, choreId, request.AssignedMembershipId, cancellationToken);
+
+            return result.Status switch
+            {
+                ChoreMutationStatus.Succeeded => Results.Ok(item),
+                ChoreMutationStatus.NotFound => Results.NotFound(),
+                ChoreMutationStatus.ValidationFailed => Results.BadRequest(result.ErrorMessage),
+                _ => Results.BadRequest("Unable to reassign chore.")
+            };
+        });
+
         ownerGroup.MapGet("/completions/recent", async (
             IIdentityAccessService identityAccessService,
             IChoreService choreService,
