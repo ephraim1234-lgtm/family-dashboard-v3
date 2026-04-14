@@ -100,6 +100,56 @@ public sealed class EventReminderService(HouseholdOpsDbContext dbContext) : IEve
         return true;
     }
 
+    public async Task<EventReminderMutationResult> DismissReminderAsync(
+        Guid householdId,
+        Guid reminderId,
+        CancellationToken cancellationToken)
+    {
+        var reminder = await dbContext.EventReminders
+            .SingleOrDefaultAsync(
+                r => r.HouseholdId == householdId && r.Id == reminderId,
+                cancellationToken);
+
+        if (reminder is null)
+        {
+            return EventReminderMutationResult.NotFound();
+        }
+
+        reminder.Status = EventReminderStatuses.Dismissed;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return EventReminderMutationResult.Success(MapSummary(reminder));
+    }
+
+    public async Task<EventReminderMutationResult> SnoozeReminderAsync(
+        Guid householdId,
+        Guid reminderId,
+        int snoozeMinutes,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken)
+    {
+        if (snoozeMinutes < MinLeadTimeMinutes || snoozeMinutes > MaxLeadTimeMinutes)
+        {
+            return EventReminderMutationResult.ValidationFailure(
+                $"Snooze minutes must be between {MinLeadTimeMinutes} and {MaxLeadTimeMinutes}.");
+        }
+
+        var reminder = await dbContext.EventReminders
+            .SingleOrDefaultAsync(
+                r => r.HouseholdId == householdId && r.Id == reminderId,
+                cancellationToken);
+
+        if (reminder is null)
+        {
+            return EventReminderMutationResult.NotFound();
+        }
+
+        reminder.DueAtUtc = nowUtc.AddMinutes(snoozeMinutes);
+        reminder.Status = EventReminderStatuses.Pending;
+        reminder.FiredAtUtc = null;
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return EventReminderMutationResult.Success(MapSummary(reminder));
+    }
+
     public async Task<int> FireDueRemindersAsync(
         DateTimeOffset asOfUtc,
         CancellationToken cancellationToken)

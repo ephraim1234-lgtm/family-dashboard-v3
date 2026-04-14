@@ -14,7 +14,8 @@ public sealed class EventReminder
 
     public int MinutesBefore { get; init; }
 
-    public DateTimeOffset DueAtUtc { get; init; }
+    // Mutable so snooze operations can shift the due time.
+    public DateTimeOffset DueAtUtc { get; set; }
 
     public string Status { get; set; } = EventReminderStatuses.Pending;
 

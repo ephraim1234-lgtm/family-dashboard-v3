@@ -106,11 +106,61 @@ public sealed class HouseholdHomeService(
             .Select(g => new HomeUpcomingDay(
                 g.Key,
                 g.Select(i => new HomeUpcomingEvent(
-                    i.Title, i.StartsAtUtc, i.EndsAtUtc, i.IsAllDay, i.IsImported))
+                    i.Id, i.Title, i.StartsAtUtc, i.EndsAtUtc, i.IsAllDay, i.IsImported))
                 .ToList()))
             .ToList();
 
-        // Pending reminders today
+        // Per-member chore progress: completions this week + current streak (days)
+        var weekStart = todayStart.AddDays(-6); // 7-day rolling window ending today
+        var streakWindowStart = todayStart.AddDays(-29); // cap streak scan at 30 days
+        var memberCompletions = await dbContext.ChoreCompletions
+            .Where(c => c.HouseholdId == householdId
+                && c.CompletedAtUtc >= streakWindowStart
+                && c.CompletedAtUtc < todayEnd)
+            .Select(c => new { c.CompletedByDisplayName, c.CompletedAtUtc })
+            .ToListAsync(cancellationToken);
+
+        var memberChoreProgress = memberCompletions
+            .GroupBy(c => c.CompletedByDisplayName)
+            .Select(g =>
+            {
+                var completionsThisWeek = g.Count(c => c.CompletedAtUtc >= weekStart);
+                var daysWithCompletions = g
+                    .Select(c => DateOnly.FromDateTime(c.CompletedAtUtc.UtcDateTime))
+                    .ToHashSet();
+                var today = DateOnly.FromDateTime(nowUtc.UtcDateTime);
+                var streak = 0;
+                for (var i = 0; i < 30; i++)
+                {
+                    if (daysWithCompletions.Contains(today.AddDays(-i)))
+                    {
+                        streak++;
+                    }
+                    else
+                    {
+                        // Allow a grace: if today has no completion yet, start from yesterday.
+                        if (i == 0) continue;
+                        break;
+                    }
+                }
+                return new HomeMemberChoreProgress(g.Key, completionsThisWeek, streak);
+            })
+            .OrderByDescending(p => p.CurrentStreakDays)
+            .ThenByDescending(p => p.CompletionsThisWeek)
+            .ToList();
+
+        // Pending reminders (next 7 days, top 5) — surfaced for triage
+        var pendingReminderEntities = await dbContext.EventReminders
+            .Where(r =>
+                r.HouseholdId == householdId
+                && r.Status == EventReminderStatuses.Pending
+                && r.DueAtUtc >= todayStart
+                && r.DueAtUtc < weekEnd)
+            .OrderBy(r => r.DueAtUtc)
+            .Take(5)
+            .Select(r => new HomeReminder(r.Id, r.EventTitle, r.MinutesBefore, r.DueAtUtc))
+            .ToListAsync(cancellationToken);
+
         var pendingReminderCount = await dbContext.EventReminders
             .CountAsync(r =>
                 r.HouseholdId == householdId
@@ -125,6 +175,8 @@ public sealed class HouseholdHomeService(
             pinnedNotes,
             recentActivity,
             upcomingDays,
+            pendingReminderEntities,
+            memberChoreProgress,
             upcomingEventCount,
             pendingReminderCount);
     }

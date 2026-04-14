@@ -19,6 +19,18 @@ public interface IEventReminderService
         Guid reminderId,
         CancellationToken cancellationToken);
 
+    Task<EventReminderMutationResult> DismissReminderAsync(
+        Guid householdId,
+        Guid reminderId,
+        CancellationToken cancellationToken);
+
+    Task<EventReminderMutationResult> SnoozeReminderAsync(
+        Guid householdId,
+        Guid reminderId,
+        int snoozeMinutes,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken);
+
     Task<int> FireDueRemindersAsync(
         DateTimeOffset asOfUtc,
         CancellationToken cancellationToken);
