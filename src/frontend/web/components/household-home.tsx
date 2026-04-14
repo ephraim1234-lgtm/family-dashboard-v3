@@ -33,6 +33,7 @@ type HomeActivityItem = {
 };
 
 type HomeUpcomingEvent = {
+  scheduledEventId: string;
   title: string;
   startsAtUtc: string | null;
   endsAtUtc: string | null;
@@ -45,12 +46,27 @@ type HomeUpcomingDay = {
   events: HomeUpcomingEvent[];
 };
 
+type HomeReminder = {
+  id: string;
+  eventTitle: string;
+  minutesBefore: number;
+  dueAtUtc: string;
+};
+
+type HomeMemberChoreProgress = {
+  memberDisplayName: string;
+  completionsThisWeek: number;
+  currentStreakDays: number;
+};
+
 type HomeResponse = {
   todayEvents: HomeEvent[];
   todayChores: HomeChore[];
   pinnedNotes: HomeNote[];
   recentActivity: HomeActivityItem[];
   upcomingDays: HomeUpcomingDay[];
+  pendingReminders: HomeReminder[];
+  memberChoreProgress: HomeMemberChoreProgress[];
   upcomingEventCount: number;
   pendingReminderCount: number;
 };
@@ -99,6 +115,11 @@ export function HouseholdHome() {
   const [showNoteForm, setShowNoteForm] = useState(false);
   const [noteTitle, setNoteTitle] = useState("");
   const [noteBody, setNoteBody] = useState("");
+
+  // Reminder creation state
+  const [showReminderForm, setShowReminderForm] = useState(false);
+  const [reminderEventId, setReminderEventId] = useState("");
+  const [reminderMinutes, setReminderMinutes] = useState("30");
 
   // Event creation state
   const [showEventForm, setShowEventForm] = useState(false);
@@ -212,6 +233,77 @@ export function HouseholdHome() {
     startTransition(() => {
       togglePin(noteId).catch((err: unknown) => {
         setError(err instanceof Error ? err.message : "Unable to toggle pin.");
+      });
+    });
+  }
+
+  // ── Reminder triage ──
+  async function dismissReminder(id: string) {
+    const res = await fetch(`/api/notifications/reminders/${id}/dismiss`, {
+      method: "POST",
+      credentials: "same-origin",
+    });
+    if (!res.ok) throw new Error(`Dismiss failed with ${res.status}.`);
+    showSuccess("Reminder dismissed.");
+    await refresh();
+  }
+
+  function handleDismissReminder(id: string) {
+    startTransition(() => {
+      dismissReminder(id).catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : "Unable to dismiss reminder.");
+      });
+    });
+  }
+
+  async function snoozeReminder(id: string, snoozeMinutes: number) {
+    const res = await fetch(`/api/notifications/reminders/${id}/snooze`, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ snoozeMinutes }),
+    });
+    if (!res.ok) throw new Error(`Snooze failed with ${res.status}.`);
+    showSuccess(snoozeMinutes >= 1440 ? "Snoozed 1 day." : "Snoozed 1 hour.");
+    await refresh();
+  }
+
+  function handleSnoozeReminder(id: string, snoozeMinutes: number) {
+    startTransition(() => {
+      snoozeReminder(id, snoozeMinutes).catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : "Unable to snooze reminder.");
+      });
+    });
+  }
+
+  // ── Reminder creation ──
+  async function addReminder() {
+    const minutes = parseInt(reminderMinutes, 10);
+    if (!reminderEventId || !Number.isFinite(minutes) || minutes < 1) return;
+    const res = await fetch("/api/notifications/reminders", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        scheduledEventId: reminderEventId,
+        minutesBefore: minutes,
+      }),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || `Request failed with ${res.status}.`);
+    }
+    setReminderEventId("");
+    setReminderMinutes("30");
+    setShowReminderForm(false);
+    showSuccess("Reminder scheduled.");
+    await refresh();
+  }
+
+  function handleAddReminder() {
+    startTransition(() => {
+      addReminder().catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : "Unable to schedule reminder.");
       });
     });
   }
@@ -409,6 +501,69 @@ export function HouseholdHome() {
         </article>
       </section>
 
+      {/* ── Reminder triage ── */}
+      {data.pendingReminders.length > 0 ? (
+        <>
+          <div className="section-spacer" />
+          <section className="grid">
+            <article className="panel">
+              <div className="eyebrow">Reminders</div>
+              <h2>Upcoming reminders</h2>
+              <p className="muted" style={{ marginTop: "4px" }}>
+                Dismiss or snooze pending reminders in the next 7 days.
+              </p>
+              <div className="stack-list" style={{ marginTop: "12px" }}>
+                {data.pendingReminders.map((r) => {
+                  const due = new Date(r.dueAtUtc);
+                  const dueLabel =
+                    due.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }) +
+                    " " +
+                    due.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+                  return (
+                    <div className="stack-card" key={r.id}>
+                      <div className="stack-card-header">
+                        <div style={{ flex: 1 }}>
+                          <strong>{r.eventTitle}</strong>
+                          <div className="muted" style={{ fontSize: "0.82rem" }}>
+                            Due {dueLabel} &middot; {r.minutesBefore} min before event
+                          </div>
+                        </div>
+                        <div className="pill-row" style={{ flexShrink: 0 }}>
+                          <button
+                            className="action-button-secondary"
+                            style={{ fontSize: "0.75rem", padding: "6px 10px" }}
+                            onClick={() => handleSnoozeReminder(r.id, 60)}
+                            disabled={isPending}
+                          >
+                            Snooze 1h
+                          </button>
+                          <button
+                            className="action-button-secondary"
+                            style={{ fontSize: "0.75rem", padding: "6px 10px" }}
+                            onClick={() => handleSnoozeReminder(r.id, 1440)}
+                            disabled={isPending}
+                          >
+                            Snooze 1d
+                          </button>
+                          <button
+                            className="action-button"
+                            style={{ fontSize: "0.75rem", padding: "6px 10px" }}
+                            onClick={() => handleDismissReminder(r.id)}
+                            disabled={isPending}
+                          >
+                            Dismiss
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </article>
+          </section>
+        </>
+      ) : null}
+
       {/* ── Pinned notes with unpin ── */}
       {data.pinnedNotes.length > 0 ? (
         <>
@@ -581,8 +736,78 @@ export function HouseholdHome() {
             </div>
           ) : null}
 
+          {/* ── Reminder form ── */}
+          {showReminderForm ? (
+            <div className="stack-list" style={{ marginTop: "12px" }}>
+              <div className="stack-card">
+                {(() => {
+                  const timedUpcoming = data.upcomingDays
+                    .flatMap((d) => d.events)
+                    .filter((e) => !e.isAllDay && e.startsAtUtc);
+                  if (timedUpcoming.length === 0) {
+                    return (
+                      <p className="muted">
+                        No upcoming timed events to attach a reminder to.
+                      </p>
+                    );
+                  }
+                  return (
+                    <>
+                      <div className="form-row">
+                        <label className="form-label">Event *</label>
+                        <select
+                          className="form-input"
+                          value={reminderEventId}
+                          onChange={(e) => setReminderEventId(e.target.value)}
+                        >
+                          <option value="">Select an event…</option>
+                          {timedUpcoming.map((e) => (
+                            <option key={e.scheduledEventId} value={e.scheduledEventId}>
+                              {e.title} — {formatTime(e.startsAtUtc)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="form-row">
+                        <label className="form-label">Minutes before *</label>
+                        <input
+                          className="form-input"
+                          type="number"
+                          min={1}
+                          max={10080}
+                          value={reminderMinutes}
+                          onChange={(e) => setReminderMinutes(e.target.value)}
+                        />
+                      </div>
+                      <div className="pill-row" style={{ marginTop: "8px" }}>
+                        <button
+                          className="action-button"
+                          onClick={handleAddReminder}
+                          disabled={isPending || !reminderEventId}
+                        >
+                          Schedule reminder
+                        </button>
+                        <button
+                          className="action-button-secondary"
+                          onClick={() => {
+                            setShowReminderForm(false);
+                            setReminderEventId("");
+                            setReminderMinutes("30");
+                          }}
+                          disabled={isPending}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
+          ) : null}
+
           {/* Action buttons */}
-          {!showNoteForm && !showEventForm ? (
+          {!showNoteForm && !showEventForm && !showReminderForm ? (
             <div className="pill-row" style={{ marginTop: "12px" }}>
               <button
                 className="action-button-secondary"
@@ -596,10 +821,52 @@ export function HouseholdHome() {
               >
                 + Event
               </button>
+              <button
+                className="action-button-secondary"
+                onClick={() => setShowReminderForm(true)}
+              >
+                + Reminder
+              </button>
             </div>
           ) : null}
         </article>
       </section>
+
+      {/* ── Member chore progress ── */}
+      {data.memberChoreProgress.length > 0 ? (
+        <>
+          <div className="section-spacer" />
+          <section className="grid">
+            <article className="panel">
+              <div className="eyebrow">Chores</div>
+              <h2>Member progress</h2>
+              <p className="muted" style={{ marginTop: "4px" }}>
+                Streaks reflect consecutive days with at least one completion.
+              </p>
+              <div className="stack-list" style={{ marginTop: "12px" }}>
+                {data.memberChoreProgress.map((m) => (
+                  <div className="stack-card" key={m.memberDisplayName}>
+                    <div className="stack-card-header">
+                      <div style={{ flex: 1 }}>
+                        <strong>{m.memberDisplayName}</strong>
+                      </div>
+                      <div className="pill-row" style={{ flexShrink: 0 }}>
+                        <span className="pill" style={{ fontSize: "0.75rem" }}>
+                          {m.currentStreakDays} day
+                          {m.currentStreakDays !== 1 ? "s" : ""} streak
+                        </span>
+                        <span className="pill" style={{ fontSize: "0.75rem" }}>
+                          {m.completionsThisWeek} this week
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </article>
+          </section>
+        </>
+      ) : null}
 
       {/* ── Recent activity ── */}
       {data.recentActivity.length > 0 ? (

@@ -299,6 +299,37 @@ export function AdminCalendarIntegrationsPanel() {
     await refreshLinks();
   }
 
+  function handleSyncAll() {
+    startTransition(() => {
+      syncAllLinks().catch((syncError: unknown) => {
+        setError(
+          syncError instanceof Error
+            ? syncError.message
+            : "Unable to sync all linked calendars."
+        );
+      });
+    });
+  }
+
+  async function syncAllLinks() {
+    setError(null);
+    const results = await Promise.allSettled(
+      links.map((link) =>
+        fetch(`/api/integrations/google-calendar-links/${link.id}/sync`, {
+          method: "POST",
+          credentials: "same-origin"
+        })
+      )
+    );
+    const failures = results.filter(
+      (r) => r.status === "rejected" || (r.status === "fulfilled" && !r.value.ok)
+    ).length;
+    if (failures > 0) {
+      setError(`${failures} of ${links.length} sync operations failed.`);
+    }
+    await refreshLinks();
+  }
+
   function handleDelete(linkId: string) {
     startTransition(() => {
       deleteLink(linkId).catch((deleteError: unknown) => {
@@ -654,6 +685,40 @@ export function AdminCalendarIntegrationsPanel() {
 
       <article className="panel">
         <h2>Linked Google calendars</h2>
+        {links.length > 0 ? (() => {
+          const healthyCount = links.filter((l) => l.lastSyncStatus === "Succeeded").length;
+          const errorCount = links.filter((l) => l.lastSyncStatus === "Failed").length;
+          const lastCompleted = links
+            .map((l) => l.lastSyncCompletedAtUtc)
+            .filter((t): t is string => t != null)
+            .sort()
+            .pop();
+          return (
+            <div className="stack-card" style={{ marginBottom: "12px" }}>
+              <div className="stack-card-header">
+                <div style={{ flex: 1 }}>
+                  <strong>Integration health</strong>
+                  <div className="muted" style={{ fontSize: "0.82rem" }}>
+                    {links.length} linked &middot; {healthyCount} healthy
+                    {errorCount > 0 ? ` · ${errorCount} in error` : ""}
+                  </div>
+                  <div className="muted" style={{ fontSize: "0.82rem" }}>
+                    Last successful sync{" "}
+                    {lastCompleted ? new Date(lastCompleted).toLocaleString() : "— none yet"}
+                  </div>
+                </div>
+                <button
+                  className="action-button"
+                  onClick={handleSyncAll}
+                  disabled={isPending}
+                  style={{ fontSize: "0.85rem", padding: "8px 14px" }}
+                >
+                  Sync all now
+                </button>
+              </div>
+            </div>
+          );
+        })() : null}
         {links.length === 0 ? (
           <p className="muted">No Google calendars have been linked yet.</p>
         ) : (

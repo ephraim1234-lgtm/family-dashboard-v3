@@ -71,6 +71,68 @@ public static class DependencyInjection
             };
         });
 
+        group.MapPost("/reminders/{reminderId:guid}/dismiss", async (
+            Guid reminderId,
+            IIdentityAccessService identityAccessService,
+            IEventReminderService reminderService,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+
+            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var result = await reminderService.DismissReminderAsync(
+                householdId,
+                reminderId,
+                cancellationToken);
+
+            return result.Status switch
+            {
+                EventReminderMutationStatus.Succeeded => Results.Ok(result.Reminder),
+                EventReminderMutationStatus.NotFound => Results.NotFound(),
+                _ => Results.BadRequest("Unable to dismiss reminder.")
+            };
+        });
+
+        group.MapPost("/reminders/{reminderId:guid}/snooze", async (
+            Guid reminderId,
+            SnoozeReminderRequest? request,
+            IIdentityAccessService identityAccessService,
+            IEventReminderService reminderService,
+            IClock clock,
+            CancellationToken cancellationToken) =>
+        {
+            if (request is null)
+            {
+                return Results.BadRequest("A snooze request is required.");
+            }
+
+            var session = identityAccessService.GetCurrentSession();
+
+            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var result = await reminderService.SnoozeReminderAsync(
+                householdId,
+                reminderId,
+                request.SnoozeMinutes,
+                clock.UtcNow,
+                cancellationToken);
+
+            return result.Status switch
+            {
+                EventReminderMutationStatus.Succeeded => Results.Ok(result.Reminder),
+                EventReminderMutationStatus.NotFound => Results.NotFound(),
+                EventReminderMutationStatus.ValidationFailed => Results.BadRequest(result.Error),
+                _ => Results.BadRequest("Unable to snooze reminder.")
+            };
+        });
+
         group.MapDelete("/reminders/{reminderId:guid}", async (
             Guid reminderId,
             IIdentityAccessService identityAccessService,
