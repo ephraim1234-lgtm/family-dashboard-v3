@@ -208,6 +208,40 @@ public sealed class ChoreService(
             completion.Notes));
     }
 
+    public async Task<(ChoreMutationResult Result, ChoreItem? Item)> ReassignChoreAsync(
+        Guid householdId,
+        Guid choreId,
+        Guid? assignedMembershipId,
+        CancellationToken cancellationToken)
+    {
+        var chore = await dbContext.Chores
+            .SingleOrDefaultAsync(c => c.HouseholdId == householdId && c.Id == choreId, cancellationToken);
+
+        if (chore is null)
+        {
+            return (ChoreMutationResult.NotFound(), null);
+        }
+
+        // Resolving validates the membership belongs to this household — a
+        // foreign id returns null and we treat that as a validation failure
+        // rather than silently clearing the assignment.
+        string? memberName = null;
+        if (assignedMembershipId is not null)
+        {
+            memberName = await ResolveMemberNameAsync(householdId, assignedMembershipId, cancellationToken);
+            if (memberName is null)
+            {
+                return (ChoreMutationResult.ValidationFailure("Assignee is not a member of this household."), null);
+            }
+        }
+
+        chore.AssignedMembershipId = assignedMembershipId;
+        chore.AssignedMemberName = memberName;
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return (ChoreMutationResult.Success(), ToItem(chore));
+    }
+
     private async Task<string?> ResolveMemberNameAsync(
         Guid householdId,
         Guid? membershipId,

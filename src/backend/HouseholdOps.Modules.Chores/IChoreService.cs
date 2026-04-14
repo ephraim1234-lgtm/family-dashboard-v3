@@ -11,6 +11,7 @@ public interface IChoreService
     Task<ChoreListResponse> ListMyChoresAsync(Guid householdId, Guid userId, CancellationToken cancellationToken);
     Task<ChoreCompletionListResponse> ListRecentCompletionsAsync(Guid householdId, CancellationToken cancellationToken);
     Task<(ChoreMutationResult Result, ChoreCompletionItem? Item)> CompleteChoreAsync(Guid householdId, Guid choreId, Guid userId, CompleteChoreRequest request, CancellationToken cancellationToken);
+    Task<(ChoreMutationResult Result, ChoreItem? Item)> ReassignChoreAsync(Guid householdId, Guid choreId, Guid? assignedMembershipId, CancellationToken cancellationToken);
 }
 
 public sealed class ChoreMutationResult

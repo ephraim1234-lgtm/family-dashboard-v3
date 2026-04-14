@@ -55,7 +55,7 @@ public sealed class HouseholdHomeService(
                     || (c.RecurrenceKind == ChoreRecurrenceKind.Weekly
                         && (c.WeeklyDaysMask & todayDayBit) != 0)))
             .OrderBy(c => c.Title)
-            .Select(c => new { c.Id, c.Title, c.AssignedMemberName })
+            .Select(c => new { c.Id, c.Title, c.AssignedMembershipId, c.AssignedMemberName })
             .ToListAsync(cancellationToken);
 
         // Check which chores were completed today
@@ -71,7 +71,7 @@ public sealed class HouseholdHomeService(
 
         var completedTodaySet = completedTodayIds.ToHashSet();
         var todayChores = todayChoreEntities
-            .Select(c => new HomeChore(c.Id, c.Title, c.AssignedMemberName, completedTodaySet.Contains(c.Id)))
+            .Select(c => new HomeChore(c.Id, c.Title, c.AssignedMembershipId, c.AssignedMemberName, completedTodaySet.Contains(c.Id)))
             .ToList();
 
         // Pinned notes
