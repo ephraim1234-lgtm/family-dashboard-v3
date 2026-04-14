@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState, useTransition, useCallback } from "react";
 
 type HomeEvent = {
   title: string;
   startsAtUtc: string | null;
   endsAtUtc: string | null;
   isAllDay: boolean;
+  isImported: boolean;
 };
 
 type HomeChore = {
@@ -31,11 +32,25 @@ type HomeActivityItem = {
   occurredAtUtc: string;
 };
 
+type HomeUpcomingEvent = {
+  title: string;
+  startsAtUtc: string | null;
+  endsAtUtc: string | null;
+  isAllDay: boolean;
+  isImported: boolean;
+};
+
+type HomeUpcomingDay = {
+  date: string;
+  events: HomeUpcomingEvent[];
+};
+
 type HomeResponse = {
   todayEvents: HomeEvent[];
   todayChores: HomeChore[];
   pinnedNotes: HomeNote[];
   recentActivity: HomeActivityItem[];
+  upcomingDays: HomeUpcomingDay[];
   upcomingEventCount: number;
   pendingReminderCount: number;
 };
@@ -56,6 +71,23 @@ function formatRelativeTime(utc: string): string {
   return `${days}d ago`;
 }
 
+function formatDayLabel(dateStr: string): string {
+  const d = new Date(dateStr + "T00:00:00");
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+  if (d.toDateString() === today.toDateString()) return "Today";
+  if (d.toDateString() === tomorrow.toDateString()) return "Tomorrow";
+  return d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+}
+
+function formatWeekdayShort(dateStr: string): string {
+  const d = new Date(dateStr + "T00:00:00");
+  const today = new Date();
+  if (d.toDateString() === today.toDateString()) return "Today";
+  return d.toLocaleDateString([], { weekday: "short" });
+}
+
 export function HouseholdHome() {
   const [data, setData] = useState<HomeResponse | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -63,7 +95,23 @@ export function HouseholdHome() {
   const [isPending, startTransition] = useTransition();
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
 
-  async function load() {
+  // Note creation state
+  const [showNoteForm, setShowNoteForm] = useState(false);
+  const [noteTitle, setNoteTitle] = useState("");
+  const [noteBody, setNoteBody] = useState("");
+
+  // Event creation state
+  const [showEventForm, setShowEventForm] = useState(false);
+  const [eventTitle, setEventTitle] = useState("");
+  const [eventDesc, setEventDesc] = useState("");
+  const [eventAllDay, setEventAllDay] = useState(false);
+  const [eventStart, setEventStart] = useState("");
+  const [eventEnd, setEventEnd] = useState("");
+
+  // Success messages
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
     const res = await fetch("/api/app/home", {
       credentials: "same-origin",
       cache: "no-store",
@@ -81,7 +129,7 @@ export function HouseholdHome() {
     setData(d);
     setCompletedIds(new Set());
     setLoaded(true);
-  }
+  }, []);
 
   useEffect(() => {
     startTransition(() => {
@@ -90,8 +138,19 @@ export function HouseholdHome() {
         setLoaded(true);
       });
     });
-  }, []);
+  }, [load]);
 
+  function showSuccess(msg: string) {
+    setSuccessMsg(msg);
+    setTimeout(() => setSuccessMsg(null), 3000);
+  }
+
+  async function refresh() {
+    setError(null);
+    await load();
+  }
+
+  // ── Chore completion ──
   async function completeChore(choreId: string) {
     const res = await fetch(`/api/chores/${choreId}/complete`, {
       method: "POST",
@@ -99,11 +158,7 @@ export function HouseholdHome() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ notes: null }),
     });
-
-    if (!res.ok) {
-      throw new Error(`Complete failed with ${res.status}.`);
-    }
-
+    if (!res.ok) throw new Error(`Complete failed with ${res.status}.`);
     setCompletedIds((prev) => new Set([...prev, choreId]));
   }
 
@@ -111,6 +166,90 @@ export function HouseholdHome() {
     startTransition(() => {
       completeChore(choreId).catch((err: unknown) => {
         setError(err instanceof Error ? err.message : "Unable to complete chore.");
+      });
+    });
+  }
+
+  // ── Note creation ──
+  async function addNote() {
+    const res = await fetch("/api/notes", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: noteTitle.trim(),
+        body: noteBody.trim() || null,
+      }),
+    });
+    if (!res.ok) throw new Error(`Add note failed with ${res.status}.`);
+    setNoteTitle("");
+    setNoteBody("");
+    setShowNoteForm(false);
+    showSuccess("Note added.");
+    await refresh();
+  }
+
+  function handleAddNote() {
+    if (!noteTitle.trim()) return;
+    startTransition(() => {
+      addNote().catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : "Unable to add note.");
+      });
+    });
+  }
+
+  // ── Note pin toggle ──
+  async function togglePin(noteId: string) {
+    const res = await fetch(`/api/notes/${noteId}/pin`, {
+      method: "PATCH",
+      credentials: "same-origin",
+    });
+    if (!res.ok) throw new Error(`Pin toggle failed with ${res.status}.`);
+    await refresh();
+  }
+
+  function handleTogglePin(noteId: string) {
+    startTransition(() => {
+      togglePin(noteId).catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : "Unable to toggle pin.");
+      });
+    });
+  }
+
+  // ── Event creation ──
+  async function addEvent() {
+    const body = {
+      title: eventTitle.trim(),
+      description: eventDesc.trim() || null,
+      isAllDay: eventAllDay,
+      startsAtUtc: eventStart ? new Date(eventStart).toISOString() : null,
+      endsAtUtc: eventEnd ? new Date(eventEnd).toISOString() : null,
+    };
+    const res = await fetch("/api/scheduling/events/member", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      const text = await res.text();
+      throw new Error(text || `Request failed with ${res.status}.`);
+    }
+    setEventTitle("");
+    setEventDesc("");
+    setEventAllDay(false);
+    setEventStart("");
+    setEventEnd("");
+    setShowEventForm(false);
+    showSuccess("Event added.");
+    await refresh();
+  }
+
+  function handleAddEvent() {
+    if (!eventTitle.trim()) return;
+    startTransition(() => {
+      addEvent().catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : "Unable to add event.");
       });
     });
   }
@@ -149,6 +288,14 @@ export function HouseholdHome() {
         </section>
       ) : null}
 
+      {successMsg ? (
+        <section className="grid">
+          <article className="panel">
+            <p className="success-text">{successMsg}</p>
+          </article>
+        </section>
+      ) : null}
+
       {/* ── Today ── */}
       <section className="grid">
         <article className="panel">
@@ -176,15 +323,22 @@ export function HouseholdHome() {
               <div className="stack-list" style={{ marginTop: "8px" }}>
                 {data.todayEvents.map((e, i) => (
                   <div className="stack-card" key={i}>
-                    <strong>{e.title}</strong>
-                    {!e.isAllDay && e.startsAtUtc ? (
-                      <div className="muted">
-                        {formatTime(e.startsAtUtc)}
-                        {e.endsAtUtc ? ` – ${formatTime(e.endsAtUtc)}` : ""}
+                    <div className="stack-card-header">
+                      <div style={{ flex: 1 }}>
+                        <strong>{e.title}</strong>
+                        {!e.isAllDay && e.startsAtUtc ? (
+                          <div className="muted">
+                            {formatTime(e.startsAtUtc)}
+                            {e.endsAtUtc ? ` – ${formatTime(e.endsAtUtc)}` : ""}
+                          </div>
+                        ) : (
+                          <div className="muted">All day</div>
+                        )}
                       </div>
-                    ) : (
-                      <div className="muted">All day</div>
-                    )}
+                      {e.isImported ? (
+                        <span className="pill home-source-pill">Synced</span>
+                      ) : null}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -233,27 +387,17 @@ export function HouseholdHome() {
               </div>
               <div className="stack-list" style={{ marginTop: "8px" }}>
                 {doneChores.map((c) => (
-                  <div
-                    className="stack-card"
-                    key={c.id}
-                    style={{ opacity: 0.6 }}
-                  >
+                  <div className="stack-card" key={c.id} style={{ opacity: 0.6 }}>
                     <div className="stack-card-header">
                       <div>
                         <strong>{c.title}</strong>
                         {c.assignedMemberName ? (
-                          <div
-                            className="muted"
-                            style={{ fontSize: "0.82rem" }}
-                          >
+                          <div className="muted" style={{ fontSize: "0.82rem" }}>
                             {c.assignedMemberName}
                           </div>
                         ) : null}
                       </div>
-                      <span
-                        className="pill"
-                        style={{ fontSize: "0.75rem" }}
-                      >
+                      <span className="pill" style={{ fontSize: "0.75rem" }}>
                         Done
                       </span>
                     </div>
@@ -265,7 +409,7 @@ export function HouseholdHome() {
         </article>
       </section>
 
-      {/* ── Pinned notes ── */}
+      {/* ── Pinned notes with unpin ── */}
       {data.pinnedNotes.length > 0 ? (
         <>
           <div className="section-spacer" />
@@ -276,10 +420,22 @@ export function HouseholdHome() {
               <div className="stack-list" style={{ marginTop: "12px" }}>
                 {data.pinnedNotes.map((n) => (
                   <div className="stack-card" key={n.id}>
-                    <strong>{n.title}</strong>
-                    {n.body ? <div className="muted">{n.body}</div> : null}
-                    <div className="muted" style={{ fontSize: "0.8rem" }}>
-                      {n.authorDisplayName}
+                    <div className="stack-card-header">
+                      <div style={{ flex: 1 }}>
+                        <strong>{n.title}</strong>
+                        {n.body ? <div className="muted">{n.body}</div> : null}
+                        <div className="muted" style={{ fontSize: "0.8rem" }}>
+                          {n.authorDisplayName}
+                        </div>
+                      </div>
+                      <button
+                        className="action-button-secondary"
+                        style={{ fontSize: "0.75rem", padding: "6px 10px", alignSelf: "flex-start" }}
+                        onClick={() => handleTogglePin(n.id)}
+                        disabled={isPending}
+                      >
+                        Unpin
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -288,6 +444,162 @@ export function HouseholdHome() {
           </section>
         </>
       ) : null}
+
+      {/* ── Quick actions: add note / add event ── */}
+      <div className="section-spacer" />
+      <section className="grid">
+        <article className="panel">
+          <div className="eyebrow">Quick actions</div>
+          <h2>Add something</h2>
+
+          {/* ── Note form ── */}
+          {showNoteForm ? (
+            <div className="stack-list" style={{ marginTop: "12px" }}>
+              <div className="stack-card">
+                <div className="form-row">
+                  <label className="form-label">Note title *</label>
+                  <input
+                    className="form-input"
+                    value={noteTitle}
+                    onChange={(e) => setNoteTitle(e.target.value)}
+                    placeholder="Note title"
+                  />
+                </div>
+                <div className="form-row">
+                  <label className="form-label">Body</label>
+                  <textarea
+                    className="form-input"
+                    value={noteBody}
+                    onChange={(e) => setNoteBody(e.target.value)}
+                    placeholder="Optional body"
+                    rows={2}
+                  />
+                </div>
+                <div className="pill-row" style={{ marginTop: "8px" }}>
+                  <button
+                    className="action-button"
+                    onClick={handleAddNote}
+                    disabled={isPending || !noteTitle.trim()}
+                  >
+                    Add note
+                  </button>
+                  <button
+                    className="action-button-secondary"
+                    onClick={() => {
+                      setShowNoteForm(false);
+                      setNoteTitle("");
+                      setNoteBody("");
+                    }}
+                    disabled={isPending}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {/* ── Event form ── */}
+          {showEventForm ? (
+            <div className="stack-list" style={{ marginTop: "12px" }}>
+              <div className="stack-card">
+                <div className="form-row">
+                  <label className="form-label">Event title *</label>
+                  <input
+                    className="form-input"
+                    value={eventTitle}
+                    onChange={(e) => setEventTitle(e.target.value)}
+                    placeholder="Event title"
+                  />
+                </div>
+                <div className="form-row">
+                  <label className="form-label">Description</label>
+                  <input
+                    className="form-input"
+                    value={eventDesc}
+                    onChange={(e) => setEventDesc(e.target.value)}
+                    placeholder="Optional"
+                  />
+                </div>
+                <div className="form-row">
+                  <label className="form-label">
+                    <input
+                      type="checkbox"
+                      checked={eventAllDay}
+                      onChange={(e) => setEventAllDay(e.target.checked)}
+                      style={{ marginRight: "6px" }}
+                    />
+                    All day
+                  </label>
+                </div>
+                {!eventAllDay ? (
+                  <>
+                    <div className="form-row">
+                      <label className="form-label">Starts</label>
+                      <input
+                        className="form-input"
+                        type="datetime-local"
+                        value={eventStart}
+                        onChange={(e) => setEventStart(e.target.value)}
+                      />
+                    </div>
+                    <div className="form-row">
+                      <label className="form-label">Ends</label>
+                      <input
+                        className="form-input"
+                        type="datetime-local"
+                        value={eventEnd}
+                        onChange={(e) => setEventEnd(e.target.value)}
+                      />
+                    </div>
+                  </>
+                ) : null}
+                <div className="pill-row" style={{ marginTop: "8px" }}>
+                  <button
+                    className="action-button"
+                    onClick={handleAddEvent}
+                    disabled={isPending || !eventTitle.trim()}
+                  >
+                    Add event
+                  </button>
+                  <button
+                    className="action-button-secondary"
+                    onClick={() => {
+                      setShowEventForm(false);
+                      setEventTitle("");
+                      setEventDesc("");
+                      setEventAllDay(false);
+                      setEventStart("");
+                      setEventEnd("");
+                    }}
+                    disabled={isPending}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {/* Action buttons */}
+          {!showNoteForm && !showEventForm ? (
+            <div className="pill-row" style={{ marginTop: "12px" }}>
+              <button
+                className="action-button-secondary"
+                onClick={() => setShowNoteForm(true)}
+              >
+                + Note
+              </button>
+              <button
+                className="action-button-secondary"
+                onClick={() => setShowEventForm(true)}
+              >
+                + Event
+              </button>
+            </div>
+          ) : null}
+        </article>
+      </section>
 
       {/* ── Recent activity ── */}
       {data.recentActivity.length > 0 ? (
@@ -331,18 +643,67 @@ export function HouseholdHome() {
         </>
       ) : null}
 
-      {/* ── Coming up ── */}
-      {data.upcomingEventCount > 0 ? (
+      {/* ── Coming up — week at a glance + day-grouped agenda ── */}
+      {data.upcomingDays.length > 0 ? (
         <>
           <div className="section-spacer" />
           <section className="grid">
             <article className="panel">
               <div className="eyebrow">Schedule</div>
               <h2>Coming up</h2>
-              <p className="muted" style={{ marginTop: "8px" }}>
+              <p className="muted" style={{ marginTop: "4px" }}>
                 {data.upcomingEventCount} event
                 {data.upcomingEventCount !== 1 ? "s" : ""} in the next 7 days
               </p>
+
+              {/* Week-at-a-glance summary */}
+              <div className="home-week-glance" style={{ marginTop: "14px" }}>
+                {data.upcomingDays.map((day) => (
+                  <div className="home-week-day" key={day.date}>
+                    <div className="home-week-day-label">
+                      {formatWeekdayShort(day.date)}
+                    </div>
+                    <div className="home-week-day-count">{day.events.length}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Day-grouped agenda */}
+              <div className="day-group-list" style={{ marginTop: "18px" }}>
+                {data.upcomingDays.map((day) => (
+                  <div className="day-group" key={day.date}>
+                    <div className="day-group-heading">
+                      {formatDayLabel(day.date)}
+                    </div>
+                    <div className="stack-list">
+                      {day.events.map((e, i) => (
+                        <div className="stack-card" key={`${day.date}-${i}`}>
+                          <div className="stack-card-header">
+                            <div style={{ flex: 1 }}>
+                              <strong>{e.title}</strong>
+                              {!e.isAllDay && e.startsAtUtc ? (
+                                <div className="muted">
+                                  {formatTime(e.startsAtUtc)}
+                                  {e.endsAtUtc
+                                    ? ` – ${formatTime(e.endsAtUtc)}`
+                                    : ""}
+                                </div>
+                              ) : (
+                                <div className="muted">All day</div>
+                              )}
+                            </div>
+                            {e.isImported ? (
+                              <span className="pill home-source-pill">
+                                Synced
+                              </span>
+                            ) : null}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </article>
           </section>
         </>

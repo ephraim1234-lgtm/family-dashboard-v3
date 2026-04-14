@@ -13,31 +13,41 @@ import { AdminStatsPanel } from "../../../components/admin-stats-panel";
 export default function AdminPage() {
   return (
     <>
+      {/* ── Overview & access ── */}
       <section className="grid">
         <article className="panel">
-          <h2>Admin responsibilities</h2>
-          <div className="pill-row">
-            <span className="pill">Members</span>
-            <span className="pill">Household settings</span>
-            <span className="pill">Display devices</span>
-            <span className="pill">Coarse roles</span>
-          </div>
-        </article>
-
-        <article className="panel">
-          <h2>Boundary note</h2>
+          <h2>Administration</h2>
           <p className="muted">
-            Administration is a workflow surface over core domains, not a separate
-            business engine.
+            Owner-gated workflows over core household domains.
           </p>
+          <nav className="admin-section-nav" style={{ marginTop: "14px" }}>
+            <a href="#overview" className="pill pill-link">Overview</a>
+            <a href="#household" className="pill pill-link">Household</a>
+            <a href="#chores" className="pill pill-link">Chores</a>
+            <a href="#notes" className="pill pill-link">Notes</a>
+            <a href="#scheduling" className="pill pill-link">Scheduling</a>
+            <a href="#display" className="pill pill-link">Display</a>
+          </nav>
         </article>
       </section>
 
       <div className="section-spacer" />
+      <div id="overview" />
       <AdminStatsPanel />
 
       <div className="section-spacer" />
       <AdminAccessPanel />
+
+      {/* ── Household ── */}
+      <div className="section-spacer" />
+      <div id="household" />
+      <section className="grid">
+        <article className="panel admin-section-header">
+          <div className="eyebrow">Admin</div>
+          <h2>Household</h2>
+          <p className="muted">Settings and members</p>
+        </article>
+      </section>
 
       <div className="section-spacer" />
       <AdminHouseholdSettingsPanel />
@@ -45,14 +55,47 @@ export default function AdminPage() {
       <div className="section-spacer" />
       <AdminMembersPanel />
 
+      {/* ── Chores & Routines ── */}
+      <div className="section-spacer" />
+      <div id="chores" />
+      <section className="grid">
+        <article className="panel admin-section-header">
+          <div className="eyebrow">Admin</div>
+          <h2>Chores &amp; routines</h2>
+          <p className="muted">Manage chores, view completion insights</p>
+        </article>
+      </section>
+
       <div className="section-spacer" />
       <AdminChoresPanel />
 
       <div className="section-spacer" />
       <AdminChoreInsightsPanel />
 
+      {/* ── Notes ── */}
+      <div className="section-spacer" />
+      <div id="notes" />
+      <section className="grid">
+        <article className="panel admin-section-header">
+          <div className="eyebrow">Admin</div>
+          <h2>Notes</h2>
+          <p className="muted">Pin, edit, and manage household notes</p>
+        </article>
+      </section>
+
       <div className="section-spacer" />
       <AdminNotesPanel />
+
+      {/* ── Scheduling ── */}
+      <div className="section-spacer" />
+      <div id="scheduling" />
+      <section className="grid">
+        <article className="panel admin-section-header">
+          <div className="eyebrow">Admin</div>
+          <h2>Scheduling</h2>
+          <p className="muted">Calendar integrations, events, and reminders</p>
+        </article>
+      </section>
 
       <div className="section-spacer" />
       <AdminCalendarIntegrationsPanel />
@@ -62,6 +105,17 @@ export default function AdminPage() {
 
       <div className="section-spacer" />
       <AdminRemindersPanel />
+
+      {/* ── Display ── */}
+      <div className="section-spacer" />
+      <div id="display" />
+      <section className="grid">
+        <article className="panel admin-section-header">
+          <div className="eyebrow">Admin</div>
+          <h2>Display</h2>
+          <p className="muted">Kiosk device management and projection settings</p>
+        </article>
+      </section>
 
       <div className="section-spacer" />
       <AdminDisplayManagementPanel />

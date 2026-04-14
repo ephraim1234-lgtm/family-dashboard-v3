@@ -5,6 +5,7 @@ public sealed record HouseholdHomeResponse(
     IReadOnlyList<HomeChore> TodayChores,
     IReadOnlyList<HomeNote> PinnedNotes,
     IReadOnlyList<HomeActivityItem> RecentActivity,
+    IReadOnlyList<HomeUpcomingDay> UpcomingDays,
     int UpcomingEventCount,
     int PendingReminderCount);
 
@@ -12,7 +13,19 @@ public sealed record HomeEvent(
     string Title,
     DateTimeOffset? StartsAtUtc,
     DateTimeOffset? EndsAtUtc,
-    bool IsAllDay);
+    bool IsAllDay,
+    bool IsImported);
+
+public sealed record HomeUpcomingDay(
+    DateOnly Date,
+    IReadOnlyList<HomeUpcomingEvent> Events);
+
+public sealed record HomeUpcomingEvent(
+    string Title,
+    DateTimeOffset? StartsAtUtc,
+    DateTimeOffset? EndsAtUtc,
+    bool IsAllDay,
+    bool IsImported);
 
 public sealed record HomeChore(
     Guid Id,
