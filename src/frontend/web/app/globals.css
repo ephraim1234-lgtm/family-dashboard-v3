@@ -731,6 +731,21 @@ a {
   align-items: center;
 }
 
+.admin-section-header {
+  border-left: 3px solid var(--admin);
+}
+
+.admin-section-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-section-nav .pill {
+  font-size: 0.85rem;
+  padding: 6px 12px;
+}
+
 .home-attention-label {
   color: #9a3412;
 }
@@ -738,6 +753,45 @@ a {
 .home-attention-card {
   border-color: rgba(194, 65, 12, 0.3);
   background: rgba(255, 237, 213, 0.5);
+}
+
+.home-source-pill {
+  font-size: 0.7rem;
+  padding: 4px 10px;
+  background: rgba(15, 118, 110, 0.08);
+  border-color: rgba(15, 118, 110, 0.25);
+  color: #0f766e;
+  white-space: nowrap;
+}
+
+.home-week-glance {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.home-week-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 48px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.56);
+  border: 1px solid var(--line);
+}
+
+.home-week-day-label {
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.home-week-day-count {
+  font-size: 1.15rem;
+  font-weight: 600;
 }
 
 @media (max-width: 720px) {

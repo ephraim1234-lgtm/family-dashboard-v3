@@ -32,7 +32,7 @@ public sealed class HouseholdHomeService(
             cancellationToken);
 
         var todayEvents = agenda.Items
-            .Select(i => new HomeEvent(i.Title, i.StartsAtUtc, i.EndsAtUtc, i.IsAllDay))
+            .Select(i => new HomeEvent(i.Title, i.StartsAtUtc, i.EndsAtUtc, i.IsAllDay, i.IsImported))
             .ToList();
 
         // Today's chores (daily or matching today's weekday)
@@ -93,11 +93,22 @@ public sealed class HouseholdHomeService(
             .Take(RecentActivityLimit)
             .ToList();
 
-        // Upcoming event count (next 7 days, excluding today)
+        // Upcoming events (next 7 days, excluding today) — day-grouped
         var upcomingAgenda = await agendaQueryService.GetUpcomingEventsAsync(
             new UpcomingEventsRequest(householdId, todayEnd, weekEnd),
             cancellationToken);
         var upcomingEventCount = upcomingAgenda.Items.Count;
+
+        var upcomingDays = upcomingAgenda.Items
+            .GroupBy(i => DateOnly.FromDateTime(
+                (i.StartsAtUtc ?? todayEnd).UtcDateTime))
+            .OrderBy(g => g.Key)
+            .Select(g => new HomeUpcomingDay(
+                g.Key,
+                g.Select(i => new HomeUpcomingEvent(
+                    i.Title, i.StartsAtUtc, i.EndsAtUtc, i.IsAllDay, i.IsImported))
+                .ToList()))
+            .ToList();
 
         // Pending reminders today
         var pendingReminderCount = await dbContext.EventReminders
@@ -113,6 +124,7 @@ public sealed class HouseholdHomeService(
             todayChores,
             pinnedNotes,
             recentActivity,
+            upcomingDays,
             upcomingEventCount,
             pendingReminderCount);
     }
