@@ -25,6 +25,11 @@ type DisplayAgendaSection = {
     timedCount: number;
     firstStartsAtUtc: string | null;
   }>;
+  upcomingDayGroups: Array<{
+    date: string;
+    label: string;
+    events: DisplayAgendaItem[];
+  }>;
   items: DisplayAgendaItem[];
 };
 
@@ -502,6 +507,47 @@ export function DisplaySurfacePanel({ token }: DisplaySurfacePanelProps) {
               ))}
             </div>
           </article>
+
+          {/* Day-grouped rollup — matches /app "Coming up" shape so a glance
+              at the kiosk shows the actual events per day, not just counts. */}
+          {snapshot.agendaSection.upcomingDayGroups.length > 0 ? (
+            <article className="panel">
+              <div className="display-section-header">
+                <div>
+                  <div className="eyebrow">Day by day</div>
+                  <h3>Coming up</h3>
+                </div>
+                <span className="pill">Grouped by day</span>
+              </div>
+              <div className="stack-list">
+                {snapshot.agendaSection.upcomingDayGroups
+                  .slice(0, daySummaryLimit)
+                  .map((day) => (
+                    <div className="stack-card" key={`group-${day.date}`}>
+                      <div className="stack-card-header">
+                        <strong>{day.label}</strong>
+                        <span className="pill">{day.events.length}</span>
+                      </div>
+                      <div className="display-agenda-list" style={{ marginTop: "6px" }}>
+                        {day.events.map((item) => (
+                          <div
+                            className="display-agenda-item"
+                            key={`${day.date}-${item.title}-${item.startsAtUtc ?? "all"}`}
+                          >
+                            <div className="display-agenda-time">
+                              {formatAgendaTime(item)}
+                            </div>
+                            <div>
+                              <strong>{item.title}</strong>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </article>
+          ) : null}
 
           <article className="panel display-agenda-panel">
             <div className="display-section-header">

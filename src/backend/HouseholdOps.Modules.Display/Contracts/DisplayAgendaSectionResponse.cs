@@ -8,4 +8,5 @@ public sealed record DisplayAgendaSectionResponse(
     IReadOnlyList<DisplayAgendaItemResponse> SoonItems,
     IReadOnlyList<DisplayAgendaItemResponse> LaterTodayItems,
     IReadOnlyList<DisplayAgendaDaySummaryResponse> UpcomingDays,
+    IReadOnlyList<DisplayAgendaDayGroupResponse> UpcomingDayGroups,
     IReadOnlyList<DisplayAgendaItemResponse> Items);

@@ -117,11 +117,17 @@ public sealed class DisplayProjectionService(
                 && i.StartsAtUtc.Value > soonCutoff)
             .ToList();
 
-        var upcomingDays = agendaItems
+        // Group items by household-local day once; produce both the legacy
+        // summary list (counts + first start) and the richer group list that
+        // matches the /app home shape (per-day event detail).
+        var itemsByLocalDay = agendaItems
             .GroupBy(i =>
                 HouseholdTimeBoundary.ToLocalDate(
                     i.StartsAtUtc ?? windowStart, timeZone))
             .OrderBy(group => group.Key)
+            .ToList();
+
+        var upcomingDays = itemsByLocalDay
             .Select(group =>
             {
                 var items = group.ToList();
@@ -138,6 +144,16 @@ public sealed class DisplayProjectionService(
                     items.Count(item => !item.IsAllDay),
                     firstTimed?.StartsAtUtc);
             })
+            .ToList();
+
+        var upcomingDayGroups = itemsByLocalDay
+            .Select(group => new DisplayAgendaDayGroupResponse(
+                group.Key,
+                ToDayLabel(group.Key, today),
+                group
+                    .OrderBy(i => i.IsAllDay ? 0 : 1)
+                    .ThenBy(i => i.StartsAtUtc)
+                    .ToList()))
             .ToList();
 
         var reminderCutoff = windowStart.AddMinutes(30);
@@ -194,6 +210,7 @@ public sealed class DisplayProjectionService(
                 SoonItems: soonItems,
                 LaterTodayItems: laterTodayItems,
                 UpcomingDays: upcomingDays,
+                UpcomingDayGroups: upcomingDayGroups,
                 Items: agendaItems),
             UpcomingReminders: upcomingReminders,
             DueChores: dueChores,
