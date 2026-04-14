@@ -98,8 +98,25 @@ public sealed class HouseholdHomeService(
                 "NoteCreated", n.Title, n.Body, n.AuthorDisplayName, n.CreatedAtUtc))
             .ToListAsync(cancellationToken);
 
+        // Fired reminders surface in the activity feed so the family sees what
+        // actually pinged (not just what is pending triage).
+        var recentFiredReminders = await dbContext.EventReminders
+            .Where(r => r.HouseholdId == householdId
+                && r.Status == EventReminderStatuses.Fired
+                && r.FiredAtUtc != null)
+            .OrderByDescending(r => r.FiredAtUtc)
+            .Take(RecentActivityLimit)
+            .Select(r => new HomeActivityItem(
+                "ReminderFired",
+                r.EventTitle,
+                r.MinutesBefore + "m before",
+                "Reminder",
+                r.FiredAtUtc!.Value))
+            .ToListAsync(cancellationToken);
+
         var recentActivity = recentCompletions
             .Concat(recentNotes)
+            .Concat(recentFiredReminders)
             .OrderByDescending(i => i.OccurredAtUtc)
             .Take(RecentActivityLimit)
             .ToList();
