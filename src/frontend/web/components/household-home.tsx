@@ -25,7 +25,7 @@ type HomeNote = {
 };
 
 type HomeActivityItem = {
-  kind: "ChoreCompletion" | "NoteCreated";
+  kind: "ChoreCompletion" | "NoteCreated" | "ReminderFired";
   title: string;
   detail: string | null;
   actorDisplayName: string;
@@ -890,9 +890,10 @@ export function HouseholdHome() {
                         ) : null}
                         <div className="muted" style={{ fontSize: "0.8rem" }}>
                           {item.kind === "ChoreCompletion"
-                            ? "Completed"
-                            : "Note added"}{" "}
-                          by {item.actorDisplayName}
+                            ? `Completed by ${item.actorDisplayName}`
+                            : item.kind === "NoteCreated"
+                              ? `Note added by ${item.actorDisplayName}`
+                              : "Reminder fired"}
                         </div>
                       </div>
                       <span
