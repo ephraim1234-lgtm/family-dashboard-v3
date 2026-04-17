@@ -1,4 +1,5 @@
 using HouseholdOps.Modules.Households.Contracts;
+using HouseholdOps.Modules.Identity;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -12,7 +13,7 @@ public static class DependencyInjection
 
     public static IEndpointRouteBuilder MapHouseholdsModule(this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/households");
+        var group = app.MapGroup("/api/households").RequireAuthorization();
 
         group.MapGet("/current", async (
             IHouseholdContextService service,
@@ -26,7 +27,21 @@ public static class DependencyInjection
             }
 
             return Results.Ok(householdContext);
-        }).RequireAuthorization();
+        });
+
+        group.MapGet("/members", async (
+            IIdentityAccessService identityAccessService,
+            IHouseholdContextService householdContextService,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+
+            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+                return Results.Unauthorized();
+
+            var response = await householdContextService.ListMembersAsync(householdId, cancellationToken);
+            return Results.Ok(response);
+        });
 
         return app;
     }

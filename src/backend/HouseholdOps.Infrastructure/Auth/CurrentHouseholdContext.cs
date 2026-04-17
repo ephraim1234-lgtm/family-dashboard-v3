@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 
 namespace HouseholdOps.Infrastructure.Auth;
@@ -7,6 +8,8 @@ public sealed class CurrentHouseholdContext(IHttpContextAccessor httpContextAcce
     public string? SessionId => Find(SessionClaimTypes.SessionId);
 
     public string? UserId => Find(SessionClaimTypes.UserId);
+
+    public string? DisplayName => Find(ClaimTypes.Name);
 
     public string? HouseholdId => Find(SessionClaimTypes.HouseholdId);
 

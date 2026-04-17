@@ -73,13 +73,6 @@ Less desirable behavior:
 
 ---
 
-- household membership and context
-- scheduling and calendar events
-- one-way external calendar import foundation
-- recurrence support
-- display devices and display projections
-- admin/configuration for the above
-
 ## Future domains exist, but are not current implementation scope
 
 Examples of future domains include:

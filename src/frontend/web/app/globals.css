@@ -558,6 +558,72 @@ a {
   align-items: center;
 }
 
+.weekday-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+
+.day-chip {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.5);
+  font-size: 0.8rem;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.day-chip-active {
+  background: var(--admin);
+  color: white;
+  border-color: var(--admin);
+}
+
+.field-inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.field-inline input[type="checkbox"] {
+  width: auto;
+}
+
+.stack-card-today {
+  border-color: var(--admin);
+}
+
+.stack-card-overdue {
+  border-color: #e07c55;
+}
+
+.pill-pending {
+  background: rgba(224, 192, 80, 0.15);
+  border-color: rgba(224, 192, 80, 0.4);
+  color: #8a6c00;
+}
+
+.pill-done {
+  background: rgba(80, 180, 120, 0.15);
+  border-color: rgba(80, 180, 120, 0.4);
+  color: #246040;
+}
+
+.pill-skipped {
+  background: rgba(180, 180, 180, 0.15);
+  border-color: rgba(180, 180, 180, 0.4);
+  color: #666;
+}
+
+.pill-inactive {
+  background: rgba(180, 180, 180, 0.15);
+  border-color: rgba(180, 180, 180, 0.4);
+  color: #666;
+  font-size: 0.78rem;
+}
+
 @media (max-width: 720px) {
   .page {
     padding: 24px 16px 44px;

@@ -34,6 +34,14 @@ type DisplayReminderItem = {
   dueAtUtc: string;
 };
 
+type DisplayChoreItem = {
+  instanceId: string;
+  title: string;
+  assignedToDisplayName: string | null;
+  dueDate: string;
+  status: string;
+};
+
 type DisplaySnapshot = {
   accessMode: string;
   deviceName: string;
@@ -48,6 +56,7 @@ type DisplaySnapshot = {
   }>;
   agendaSection: DisplayAgendaSection;
   upcomingReminders: DisplayReminderItem[];
+  todayChores: DisplayChoreItem[];
 };
 
 type DisplaySurfacePanelProps = {
@@ -211,6 +220,22 @@ export function DisplaySurfacePanel({ token }: DisplaySurfacePanelProps) {
                     minute: "2-digit"
                   })}
                 </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {snapshot && snapshot.todayChores.length > 0 ? (
+        <section className="display-reminders-strip">
+          <div className="display-reminders-label">Today&rsquo;s chores</div>
+          <div className="display-reminders-list">
+            {snapshot.todayChores.map((chore) => (
+              <div className="display-reminder-chip" key={chore.instanceId}>
+                <span className="display-reminder-title">{chore.title}</span>
+                {chore.assignedToDisplayName ? (
+                  <span className="display-reminder-meta">{chore.assignedToDisplayName}</span>
+                ) : null}
               </div>
             ))}
           </div>

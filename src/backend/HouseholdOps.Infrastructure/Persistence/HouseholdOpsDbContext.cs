@@ -1,3 +1,4 @@
+using HouseholdOps.Modules.Chores;
 using HouseholdOps.Modules.Display;
 using HouseholdOps.Modules.Households;
 using HouseholdOps.Modules.Identity;
@@ -30,6 +31,10 @@ public sealed class HouseholdOpsDbContext(DbContextOptions<HouseholdOpsDbContext
     public DbSet<GoogleOAuthAccountLink> GoogleOAuthAccountLinks => Set<GoogleOAuthAccountLink>();
 
     public DbSet<EventReminder> EventReminders => Set<EventReminder>();
+
+    public DbSet<Chore> Chores => Set<Chore>();
+
+    public DbSet<ChoreInstance> ChoreInstances => Set<ChoreInstance>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -230,6 +235,54 @@ public sealed class HouseholdOpsDbContext(DbContextOptions<HouseholdOpsDbContext
             entity.HasOne<Household>()
                 .WithMany()
                 .HasForeignKey(x => x.HouseholdId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Chore>(entity =>
+        {
+            entity.ToTable("chores");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Title).HasMaxLength(200);
+            entity.Property(x => x.Description);
+            entity.Property(x => x.AssignedToDisplayName).HasMaxLength(200);
+            entity.Property(x => x.CadenceKind).HasConversion<string>().HasMaxLength(16);
+            entity.Property(x => x.WeeklyDaysMask);
+            entity.Property(x => x.DayOfMonth);
+            entity.Property(x => x.IsActive);
+            entity.Property(x => x.CreatedAtUtc);
+            entity.HasIndex(x => x.HouseholdId);
+            entity.HasOne<Household>()
+                .WithMany()
+                .HasForeignKey(x => x.HouseholdId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ChoreInstance>(entity =>
+        {
+            entity.ToTable("chore_instances");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.ChoreTitle).HasMaxLength(200);
+            entity.Property(x => x.AssignedToDisplayName).HasMaxLength(200);
+            entity.Property(x => x.DueDate);
+            entity.Property(x => x.Status).HasMaxLength(16);
+            entity.Property(x => x.CompletedAtUtc);
+            entity.Property(x => x.CompletedByDisplayName).HasMaxLength(200);
+            entity.Property(x => x.CreatedAtUtc);
+            entity.HasIndex(x => x.HouseholdId);
+            entity.HasIndex(x => new { x.ChoreId, x.DueDate })
+                .IsUnique()
+                .HasDatabaseName("IX_chore_instances_ChoreId_DueDate");
+            entity.HasIndex(x => new { x.HouseholdId, x.DueDate })
+                .HasDatabaseName("IX_chore_instances_HouseholdId_DueDate");
+            entity.HasIndex(x => x.Status)
+                .HasDatabaseName("IX_chore_instances_Status");
+            entity.HasOne<Household>()
+                .WithMany()
+                .HasForeignKey(x => x.HouseholdId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<Chore>()
+                .WithMany()
+                .HasForeignKey(x => x.ChoreId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
     }

@@ -24,12 +24,13 @@ public sealed class IdentityAccessService(
 
         if (!current.IsAuthenticated)
         {
-            return new SessionResponse(false, null, null, null);
+            return new SessionResponse(false, null, null, null, null);
         }
 
         return new SessionResponse(
             true,
             current.UserId,
+            current.DisplayName,
             current.HouseholdId,
             current.HouseholdRole);
     }
@@ -124,6 +125,7 @@ public sealed class IdentityAccessService(
         return new SessionResponse(
             true,
             user.Id.ToString(),
+            user.DisplayName,
             household.Id.ToString(),
             membership.Role.ToString());
     }

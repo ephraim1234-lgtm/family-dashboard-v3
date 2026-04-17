@@ -29,4 +29,23 @@ public sealed class HouseholdContextService(
                 "Active"))
             .SingleOrDefaultAsync(cancellationToken);
     }
+
+    public async Task<HouseholdMemberListResponse> ListMembersAsync(
+        Guid householdId,
+        CancellationToken cancellationToken)
+    {
+        var items = await (
+            from membership in dbContext.Memberships
+            join user in dbContext.Users on membership.UserId equals user.Id
+            where membership.HouseholdId == householdId
+            orderby user.DisplayName
+            select new HouseholdMemberSummary(
+                user.Id.ToString(),
+                user.DisplayName,
+                user.Email,
+                membership.Role.ToString()))
+            .ToListAsync(cancellationToken);
+
+        return new HouseholdMemberListResponse(items);
+    }
 }

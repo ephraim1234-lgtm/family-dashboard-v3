@@ -6,7 +6,9 @@ Current implementation focus:
 
 - household membership and context
 - scheduling and recurrence foundations
-- display device access and display projections
+- display device access and display projections (real agenda data)
+- calendar integrations (one-way Google Calendar import via iCal and OAuth)
+- notifications and event reminders
 - administration/configuration
 - one background worker
 
@@ -24,6 +26,9 @@ Current implementation focus:
 - owner-gated admin overview and display management
 - persisted display devices and hashed display access tokens
 - explicit display projection endpoints separate from normal user auth
+- real agenda data surfaced in display/kiosk view with upcoming reminders strip
+- Google Calendar integration: iCal feed links, OAuth account linking, managed calendar links, worker-managed auto-sync
+- event reminders: create/manage via admin, worker-fired, visible on kiosk in real time
 
 ## Docker-first local runtime
 

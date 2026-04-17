@@ -1,5 +1,6 @@
 using HouseholdOps.Infrastructure;
 using HouseholdOps.Modules.Administration;
+using HouseholdOps.Modules.Chores;
 using HouseholdOps.Modules.Display;
 using HouseholdOps.Modules.Households;
 using HouseholdOps.Modules.Identity;
@@ -18,9 +19,11 @@ builder.Services.AddNotificationsModule();
 builder.Services.AddSchedulingModule();
 builder.Services.AddDisplayModule();
 builder.Services.AddAdministrationModule();
+builder.Services.AddChoresModule();
 builder.Services.AddHostedService<WorkerHeartbeatService>();
 builder.Services.AddHostedService<GoogleCalendarSyncWorker>();
 builder.Services.AddHostedService<EventReminderWorker>();
+builder.Services.AddHostedService<ChoreInstanceGeneratorWorker>();
 
 var host = builder.Build();
 host.Run();

@@ -1,3 +1,65 @@
+# Chores / Routines Plan
+
+## Objective
+- Deliver a working household chores system in two focused slices: admin management (Slice 1) and member-facing completion + display integration (Slice 2).
+
+## Slice 1 — Backend + Admin Management
+
+### Scope
+- `Chore` entity: title, description, assignee (display name), cadence (Daily / Weekly / Monthly), weekday mask, day of month, active flag
+- `ChoreInstance` entity: generated due instances per cadence with completion tracking
+- EF migration `202604160001_AddChores`
+- `IChoreManagementService` with full CRUD + instance generation + completion
+- `ChoreService` in Infrastructure
+- API endpoints under `/api/chores/` (owner-only)
+- `ChoreInstanceGeneratorWorker` polls hourly, generates 14-day rolling horizon for all active chores
+- Admin panel with create/edit/delete chores, upcoming instances, mark-complete, manual generate button
+- Next.js proxy routes for all `/api/chores/*` paths
+
+### Key files touched
+- `src/backend/HouseholdOps.Modules.Chores/*`
+- `src/backend/HouseholdOps.Infrastructure/Chores/ChoreService.cs`
+- `src/backend/HouseholdOps.Infrastructure/Persistence/HouseholdOpsDbContext.cs`
+- `src/backend/HouseholdOps.Infrastructure/Persistence/Migrations/202604160001_AddChores.cs`
+- `src/backend/HouseholdOps.Infrastructure/DependencyInjection.cs`
+- `src/backend/HouseholdOps.Api/Program.cs`
+- `src/backend/HouseholdOps.Worker/ChoreInstanceGeneratorWorker.cs`
+- `src/backend/HouseholdOps.Worker/Program.cs`
+- `src/frontend/web/components/admin-chores-panel.tsx`
+- `src/frontend/web/app/(admin)/admin/page.tsx`
+- `src/frontend/web/app/api/chores/**`
+- `src/frontend/web/app/globals.css`
+
+### Validation status
+- 2026-04-16: API and Worker builds passed with `dotnet build ... -p:MSBuildEnableWorkloadResolver=false -p:NuGetAudit=false`. 0 warnings, 0 errors.
+
+## Slice 2 — Member view + Display integration (planned)
+
+### Scope (not yet implemented)
+- Member-facing chore board ("Due today" view accessible from the app shell)
+- Proper member assignment with household member dropdown (requires a members API endpoint)
+- Display/kiosk integration — show today's pending chores on the ambient screen
+- Completion streaks or history view (optional)
+- `CompletedByMemberId` / `CompletedByDisplayName` populated from session when member marks complete
+
+## Decisions
+- Chores owns `Chore` and `ChoreInstance` entities; `ChoreInstance` has a real FK to `Chore` (same module).
+- Assignee is stored as plain `Guid?` + denormalized display name (no cross-module FK to Identity).
+- Instance generation uses a unique index on `(ChoreId, DueDate)` — duplicate-safe idempotent generator.
+- DayOfMonth capped at 28 to avoid month-length edge cases.
+- Weekly cadence uses the same bitmask pattern as `ScheduledEvent.WeeklyDaysMask` (Sun=1, Mon=2, ..., Sat=64).
+- Worker polls every hour by default; configurable via `Worker:ChoreInstanceGeneratorPollSeconds`.
+- Horizon is 14 days by default; configurable via `Worker:ChoreInstanceGeneratorHorizonDays`.
+
+## Deferred
+- Member-facing chore board (Slice 2)
+- Display kiosk integration (Slice 2)
+- Proper member dropdown (requires members endpoint)
+- Completion streaks / history
+- Chore templates or household default chore sets
+
+---
+
 # Calendar Integrations Plan
 
 ## Objective

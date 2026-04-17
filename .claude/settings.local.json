@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dotnet build *)",
+      "Bash(node_modules/.bin/tsc --noEmit)",
+      "Bash(./node_modules/.bin/tsc --noEmit)",
+      "Bash(/c/dev/family-dashboardv3/src/frontend/web/node_modules/.bin/tsc --noEmit)",
+      "Bash(git add *)"
+    ]
+  }
+}

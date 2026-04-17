@@ -3,6 +3,7 @@ using HouseholdOps.Infrastructure.Auth;
 using HouseholdOps.Infrastructure.Options;
 using HouseholdOps.Infrastructure.Persistence;
 using HouseholdOps.Modules.Administration;
+using HouseholdOps.Modules.Chores;
 using HouseholdOps.Modules.Display;
 using HouseholdOps.Modules.Households;
 using HouseholdOps.Modules.Identity;
@@ -50,6 +51,7 @@ builder.Services.AddNotificationsModule();
 builder.Services.AddSchedulingModule();
 builder.Services.AddDisplayModule();
 builder.Services.AddAdministrationModule();
+builder.Services.AddChoresModule();
 
 var app = builder.Build();
 
@@ -92,5 +94,6 @@ app.MapNotificationsModule();
 app.MapSchedulingModule();
 app.MapDisplayModule();
 app.MapAdministrationModule();
+app.MapChoresModule();
 
 app.Run();

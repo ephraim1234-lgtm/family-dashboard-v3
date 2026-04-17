@@ -213,8 +213,6 @@ It should reuse core domain/application logic where appropriate, while maintaini
 
 The following are plausible future module areas but are not current implementation scope:
 
-- Notifications
-- Chores
 - Food
 - Notes
 - Documents

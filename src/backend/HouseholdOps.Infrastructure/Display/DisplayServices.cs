@@ -3,6 +3,7 @@ using System.Text;
 using HouseholdOps.Infrastructure.Persistence;
 using HouseholdOps.Modules.Display;
 using HouseholdOps.Modules.Display.Contracts;
+using HouseholdOps.Modules.Chores;
 using HouseholdOps.Modules.Notifications;
 using HouseholdOps.Modules.Scheduling;
 using HouseholdOps.Modules.Scheduling.Contracts;
@@ -140,6 +141,21 @@ public sealed class DisplayProjectionService(
             .Select(r => new DisplayReminderItem(r.EventTitle, r.MinutesBefore, r.DueAtUtc))
             .ToListAsync(cancellationToken);
 
+        var todayDate = DateOnly.FromDateTime(today);
+        var todayChores = await dbContext.ChoreInstances
+            .Where(i =>
+                i.HouseholdId == result.HouseholdId
+                && i.DueDate == todayDate
+                && i.Status == ChoreInstanceStatuses.Pending)
+            .OrderBy(i => i.ChoreTitle)
+            .Select(i => new DisplayChoreItem(
+                i.Id,
+                i.ChoreTitle,
+                i.AssignedToDisplayName,
+                i.DueDate,
+                i.Status))
+            .ToListAsync(cancellationToken);
+
         return new DisplayProjectionResponse(
             AccessMode: "DisplayToken",
             DeviceName: result.DeviceName,
@@ -163,7 +179,8 @@ public sealed class DisplayProjectionService(
                 LaterTodayItems: laterTodayItems,
                 UpcomingDays: upcomingDays,
                 Items: agendaItems),
-            UpcomingReminders: upcomingReminders);
+            UpcomingReminders: upcomingReminders,
+            TodayChores: todayChores);
     }
 }
 
