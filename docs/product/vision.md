@@ -77,6 +77,8 @@ Notes also exists as a lightweight support surface, but it should remain intenti
 
 They should still be built in narrow, disciplined slices.
 
+Food operations is now being activated as the next deliberate product phase through a broad but still disciplined Food module that keeps pantry, recipes, shopping, meal planning, and cooking sessions together.
+
 ## Current maturity posture
 
 Several adjacent domains are now implemented enough to use, but not mature enough to treat as complete:
@@ -108,6 +110,11 @@ These are meaningful future product areas that may become real modules later:
 - pantry
 - shopping
 - cooking workflows
+
+Current activation bias:
+- keep these together as one Food domain, not three separate tools
+- optimize for family coordination and cooking flow rather than pantry-perfect inventory science
+- treat cooking as the operational moment where pantry, planning, shopping, and recipes meet
 
 ### Household tasking
 - chores

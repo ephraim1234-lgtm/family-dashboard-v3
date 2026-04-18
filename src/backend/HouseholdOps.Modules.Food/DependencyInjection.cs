@@ -1,0 +1,356 @@
+using HouseholdOps.Modules.Food.Contracts;
+using HouseholdOps.Modules.Identity;
+using HouseholdOps.SharedKernel.Time;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace HouseholdOps.Modules.Food;
+
+public static class DependencyInjection
+{
+    public static IServiceCollection AddFoodModule(this IServiceCollection services) => services;
+
+    public static IEndpointRouteBuilder MapFoodModule(this IEndpointRouteBuilder app)
+    {
+        var group = app.MapGroup("/api/food")
+            .RequireAuthorization();
+
+        group.MapGet("/dashboard", async (
+            IIdentityAccessService identityAccessService,
+            IFoodService foodService,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var response = await foodService.GetDashboardAsync(householdId, cancellationToken);
+            return Results.Ok(response);
+        });
+
+        group.MapPost("/recipe-imports", async (
+            CreateRecipeImportRequest? request,
+            IIdentityAccessService identityAccessService,
+            IFoodService foodService,
+            IClock clock,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+            if (request is null
+                || !Guid.TryParse(session.ActiveHouseholdId, out var householdId)
+                || !Guid.TryParse(session.UserId, out var userId))
+            {
+                return Results.BadRequest("A valid active household and recipe URL are required.");
+            }
+
+            var response = await foodService.CreateRecipeImportAsync(
+                householdId,
+                userId,
+                request,
+                clock.UtcNow,
+                cancellationToken);
+
+            return Results.Ok(response);
+        });
+
+        group.MapPost("/recipes", async (
+            SaveImportedRecipeRequest? request,
+            IIdentityAccessService identityAccessService,
+            IFoodService foodService,
+            IClock clock,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+            if (request is null
+                || !Guid.TryParse(session.ActiveHouseholdId, out var householdId)
+                || !Guid.TryParse(session.UserId, out var userId))
+            {
+                return Results.BadRequest("A valid active household and recipe payload are required.");
+            }
+
+            var response = await foodService.SaveImportedRecipeAsync(
+                householdId,
+                userId,
+                request,
+                clock.UtcNow,
+                cancellationToken);
+
+            return Results.Ok(response);
+        });
+
+        group.MapGet("/recipes/{recipeId:guid}", async (
+            Guid recipeId,
+            IIdentityAccessService identityAccessService,
+            IFoodService foodService,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var response = await foodService.GetRecipeAsync(householdId, recipeId, cancellationToken);
+            return response is null ? Results.NotFound() : Results.Ok(response);
+        });
+
+        group.MapPost("/pantry-items", async (
+            CreatePantryItemRequest? request,
+            IIdentityAccessService identityAccessService,
+            IFoodService foodService,
+            IClock clock,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+            if (request is null
+                || !Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.BadRequest("A valid pantry item payload is required.");
+            }
+
+            var response = await foodService.CreatePantryItemAsync(
+                householdId,
+                request,
+                clock.UtcNow,
+                cancellationToken);
+
+            return Results.Ok(response);
+        });
+
+        group.MapPost("/meal-plan", async (
+            CreateMealPlanSlotRequest? request,
+            IIdentityAccessService identityAccessService,
+            IFoodService foodService,
+            IClock clock,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+            if (request is null
+                || !Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.BadRequest("A valid meal slot payload is required.");
+            }
+
+            var response = await foodService.CreateMealPlanSlotAsync(
+                householdId,
+                request,
+                clock.UtcNow,
+                cancellationToken);
+
+            return response is null ? Results.NotFound() : Results.Ok(response);
+        });
+
+        group.MapPost("/shopping-list/items", async (
+            CreateShoppingListItemRequest? request,
+            IIdentityAccessService identityAccessService,
+            IFoodService foodService,
+            IClock clock,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+            if (request is null
+                || !Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.BadRequest("A valid shopping item payload is required.");
+            }
+
+            var response = await foodService.CreateShoppingListItemAsync(
+                householdId,
+                request,
+                clock.UtcNow,
+                cancellationToken);
+
+            return Results.Ok(response);
+        });
+
+        group.MapPatch("/shopping-list/items/{itemId:guid}", async (
+            Guid itemId,
+            ToggleShoppingListItemRequest? request,
+            IIdentityAccessService identityAccessService,
+            IFoodService foodService,
+            IClock clock,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+            if (request is null
+                || !Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.BadRequest("A valid shopping toggle payload is required.");
+            }
+
+            var response = await foodService.ToggleShoppingListItemAsync(
+                householdId,
+                itemId,
+                request,
+                clock.UtcNow,
+                cancellationToken);
+
+            return response is null ? Results.NotFound() : Results.Ok(response);
+        });
+
+        group.MapPost("/cooking-sessions", async (
+            StartCookingSessionRequest? request,
+            IIdentityAccessService identityAccessService,
+            IFoodService foodService,
+            IClock clock,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+            if (request is null
+                || !Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.BadRequest("A valid cooking-session payload is required.");
+            }
+
+            Guid? userId = Guid.TryParse(session.UserId, out var parsedUserId) ? parsedUserId : null;
+            var response = await foodService.StartCookingSessionAsync(
+                householdId,
+                userId,
+                request,
+                clock.UtcNow,
+                cancellationToken);
+
+            return Results.Ok(response);
+        });
+
+        group.MapGet("/cooking-sessions/{sessionId:guid}", async (
+            Guid sessionId,
+            IIdentityAccessService identityAccessService,
+            IFoodService foodService,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var response = await foodService.GetCookingSessionAsync(householdId, sessionId, cancellationToken);
+            return response is null ? Results.NotFound() : Results.Ok(response);
+        });
+
+        group.MapPatch("/cooking-sessions/{sessionId:guid}/ingredients/{sessionIngredientId:guid}", async (
+            Guid sessionId,
+            Guid sessionIngredientId,
+            UpdateCookingIngredientRequest? request,
+            IIdentityAccessService identityAccessService,
+            IFoodService foodService,
+            IClock clock,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+            if (request is null
+                || !Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.BadRequest("A valid cooking ingredient payload is required.");
+            }
+
+            var response = await foodService.UpdateCookingIngredientAsync(
+                householdId,
+                sessionId,
+                sessionIngredientId,
+                request,
+                clock.UtcNow,
+                cancellationToken);
+
+            return response is null ? Results.NotFound() : Results.Ok(response);
+        });
+
+        group.MapPatch("/cooking-sessions/{sessionId:guid}/steps/{sessionStepId:guid}", async (
+            Guid sessionId,
+            Guid sessionStepId,
+            UpdateCookingStepRequest? request,
+            IIdentityAccessService identityAccessService,
+            IFoodService foodService,
+            IClock clock,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+            if (request is null
+                || !Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.BadRequest("A valid cooking step payload is required.");
+            }
+
+            var response = await foodService.UpdateCookingStepAsync(
+                householdId,
+                sessionId,
+                sessionStepId,
+                request,
+                clock.UtcNow,
+                cancellationToken);
+
+            return response is null ? Results.NotFound() : Results.Ok(response);
+        });
+
+        group.MapPost("/cooking-sessions/{sessionId:guid}/complete", async (
+            Guid sessionId,
+            CompleteCookingSessionRequest? request,
+            IIdentityAccessService identityAccessService,
+            IFoodService foodService,
+            IClock clock,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var response = await foodService.CompleteCookingSessionAsync(
+                householdId,
+                sessionId,
+                request ?? new CompleteCookingSessionRequest(),
+                clock.UtcNow,
+                cancellationToken);
+
+            return response is null ? Results.NotFound() : Results.Ok(response);
+        });
+
+        group.MapPost("/cooking-sessions/{sessionId:guid}/promote", async (
+            Guid sessionId,
+            IIdentityAccessService identityAccessService,
+            IFoodService foodService,
+            IClock clock,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId)
+                || !Guid.TryParse(session.UserId, out var userId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var response = await foodService.PromoteCookingSessionToRecipeAsync(
+                householdId,
+                sessionId,
+                userId,
+                clock.UtcNow,
+                cancellationToken);
+
+            return response is null ? Results.NotFound() : Results.Ok(response);
+        });
+
+        group.MapGet("/cooking-sessions/{sessionId:guid}/tv", async (
+            Guid sessionId,
+            IIdentityAccessService identityAccessService,
+            IFoodService foodService,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var response = await foodService.GetTvCookingDisplayAsync(householdId, sessionId, cancellationToken);
+            return response is null ? Results.NotFound() : Results.Ok(response);
+        });
+
+        return app;
+    }
+}

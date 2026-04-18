@@ -14,6 +14,7 @@ export default function AppShellLayout({
           </p>
           <nav className="shell-nav">
             <Link href="/app">Overview</Link>
+            <Link href="/app/food">Food</Link>
             <Link href="/admin">Admin</Link>
             <Link href="/display">Display</Link>
           </nav>

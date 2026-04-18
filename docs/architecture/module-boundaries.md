@@ -211,6 +211,32 @@ Chores should start as a focused household operations domain, not as a generaliz
 
 ---
 
+### Food
+
+Owns:
+- pantry locations and pantry item state
+- household recipes and recipe revisions
+- recipe import review and source attribution
+- meal-plan slots owned by the food workflow
+- shared shopping-list generation and item state
+- cooking sessions, actual-usage capture, and pantry deductions
+- food-specific suggestions and food home/dashboard summaries
+
+Does not own:
+- household identity rules
+- general calendar/event semantics
+- reminder delivery
+- generic display-device access
+- generalized automation-platform behavior
+
+Important rule:
+Food should feel like one operational system for pantry, recipes, shopping, meal planning, and cooking. Do not split it into disconnected early modules or generic ingredient-normalization infrastructure.
+
+Important rule:
+Cooking is part of Food domain behavior, not a thin frontend-only presentation layer. Pantry deductions, recipe-lineage decisions, and cooking-session state belong in Food.
+
+---
+
 ## Worker boundary
 
 The worker exists for:

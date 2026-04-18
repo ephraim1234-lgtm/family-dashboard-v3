@@ -6,6 +6,7 @@ using HouseholdOps.Modules.Administration;
 using HouseholdOps.Modules.Chores;
 using HouseholdOps.Modules.Notes;
 using HouseholdOps.Modules.Display;
+using HouseholdOps.Modules.Food;
 using HouseholdOps.Modules.Households;
 using HouseholdOps.Modules.Identity;
 using HouseholdOps.Modules.Integrations;
@@ -54,6 +55,7 @@ builder.Services.AddDisplayModule();
 builder.Services.AddAdministrationModule();
 builder.Services.AddChoresModule();
 builder.Services.AddNotesModule();
+builder.Services.AddFoodModule();
 
 var app = builder.Build();
 
@@ -85,7 +87,8 @@ app.MapGet("/", () => Results.Ok(new
         "Integrations",
         "Scheduling",
         "Display",
-        "Administration"
+        "Administration",
+        "Food"
     }
 }));
 
@@ -98,5 +101,6 @@ app.MapDisplayModule();
 app.MapAdministrationModule();
 app.MapChoresModule();
 app.MapNotesModule();
+app.MapFoodModule();
 
 app.Run();

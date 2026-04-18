@@ -1,5 +1,6 @@
 using HouseholdOps.Modules.Chores;
 using HouseholdOps.Modules.Display;
+using HouseholdOps.Modules.Food;
 using HouseholdOps.Modules.Notes;
 using HouseholdOps.Modules.Households;
 using HouseholdOps.Modules.Identity;
@@ -38,6 +39,38 @@ public sealed class HouseholdOpsDbContext(DbContextOptions<HouseholdOpsDbContext
     public DbSet<ChoreCompletion> ChoreCompletions => Set<ChoreCompletion>();
 
     public DbSet<Note> Notes => Set<Note>();
+
+    public DbSet<FoodIngredient> FoodIngredients => Set<FoodIngredient>();
+
+    public DbSet<PantryLocation> PantryLocations => Set<PantryLocation>();
+
+    public DbSet<PantryItem> PantryItems => Set<PantryItem>();
+
+    public DbSet<RecipeSource> RecipeSources => Set<RecipeSource>();
+
+    public DbSet<Recipe> Recipes => Set<Recipe>();
+
+    public DbSet<RecipeRevision> RecipeRevisions => Set<RecipeRevision>();
+
+    public DbSet<RecipeIngredient> RecipeIngredients => Set<RecipeIngredient>();
+
+    public DbSet<RecipeStep> RecipeSteps => Set<RecipeStep>();
+
+    public DbSet<RecipeImportJob> RecipeImportJobs => Set<RecipeImportJob>();
+
+    public DbSet<MealPlanSlot> MealPlanSlots => Set<MealPlanSlot>();
+
+    public DbSet<ShoppingList> ShoppingLists => Set<ShoppingList>();
+
+    public DbSet<ShoppingListItem> ShoppingListItems => Set<ShoppingListItem>();
+
+    public DbSet<CookingSession> CookingSessions => Set<CookingSession>();
+
+    public DbSet<CookingSessionIngredient> CookingSessionIngredients => Set<CookingSessionIngredient>();
+
+    public DbSet<CookingSessionPantryAdjustment> CookingSessionPantryAdjustments => Set<CookingSessionPantryAdjustment>();
+
+    public DbSet<CookingSessionStep> CookingSessionSteps => Set<CookingSessionStep>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -296,6 +329,314 @@ public sealed class HouseholdOpsDbContext(DbContextOptions<HouseholdOpsDbContext
             entity.HasOne<Household>()
                 .WithMany()
                 .HasForeignKey(x => x.HouseholdId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<FoodIngredient>(entity =>
+        {
+            entity.ToTable("food_ingredients");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Name).HasMaxLength(200);
+            entity.Property(x => x.NormalizedName).HasMaxLength(200);
+            entity.Property(x => x.DefaultUnit).HasMaxLength(32);
+            entity.Property(x => x.CreatedAtUtc);
+            entity.HasIndex(x => x.HouseholdId);
+            entity.HasIndex(x => new { x.HouseholdId, x.NormalizedName })
+                .IsUnique()
+                .HasDatabaseName("IX_food_ingredients_household_normalized_name");
+            entity.HasOne<Household>()
+                .WithMany()
+                .HasForeignKey(x => x.HouseholdId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PantryLocation>(entity =>
+        {
+            entity.ToTable("pantry_locations");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Name).HasMaxLength(100);
+            entity.Property(x => x.SortOrder);
+            entity.Property(x => x.CreatedAtUtc);
+            entity.HasIndex(x => x.HouseholdId);
+            entity.HasIndex(x => new { x.HouseholdId, x.Name })
+                .IsUnique()
+                .HasDatabaseName("IX_pantry_locations_household_name");
+            entity.HasOne<Household>()
+                .WithMany()
+                .HasForeignKey(x => x.HouseholdId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PantryItem>(entity =>
+        {
+            entity.ToTable("pantry_items");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.IngredientName).HasMaxLength(200);
+            entity.Property(x => x.NormalizedIngredientName).HasMaxLength(200);
+            entity.Property(x => x.Quantity).HasPrecision(18, 2);
+            entity.Property(x => x.Unit).HasMaxLength(32);
+            entity.Property(x => x.LowThreshold).HasPrecision(18, 2);
+            entity.Property(x => x.Status).HasMaxLength(32);
+            entity.Property(x => x.PurchasedAtUtc);
+            entity.Property(x => x.ExpiresAtUtc);
+            entity.Property(x => x.UpdatedAtUtc);
+            entity.HasIndex(x => x.HouseholdId);
+            entity.HasIndex(x => new { x.HouseholdId, x.NormalizedIngredientName })
+                .HasDatabaseName("IX_pantry_items_household_ingredient");
+            entity.HasOne<Household>()
+                .WithMany()
+                .HasForeignKey(x => x.HouseholdId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<FoodIngredient>()
+                .WithMany()
+                .HasForeignKey(x => x.IngredientId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne<PantryLocation>()
+                .WithMany()
+                .HasForeignKey(x => x.PantryLocationId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<RecipeSource>(entity =>
+        {
+            entity.ToTable("recipe_sources");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Kind).HasMaxLength(32);
+            entity.Property(x => x.SourceUrl);
+            entity.Property(x => x.SourceTitle).HasMaxLength(200);
+            entity.Property(x => x.SourceSiteName).HasMaxLength(200);
+            entity.Property(x => x.Attribution).HasMaxLength(200);
+            entity.Property(x => x.CreatedAtUtc);
+            entity.HasIndex(x => x.HouseholdId);
+            entity.HasOne<Household>()
+                .WithMany()
+                .HasForeignKey(x => x.HouseholdId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Recipe>(entity =>
+        {
+            entity.ToTable("recipes");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Title).HasMaxLength(200);
+            entity.Property(x => x.Summary);
+            entity.Property(x => x.Tags).HasMaxLength(400);
+            entity.Property(x => x.CreatedAtUtc);
+            entity.Property(x => x.UpdatedAtUtc);
+            entity.HasIndex(x => x.HouseholdId);
+            entity.HasOne<Household>()
+                .WithMany()
+                .HasForeignKey(x => x.HouseholdId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<RecipeRevision>(entity =>
+        {
+            entity.ToTable("recipe_revisions");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Kind).HasMaxLength(32);
+            entity.Property(x => x.Title).HasMaxLength(200);
+            entity.Property(x => x.Summary);
+            entity.Property(x => x.YieldText).HasMaxLength(100);
+            entity.Property(x => x.Notes);
+            entity.Property(x => x.Tags).HasMaxLength(400);
+            entity.Property(x => x.CreatedAtUtc);
+            entity.HasIndex(x => x.RecipeId);
+            entity.HasIndex(x => new { x.RecipeId, x.RevisionNumber })
+                .IsUnique()
+                .HasDatabaseName("IX_recipe_revisions_recipe_number");
+            entity.HasOne<Household>()
+                .WithMany()
+                .HasForeignKey(x => x.HouseholdId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<RecipeIngredient>(entity =>
+        {
+            entity.ToTable("recipe_ingredients");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.IngredientName).HasMaxLength(200);
+            entity.Property(x => x.NormalizedIngredientName).HasMaxLength(200);
+            entity.Property(x => x.Quantity).HasPrecision(18, 2);
+            entity.Property(x => x.Unit).HasMaxLength(32);
+            entity.Property(x => x.Preparation).HasMaxLength(200);
+            entity.HasIndex(x => x.RecipeRevisionId);
+            entity.HasOne<RecipeRevision>()
+                .WithMany()
+                .HasForeignKey(x => x.RecipeRevisionId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<FoodIngredient>()
+                .WithMany()
+                .HasForeignKey(x => x.IngredientId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<RecipeStep>(entity =>
+        {
+            entity.ToTable("recipe_steps");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Instruction);
+            entity.HasIndex(x => x.RecipeRevisionId);
+            entity.HasOne<RecipeRevision>()
+                .WithMany()
+                .HasForeignKey(x => x.RecipeRevisionId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<RecipeImportJob>(entity =>
+        {
+            entity.ToTable("recipe_import_jobs");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.SourceUrl);
+            entity.Property(x => x.Status).HasMaxLength(32);
+            entity.Property(x => x.ParserConfidence).HasPrecision(5, 2);
+            entity.Property(x => x.ImportedTitle).HasMaxLength(200);
+            entity.Property(x => x.ImportedYieldText).HasMaxLength(100);
+            entity.Property(x => x.ImportedSummary);
+            entity.Property(x => x.SourceSiteName).HasMaxLength(200);
+            entity.Property(x => x.FailureReason);
+            entity.Property(x => x.RawPayloadJson);
+            entity.Property(x => x.CreatedAtUtc);
+            entity.Property(x => x.ParsedAtUtc);
+            entity.Property(x => x.ConsumedAtUtc);
+            entity.HasIndex(x => x.HouseholdId);
+            entity.HasOne<Household>()
+                .WithMany()
+                .HasForeignKey(x => x.HouseholdId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<MealPlanSlot>(entity =>
+        {
+            entity.ToTable("meal_plan_slots");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Date);
+            entity.Property(x => x.SlotName).HasMaxLength(64);
+            entity.Property(x => x.RecipeTitleSnapshot).HasMaxLength(200);
+            entity.Property(x => x.Notes);
+            entity.Property(x => x.CreatedAtUtc);
+            entity.HasIndex(x => x.HouseholdId);
+            entity.HasIndex(x => new { x.HouseholdId, x.Date })
+                .HasDatabaseName("IX_meal_plan_slots_household_date");
+            entity.HasOne<Household>()
+                .WithMany()
+                .HasForeignKey(x => x.HouseholdId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ShoppingList>(entity =>
+        {
+            entity.ToTable("shopping_lists");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Name).HasMaxLength(100);
+            entity.Property(x => x.StoreName).HasMaxLength(100);
+            entity.Property(x => x.CreatedAtUtc);
+            entity.HasIndex(x => x.HouseholdId);
+            entity.HasOne<Household>()
+                .WithMany()
+                .HasForeignKey(x => x.HouseholdId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ShoppingListItem>(entity =>
+        {
+            entity.ToTable("shopping_list_items");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.IngredientName).HasMaxLength(200);
+            entity.Property(x => x.NormalizedIngredientName).HasMaxLength(200);
+            entity.Property(x => x.Quantity).HasPrecision(18, 2);
+            entity.Property(x => x.Unit).HasMaxLength(32);
+            entity.Property(x => x.Notes);
+            entity.Property(x => x.SourceRecipeTitle).HasMaxLength(200);
+            entity.Property(x => x.CreatedAtUtc);
+            entity.Property(x => x.CompletedAtUtc);
+            entity.HasIndex(x => x.HouseholdId);
+            entity.HasIndex(x => x.ShoppingListId);
+            entity.HasOne<Household>()
+                .WithMany()
+                .HasForeignKey(x => x.HouseholdId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<ShoppingList>()
+                .WithMany()
+                .HasForeignKey(x => x.ShoppingListId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<FoodIngredient>()
+                .WithMany()
+                .HasForeignKey(x => x.IngredientId)
+                .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<CookingSession>(entity =>
+        {
+            entity.ToTable("cooking_sessions");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Title).HasMaxLength(200);
+            entity.Property(x => x.Status).HasMaxLength(32);
+            entity.Property(x => x.PantryUpdateMode).HasMaxLength(32);
+            entity.Property(x => x.CurrentStepIndex);
+            entity.Property(x => x.StartedAtUtc);
+            entity.Property(x => x.UpdatedAtUtc);
+            entity.Property(x => x.CompletedAtUtc);
+            entity.HasIndex(x => x.HouseholdId);
+            entity.HasIndex(x => x.RecipeId);
+            entity.HasOne<Household>()
+                .WithMany()
+                .HasForeignKey(x => x.HouseholdId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<Recipe>()
+                .WithMany()
+                .HasForeignKey(x => x.RecipeId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<CookingSessionIngredient>(entity =>
+        {
+            entity.ToTable("cooking_session_ingredients");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.IngredientName).HasMaxLength(200);
+            entity.Property(x => x.NormalizedIngredientName).HasMaxLength(200);
+            entity.Property(x => x.PlannedQuantity).HasPrecision(18, 2);
+            entity.Property(x => x.PlannedUnit).HasMaxLength(32);
+            entity.Property(x => x.ActualQuantity).HasPrecision(18, 2);
+            entity.Property(x => x.ActualUnit).HasMaxLength(32);
+            entity.Property(x => x.Notes);
+            entity.Property(x => x.PantryDeductedQuantity).HasPrecision(18, 2);
+            entity.Property(x => x.PantryDeductionStatus).HasMaxLength(32);
+            entity.HasIndex(x => x.CookingSessionId);
+            entity.HasOne<CookingSession>()
+                .WithMany()
+                .HasForeignKey(x => x.CookingSessionId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<CookingSessionPantryAdjustment>(entity =>
+        {
+            entity.ToTable("cooking_session_pantry_adjustments");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.QuantityDelta).HasPrecision(18, 2);
+            entity.Property(x => x.Unit).HasMaxLength(32);
+            entity.Property(x => x.AppliedAtUtc);
+            entity.HasIndex(x => x.CookingSessionIngredientId);
+            entity.HasOne<CookingSessionIngredient>()
+                .WithMany()
+                .HasForeignKey(x => x.CookingSessionIngredientId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<PantryItem>()
+                .WithMany()
+                .HasForeignKey(x => x.PantryItemId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<CookingSessionStep>(entity =>
+        {
+            entity.ToTable("cooking_session_steps");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Instruction);
+            entity.Property(x => x.Notes);
+            entity.HasIndex(x => x.CookingSessionId);
+            entity.HasOne<CookingSession>()
+                .WithMany()
+                .HasForeignKey(x => x.CookingSessionId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
     }

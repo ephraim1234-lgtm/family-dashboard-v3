@@ -26,18 +26,20 @@ The repo is no longer just a bootstrap scheduling/display foundation. It now has
 - reminders / notifications
 - chores / routines
 - notes
+- food
 
 The next work should keep expanding these areas carefully without turning them into generalized platforms.
 
 ## Current maturity target
 
-The current push is not to activate a new domain. It is to finish the existing active boundary to a more coherent daily-use state:
+The current push now includes the first Food activation slice alongside the existing household-ops boundary:
 
 - Notes should feel complete as a lightweight household support surface, while remaining intentionally narrow.
 - Calendar integrations should feel trustworthy and understandable as a one-way Google import slice, without widening into bidirectional sync.
 - Reminders should feel operationally useful for review and triage, not just technically implemented.
 - Chores should feel dependable for recurring household operations, not just present.
 - Scheduling should become easier to use day to day because it is still the center of the product.
+- Food should feel cohesive from the start: recipe import, pantry, shared shopping, meal planning, and cooking mode must already work as one loop.
 
 ## Ordered execution runway
 
@@ -107,19 +109,20 @@ Why next:
 - Notes is already implemented and useful
 - it should feel intentionally complete at its narrow scope, not accidental or unfinished
 
-### `M62` Boundary hardening and pre-Food checkpoint
+### `M62` Food activation slice
 
-Close the current active boundary intentionally before Food activation:
+Open Food deliberately as one broad module with a premium but still narrow first slice:
 
-- run a focused reliability and UX rough-edge pass across Scheduling, Reminders, Integrations, Chores, and Notes
-- fill the most important remaining test/runtime-validation gaps in active slices
-- review what feels strong enough to keep versus what still needs follow-up
-- stop and plan the Food module deliberately before writing pantry, recipe, or shopping-list code
+- household-owned recipes with URL import review
+- pantry locations and pantry state
+- meal-plan slots and shared shopping generation
+- mobile cooking mode with actual-usage pantry deduction
+- TV-safe cooking view and recipe revision promotion from cooking sessions
 
 Why next:
-- Food is expected to become a major product area and deserves its own planning phase
-- this creates a clean handoff from the current household-ops boundary into the next domain
-- it prevents Food work from being shaped by avoidable unfinished foundation issues
+- Food is now the next major product area and already has a coherent first slice worth shipping
+- cooking is the moment where pantry, planning, shopping, and recipes converge into real household use
+- this keeps the product expanding intentionally instead of polishing only the earlier core forever
 
 ## Guardrails
 
@@ -129,6 +132,7 @@ Why next:
 - Notifications stays narrow and reminder-focused unless a broader slice is explicitly approved.
 - Chores stays a focused household operations domain, not a generic task platform.
 - Notes stays a lightweight shared-information surface and should not imply a document-management platform.
+- Food stays one broad operational domain early on; do not split it into separate pantry/recipe/shopping modules or overbuild ingredient normalization before the workflow proves itself.
 
 ## Validation defaults
 

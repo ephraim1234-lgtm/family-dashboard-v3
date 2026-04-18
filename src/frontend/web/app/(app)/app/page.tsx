@@ -1,4 +1,5 @@
 import { AuthStatusPanel } from "../../../components/auth-status-panel";
+import { FoodSummaryPanel } from "../../../components/food-summary-panel";
 import { HouseholdHome } from "../../../components/household-home";
 
 export default function AppHomePage() {
@@ -15,6 +16,9 @@ export default function AppHomePage() {
 
       <div className="section-spacer" />
       <HouseholdHome />
+
+      <div className="section-spacer" />
+      <FoodSummaryPanel />
 
       <div className="section-spacer" />
       <AuthStatusPanel />

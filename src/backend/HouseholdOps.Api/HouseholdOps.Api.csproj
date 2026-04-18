@@ -7,9 +7,17 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.7">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\HouseholdOps.Infrastructure\HouseholdOps.Infrastructure.csproj" />
     <ProjectReference Include="..\HouseholdOps.Modules.Administration\HouseholdOps.Modules.Administration.csproj" />
     <ProjectReference Include="..\HouseholdOps.Modules.Chores\HouseholdOps.Modules.Chores.csproj" />
+    <ProjectReference Include="..\HouseholdOps.Modules.Food\HouseholdOps.Modules.Food.csproj" />
     <ProjectReference Include="..\HouseholdOps.Modules.Notes\HouseholdOps.Modules.Notes.csproj" />
     <ProjectReference Include="..\HouseholdOps.Modules.Display\HouseholdOps.Modules.Display.csproj" />
     <ProjectReference Include="..\HouseholdOps.Modules.Households\HouseholdOps.Modules.Households.csproj" />

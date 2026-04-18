@@ -339,36 +339,55 @@ Prefer a basic recurring chores/routines model with clear ownership and simple c
 
 ---
 
+### Food
+
+**Why it exists**
+Meal planning, pantry visibility, shopping coordination, recipe ownership, and cooking execution are major household coordination needs and fit the dashboard especially well when kept together.
+
+**Likely dependencies**
+- Households
+- Identity
+- Scheduling
+- Display later
+- Worker later for automation
+
+**Current activation posture**
+Active expansion.
+
+**Current first slice**
+- household-owned recipes with URL import review and save
+- pantry locations and pantry item tracking
+- meal-plan slots that can draft shopping gaps
+- shared shopping list
+- cooking sessions with mobile cooking mode, actual-usage edits, pantry-aware deduction, and a TV-safe cooking view
+- recipe lineage that separates imported source, household default, and session-specific cooking changes
+
+**Implementation bias**
+- keep Food as one broad module at first
+- prefer practical quantity/unit handling over deep ingredient normalization
+- keep automation assistive-first and reversible
+- make cooking mode operational, not just a recipe reader
+
+**Still deferred**
+- receipt-driven pantry automation
+- camera-based pantry capture
+- aggressive forecasting and predictive meal planning
+- retailer-specific imports and loyalty intelligence
+
+**Target maturity inside current product scope**
+- make the pantry/recipe/shopping/meal-plan loop feel like one coherent household food system
+- make cooking mode trustworthy enough that actual usage can improve pantry state and household recipes
+- keep the first slice premium and cohesive without turning Food into a generalized grocery-commerce platform
+
+---
+
 ## Future candidate domains
 
 These remain intentionally deferred. They should influence naming and architectural discipline, but should not receive speculative code until explicitly promoted.
 
 ### Food Operations
 
-**Why it exists**
-Meal planning and food logistics are major household coordination needs.
-
-**Potential subdomains**
-- Recipes
-- Meal Plans
-- Pantry
-- Shopping
-- Cooking Sessions
-
-**Likely dependencies**
-- Households
-- Scheduling
-- future Notifications
-- possibly Documents/Notes later
-
-**Likely module boundary**
-One broad Food module at first, with subdomains inside it rather than separate early modules.
-
-**What not to design yet**
-- broad ingredient normalization systems
-- predictive shopping logic
-- generalized inventory engine
-- overly abstract food domain hierarchy
+Food has now been promoted into active expansion.
 
 ---
 

@@ -19,6 +19,7 @@
   <ItemGroup>
     <ProjectReference Include="..\HouseholdOps.Modules.Administration\HouseholdOps.Modules.Administration.csproj" />
     <ProjectReference Include="..\HouseholdOps.Modules.Chores\HouseholdOps.Modules.Chores.csproj" />
+    <ProjectReference Include="..\HouseholdOps.Modules.Food\HouseholdOps.Modules.Food.csproj" />
     <ProjectReference Include="..\HouseholdOps.Modules.Notes\HouseholdOps.Modules.Notes.csproj" />
     <ProjectReference Include="..\HouseholdOps.Modules.Display\HouseholdOps.Modules.Display.csproj" />
     <ProjectReference Include="..\HouseholdOps.Modules.Households\HouseholdOps.Modules.Households.csproj" />
