@@ -21,11 +21,11 @@ public sealed record FoodSummaryResponse(
 
 public sealed record TonightCookViewResponse(
     Guid? MealPlanSlotId,
-    Guid? RecipeId,
     string Title,
     string Reason,
     int MissingIngredientCount,
-    IReadOnlyList<string> MissingIngredients);
+    IReadOnlyList<string> MissingIngredients,
+    IReadOnlyList<string> PlannedRecipeTitles);
 
 public sealed record RecipeSummaryResponse(
     Guid Id,
@@ -55,13 +55,30 @@ public sealed record PantryItemResponse(
     DateTimeOffset? ExpiresAtUtc,
     DateTimeOffset UpdatedAtUtc);
 
+public sealed record PantryItemActivityResponse(
+    Guid Id,
+    string Kind,
+    decimal? QuantityDelta,
+    decimal? QuantityAfter,
+    string? Unit,
+    string? Note,
+    string? SourceLabel,
+    DateTimeOffset OccurredAtUtc);
+
+public sealed record MealPlanRecipeResponse(
+    Guid Id,
+    Guid RecipeId,
+    Guid RecipeRevisionId,
+    string Role,
+    string Title);
+
 public sealed record MealPlanSlotResponse(
     Guid Id,
     DateOnly Date,
     string SlotName,
-    Guid? RecipeId,
-    string? RecipeTitle,
-    string? Notes);
+    string Title,
+    string? Notes,
+    IReadOnlyList<MealPlanRecipeResponse> Recipes);
 
 public sealed record ShoppingListResponse(
     Guid Id,
@@ -76,16 +93,19 @@ public sealed record ShoppingListItemResponse(
     string? Unit,
     string? Notes,
     string? SourceRecipeTitle,
+    string? SourceMealTitle,
     bool IsCompleted,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset? CompletedAtUtc);
 
 public sealed record CookingSessionSummaryResponse(
     Guid Id,
-    Guid RecipeId,
+    Guid? MealPlanSlotId,
     string Title,
     string Status,
     string PantryUpdateMode,
+    int RecipeCount,
+    string? FocusedRecipeTitle,
     int CurrentStepIndex,
     int TotalStepCount,
     int CheckedIngredientCount,

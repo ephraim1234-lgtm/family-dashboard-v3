@@ -196,6 +196,9 @@ namespace HouseholdOps.Infrastructure.Persistence.Migrations
                     b.Property<int>("CurrentStepIndex")
                         .HasColumnType("integer");
 
+                    b.Property<Guid?>("FocusedCookingSessionRecipeId")
+                        .HasColumnType("uuid");
+
                     b.Property<Guid>("HouseholdId")
                         .HasColumnType("uuid");
 
@@ -241,6 +244,50 @@ namespace HouseholdOps.Infrastructure.Persistence.Migrations
                     b.ToTable("cooking_sessions", "core");
                 });
 
+            modelBuilder.Entity("HouseholdOps.Modules.Food.CookingSessionRecipe", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("CookingSessionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("CurrentStepIndex")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("RecipeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("RecipeRevisionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CookingSessionId");
+
+                    b.HasIndex("RecipeId");
+
+                    b.HasIndex("CookingSessionId", "Position")
+                        .IsUnique()
+                        .HasDatabaseName("IX_cooking_session_recipes_session_position");
+
+                    b.ToTable("cooking_session_recipes", "core");
+                });
+
             modelBuilder.Entity("HouseholdOps.Modules.Food.CookingSessionIngredient", b =>
                 {
                     b.Property<Guid>("Id")
@@ -256,6 +303,9 @@ namespace HouseholdOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(32)");
 
                     b.Property<Guid>("CookingSessionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("CookingSessionRecipeId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("IngredientName")
@@ -304,6 +354,8 @@ namespace HouseholdOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CookingSessionId");
 
+                    b.HasIndex("CookingSessionRecipeId");
+
                     b.ToTable("cooking_session_ingredients", "core");
                 });
 
@@ -348,6 +400,9 @@ namespace HouseholdOps.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("CookingSessionId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid?>("CookingSessionRecipeId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Instruction")
                         .IsRequired()
                         .HasColumnType("text");
@@ -368,7 +423,58 @@ namespace HouseholdOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("CookingSessionId");
 
+                    b.HasIndex("CookingSessionRecipeId");
+
                     b.ToTable("cooking_session_steps", "core");
+                });
+
+            modelBuilder.Entity("HouseholdOps.Modules.Food.PantryItemActivity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("Note")
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("OccurredAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("HouseholdId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PantryItemId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal?>("QuantityAfter")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal?>("QuantityDelta")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<string>("SourceLabel")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Unit")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("HouseholdId");
+
+                    b.HasIndex("PantryItemId", "OccurredAtUtc")
+                        .HasDatabaseName("IX_pantry_item_activities_item_occurred");
+
+                    b.ToTable("pantry_item_activities", "core");
                 });
 
             modelBuilder.Entity("HouseholdOps.Modules.Food.FoodIngredient", b =>
@@ -438,6 +544,10 @@ namespace HouseholdOps.Infrastructure.Persistence.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
+                    b.Property<string>("Title")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("HouseholdId");
@@ -446,6 +556,50 @@ namespace HouseholdOps.Infrastructure.Persistence.Migrations
                         .HasDatabaseName("IX_meal_plan_slots_household_date");
 
                     b.ToTable("meal_plan_slots", "core");
+                });
+
+            modelBuilder.Entity("HouseholdOps.Modules.Food.MealPlanRecipe", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("MealPlanSlotId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Position")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("RecipeId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("RecipeRevisionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("RecipeTitleSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MealPlanSlotId");
+
+                    b.HasIndex("RecipeId");
+
+                    b.HasIndex("MealPlanSlotId", "Position")
+                        .IsUnique()
+                        .HasDatabaseName("IX_meal_plan_recipes_slot_position");
+
+                    b.ToTable("meal_plan_recipes", "core");
                 });
 
             modelBuilder.Entity("HouseholdOps.Modules.Food.PantryItem", b =>
@@ -898,6 +1052,10 @@ namespace HouseholdOps.Infrastructure.Persistence.Migrations
 
                     b.Property<Guid>("ShoppingListId")
                         .HasColumnType("uuid");
+
+                    b.Property<string>("SourceMealTitle")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
 
                     b.Property<string>("SourceRecipeTitle")
                         .HasMaxLength(200)
@@ -1387,6 +1545,21 @@ namespace HouseholdOps.Infrastructure.Persistence.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("HouseholdOps.Modules.Food.CookingSessionRecipe", b =>
+                {
+                    b.HasOne("HouseholdOps.Modules.Food.CookingSession", null)
+                        .WithMany()
+                        .HasForeignKey("CookingSessionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("HouseholdOps.Modules.Food.Recipe", null)
+                        .WithMany()
+                        .HasForeignKey("RecipeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("HouseholdOps.Modules.Food.CookingSessionIngredient", b =>
                 {
                     b.HasOne("HouseholdOps.Modules.Food.CookingSession", null)
@@ -1394,6 +1567,11 @@ namespace HouseholdOps.Infrastructure.Persistence.Migrations
                         .HasForeignKey("CookingSessionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("HouseholdOps.Modules.Food.CookingSessionRecipe", null)
+                        .WithMany()
+                        .HasForeignKey("CookingSessionRecipeId")
+                        .OnDelete(DeleteBehavior.SetNull);
                 });
 
             modelBuilder.Entity("HouseholdOps.Modules.Food.CookingSessionPantryAdjustment", b =>
@@ -1418,6 +1596,26 @@ namespace HouseholdOps.Infrastructure.Persistence.Migrations
                         .HasForeignKey("CookingSessionId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.HasOne("HouseholdOps.Modules.Food.CookingSessionRecipe", null)
+                        .WithMany()
+                        .HasForeignKey("CookingSessionRecipeId")
+                        .OnDelete(DeleteBehavior.SetNull);
+                });
+
+            modelBuilder.Entity("HouseholdOps.Modules.Food.PantryItemActivity", b =>
+                {
+                    b.HasOne("HouseholdOps.Modules.Households.Household", null)
+                        .WithMany()
+                        .HasForeignKey("HouseholdId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("HouseholdOps.Modules.Food.PantryItem", null)
+                        .WithMany()
+                        .HasForeignKey("PantryItemId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("HouseholdOps.Modules.Food.FoodIngredient", b =>
@@ -1434,6 +1632,21 @@ namespace HouseholdOps.Infrastructure.Persistence.Migrations
                     b.HasOne("HouseholdOps.Modules.Households.Household", null)
                         .WithMany()
                         .HasForeignKey("HouseholdId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("HouseholdOps.Modules.Food.MealPlanRecipe", b =>
+                {
+                    b.HasOne("HouseholdOps.Modules.Food.MealPlanSlot", null)
+                        .WithMany()
+                        .HasForeignKey("MealPlanSlotId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("HouseholdOps.Modules.Food.Recipe", null)
+                        .WithMany()
+                        .HasForeignKey("RecipeId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });

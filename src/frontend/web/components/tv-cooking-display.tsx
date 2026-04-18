@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 type TvCookingDisplayData = {
   sessionId: string;
   title: string;
+  focusedRecipeTitle: string | null;
+  recipeTitles: string[];
   currentStepIndex: number;
   totalStepCount: number;
   currentStepInstruction: string | null;
@@ -68,9 +70,18 @@ export function TvCookingDisplay({ sessionId }: { sessionId: string }) {
       <div className="food-tv-frame">
         <div className="display-kicker">
           <span>Cooking mode</span>
+          <span>{data.focusedRecipeTitle ?? data.title}</span>
           <span>Step {data.currentStepIndex + 1}/{data.totalStepCount}</span>
         </div>
         <h1 className="food-tv-title">{data.title}</h1>
+
+        {data.recipeTitles.length > 1 ? (
+          <div className="pill-row" style={{ marginBottom: "20px" }}>
+            {data.recipeTitles.map((title) => (
+              <span className="pill" key={title}>{title}</span>
+            ))}
+          </div>
+        ) : null}
 
         <section className="food-tv-grid">
           <article className="food-tv-card">

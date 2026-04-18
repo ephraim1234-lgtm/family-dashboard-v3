@@ -15,10 +15,23 @@ public interface IFoodService
 
     Task<RecipeDetailResponse?> GetRecipeAsync(Guid householdId, Guid recipeId, CancellationToken cancellationToken);
 
-    Task<RecipeDetailResponse> SaveImportedRecipeAsync(
+    Task<IReadOnlyList<RecipeSummaryResponse>> ListRecipesAsync(
+        Guid householdId,
+        string? query,
+        CancellationToken cancellationToken);
+
+    Task<RecipeDetailResponse> SaveRecipeAsync(
         Guid householdId,
         Guid userId,
-        SaveImportedRecipeRequest request,
+        SaveRecipeRequest request,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken);
+
+    Task<RecipeDetailResponse?> UpdateRecipeAsync(
+        Guid householdId,
+        Guid recipeId,
+        Guid userId,
+        UpdateRecipeRequest request,
         DateTimeOffset nowUtc,
         CancellationToken cancellationToken);
 
@@ -26,6 +39,18 @@ public interface IFoodService
         Guid householdId,
         CreatePantryItemRequest request,
         DateTimeOffset nowUtc,
+        CancellationToken cancellationToken);
+
+    Task<PantryItemResponse?> UpdatePantryItemAsync(
+        Guid householdId,
+        Guid pantryItemId,
+        UpdatePantryItemRequest request,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<PantryItemActivityResponse>> GetPantryItemHistoryAsync(
+        Guid householdId,
+        Guid pantryItemId,
         CancellationToken cancellationToken);
 
     Task<MealPlanSlotResponse?> CreateMealPlanSlotAsync(
@@ -59,6 +84,13 @@ public interface IFoodService
         Guid sessionId,
         CancellationToken cancellationToken);
 
+    Task<CookingSessionResponse?> UpdateCookingSessionAsync(
+        Guid householdId,
+        Guid sessionId,
+        UpdateCookingSessionRequest request,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken);
+
     Task<CookingSessionResponse?> UpdateCookingIngredientAsync(
         Guid householdId,
         Guid sessionId,
@@ -85,6 +117,7 @@ public interface IFoodService
     Task<RecipeDetailResponse?> PromoteCookingSessionToRecipeAsync(
         Guid householdId,
         Guid sessionId,
+        PromoteCookingSessionRecipeRequest request,
         Guid userId,
         DateTimeOffset nowUtc,
         CancellationToken cancellationToken);

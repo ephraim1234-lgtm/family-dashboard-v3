@@ -24,8 +24,17 @@ public sealed record RecipeEditableIngredientResponse(
 
 public sealed record RecipeEditableStepResponse(int Position, string Instruction);
 
-public sealed record SaveImportedRecipeRequest(
-    Guid ImportJobId,
+public sealed record SaveRecipeRequest(
+    Guid? ImportJobId,
+    string? Title,
+    string? Summary,
+    string? YieldText,
+    string? Tags,
+    string? Notes,
+    IReadOnlyList<RecipeEditableIngredientRequest>? Ingredients,
+    IReadOnlyList<RecipeEditableStepRequest>? Steps);
+
+public sealed record UpdateRecipeRequest(
     string? Title,
     string? Summary,
     string? YieldText,

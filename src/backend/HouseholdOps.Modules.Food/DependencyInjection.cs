@@ -58,7 +58,7 @@ public static class DependencyInjection
         });
 
         group.MapPost("/recipes", async (
-            SaveImportedRecipeRequest? request,
+            SaveRecipeRequest? request,
             IIdentityAccessService identityAccessService,
             IFoodService foodService,
             IClock clock,
@@ -72,13 +72,29 @@ public static class DependencyInjection
                 return Results.BadRequest("A valid active household and recipe payload are required.");
             }
 
-            var response = await foodService.SaveImportedRecipeAsync(
+            var response = await foodService.SaveRecipeAsync(
                 householdId,
                 userId,
                 request,
                 clock.UtcNow,
                 cancellationToken);
 
+            return Results.Ok(response);
+        });
+
+        group.MapGet("/recipes", async (
+            string? query,
+            IIdentityAccessService identityAccessService,
+            IFoodService foodService,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var response = await foodService.ListRecipesAsync(householdId, query, cancellationToken);
             return Results.Ok(response);
         });
 
@@ -95,6 +111,33 @@ public static class DependencyInjection
             }
 
             var response = await foodService.GetRecipeAsync(householdId, recipeId, cancellationToken);
+            return response is null ? Results.NotFound() : Results.Ok(response);
+        });
+
+        group.MapPatch("/recipes/{recipeId:guid}", async (
+            Guid recipeId,
+            UpdateRecipeRequest? request,
+            IIdentityAccessService identityAccessService,
+            IFoodService foodService,
+            IClock clock,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+            if (request is null
+                || !Guid.TryParse(session.ActiveHouseholdId, out var householdId)
+                || !Guid.TryParse(session.UserId, out var userId))
+            {
+                return Results.BadRequest("A valid active household and recipe payload are required.");
+            }
+
+            var response = await foodService.UpdateRecipeAsync(
+                householdId,
+                recipeId,
+                userId,
+                request,
+                clock.UtcNow,
+                cancellationToken);
+
             return response is null ? Results.NotFound() : Results.Ok(response);
         });
 
@@ -116,6 +159,51 @@ public static class DependencyInjection
                 householdId,
                 request,
                 clock.UtcNow,
+                cancellationToken);
+
+            return Results.Ok(response);
+        });
+
+        group.MapPatch("/pantry-items/{pantryItemId:guid}", async (
+            Guid pantryItemId,
+            UpdatePantryItemRequest? request,
+            IIdentityAccessService identityAccessService,
+            IFoodService foodService,
+            IClock clock,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+            if (request is null
+                || !Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.BadRequest("A valid pantry item payload is required.");
+            }
+
+            var response = await foodService.UpdatePantryItemAsync(
+                householdId,
+                pantryItemId,
+                request,
+                clock.UtcNow,
+                cancellationToken);
+
+            return response is null ? Results.NotFound() : Results.Ok(response);
+        });
+
+        group.MapGet("/pantry-items/{pantryItemId:guid}/history", async (
+            Guid pantryItemId,
+            IIdentityAccessService identityAccessService,
+            IFoodService foodService,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var response = await foodService.GetPantryItemHistoryAsync(
+                householdId,
+                pantryItemId,
                 cancellationToken);
 
             return Results.Ok(response);
@@ -233,6 +321,31 @@ public static class DependencyInjection
             return response is null ? Results.NotFound() : Results.Ok(response);
         });
 
+        group.MapPatch("/cooking-sessions/{sessionId:guid}", async (
+            Guid sessionId,
+            UpdateCookingSessionRequest? request,
+            IIdentityAccessService identityAccessService,
+            IFoodService foodService,
+            IClock clock,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+            if (request is null
+                || !Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.BadRequest("A valid cooking-session payload is required.");
+            }
+
+            var response = await foodService.UpdateCookingSessionAsync(
+                householdId,
+                sessionId,
+                request,
+                clock.UtcNow,
+                cancellationToken);
+
+            return response is null ? Results.NotFound() : Results.Ok(response);
+        });
+
         group.MapPatch("/cooking-sessions/{sessionId:guid}/ingredients/{sessionIngredientId:guid}", async (
             Guid sessionId,
             Guid sessionIngredientId,
@@ -313,6 +426,7 @@ public static class DependencyInjection
 
         group.MapPost("/cooking-sessions/{sessionId:guid}/promote", async (
             Guid sessionId,
+            PromoteCookingSessionRecipeRequest? request,
             IIdentityAccessService identityAccessService,
             IFoodService foodService,
             IClock clock,
@@ -328,6 +442,7 @@ public static class DependencyInjection
             var response = await foodService.PromoteCookingSessionToRecipeAsync(
                 householdId,
                 sessionId,
+                request ?? new PromoteCookingSessionRecipeRequest(null),
                 userId,
                 clock.UtcNow,
                 cancellationToken);

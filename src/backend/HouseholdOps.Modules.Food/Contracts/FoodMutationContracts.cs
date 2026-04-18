@@ -9,12 +9,26 @@ public sealed record CreatePantryItemRequest(
     DateTimeOffset? PurchasedAtUtc,
     DateTimeOffset? ExpiresAtUtc);
 
+public sealed record UpdatePantryItemRequest(
+    Guid? PantryLocationId,
+    decimal? Quantity,
+    string? Unit,
+    decimal? LowThreshold,
+    string? Status,
+    DateTimeOffset? PurchasedAtUtc,
+    DateTimeOffset? ExpiresAtUtc,
+    string? Note);
+
+public sealed record CreateMealPlanRecipeRequest(Guid RecipeId, string? Role);
+
 public sealed record CreateMealPlanSlotRequest(
-    Guid RecipeId,
+    Guid? RecipeId,
     DateOnly Date,
     string? SlotName,
+    string? Title,
     string? Notes,
-    bool GenerateShoppingList);
+    bool GenerateShoppingList,
+    IReadOnlyList<CreateMealPlanRecipeRequest>? Recipes);
 
 public sealed record CreateShoppingListItemRequest(
     string? IngredientName,

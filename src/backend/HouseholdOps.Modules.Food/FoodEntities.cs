@@ -42,6 +42,25 @@ public static class PantryDeductionStatuses
     public const string PendingConfirmation = "PendingConfirmation";
 }
 
+public static class MealRecipeRoles
+{
+    public const string Main = "Main";
+    public const string Side = "Side";
+    public const string Sauce = "Sauce";
+    public const string Dessert = "Dessert";
+    public const string Drink = "Drink";
+    public const string Other = "Other";
+}
+
+public static class PantryItemActivityKinds
+{
+    public const string Created = "Created";
+    public const string ManualAdjustment = "ManualAdjustment";
+    public const string ShoppingPurchase = "ShoppingPurchase";
+    public const string CookingDeduction = "CookingDeduction";
+    public const string CookingReversal = "CookingReversal";
+}
+
 public sealed class FoodIngredient
 {
     public Guid Id { get; set; }
@@ -170,8 +189,21 @@ public sealed class MealPlanSlot
     public Guid? RecipeId { get; set; }
     public required DateOnly Date { get; set; }
     public required string SlotName { get; set; }
+    public string? Title { get; set; }
     public string? RecipeTitleSnapshot { get; set; }
     public string? Notes { get; set; }
+    public DateTimeOffset CreatedAtUtc { get; set; }
+}
+
+public sealed class MealPlanRecipe
+{
+    public Guid Id { get; set; }
+    public Guid MealPlanSlotId { get; set; }
+    public Guid RecipeId { get; set; }
+    public Guid RecipeRevisionId { get; set; }
+    public required string Role { get; set; }
+    public int Position { get; set; }
+    public required string RecipeTitleSnapshot { get; set; }
     public DateTimeOffset CreatedAtUtc { get; set; }
 }
 
@@ -198,6 +230,7 @@ public sealed class ShoppingListItem
     public string? Unit { get; set; }
     public string? Notes { get; set; }
     public string? SourceRecipeTitle { get; set; }
+    public string? SourceMealTitle { get; set; }
     public bool IsCompleted { get; set; }
     public DateTimeOffset CreatedAtUtc { get; set; }
     public DateTimeOffset? CompletedAtUtc { get; set; }
@@ -210,6 +243,7 @@ public sealed class CookingSession
     public Guid RecipeId { get; set; }
     public Guid RecipeRevisionId { get; set; }
     public Guid? MealPlanSlotId { get; set; }
+    public Guid? FocusedCookingSessionRecipeId { get; set; }
     public Guid? StartedByUserId { get; set; }
     public required string Title { get; set; }
     public string Status { get; set; } = CookingSessionStatuses.Active;
@@ -220,10 +254,23 @@ public sealed class CookingSession
     public DateTimeOffset? CompletedAtUtc { get; set; }
 }
 
+public sealed class CookingSessionRecipe
+{
+    public Guid Id { get; set; }
+    public Guid CookingSessionId { get; set; }
+    public Guid RecipeId { get; set; }
+    public Guid RecipeRevisionId { get; set; }
+    public required string Role { get; set; }
+    public int Position { get; set; }
+    public required string Title { get; set; }
+    public int CurrentStepIndex { get; set; }
+}
+
 public sealed class CookingSessionIngredient
 {
     public Guid Id { get; set; }
     public Guid CookingSessionId { get; set; }
+    public Guid? CookingSessionRecipeId { get; set; }
     public Guid? RecipeIngredientId { get; set; }
     public int Position { get; set; }
     public required string IngredientName { get; set; }
@@ -253,9 +300,24 @@ public sealed class CookingSessionStep
 {
     public Guid Id { get; set; }
     public Guid CookingSessionId { get; set; }
+    public Guid? CookingSessionRecipeId { get; set; }
     public Guid? RecipeStepId { get; set; }
     public int Position { get; set; }
     public required string Instruction { get; set; }
     public string? Notes { get; set; }
     public bool IsCompleted { get; set; }
+}
+
+public sealed class PantryItemActivity
+{
+    public Guid Id { get; set; }
+    public Guid HouseholdId { get; set; }
+    public Guid PantryItemId { get; set; }
+    public required string Kind { get; set; }
+    public decimal? QuantityDelta { get; set; }
+    public decimal? QuantityAfter { get; set; }
+    public string? Unit { get; set; }
+    public string? Note { get; set; }
+    public string? SourceLabel { get; set; }
+    public DateTimeOffset OccurredAtUtc { get; set; }
 }

@@ -15,11 +15,11 @@ type FoodSummary = {
 
 type TonightCookView = {
   mealPlanSlotId: string | null;
-  recipeId: string | null;
   title: string;
   reason: string;
   missingIngredientCount: number;
   missingIngredients: string[];
+  plannedRecipeTitles: string[];
 };
 
 type RecipeSummary = {
@@ -56,13 +56,32 @@ type PantryItem = {
   updatedAtUtc: string;
 };
 
+type PantryHistoryItem = {
+  id: string;
+  kind: string;
+  quantityDelta: number | null;
+  quantityAfter: number | null;
+  unit: string | null;
+  note: string | null;
+  sourceLabel: string | null;
+  occurredAtUtc: string;
+};
+
+type MealPlanRecipe = {
+  id: string;
+  recipeId: string;
+  recipeRevisionId: string;
+  role: string;
+  title: string;
+};
+
 type MealPlanSlot = {
   id: string;
   date: string;
   slotName: string;
-  recipeId: string | null;
-  recipeTitle: string | null;
+  title: string;
   notes: string | null;
+  recipes: MealPlanRecipe[];
 };
 
 type ShoppingListItem = {
@@ -72,6 +91,7 @@ type ShoppingListItem = {
   unit: string | null;
   notes: string | null;
   sourceRecipeTitle: string | null;
+  sourceMealTitle: string | null;
   isCompleted: boolean;
   createdAtUtc: string;
   completedAtUtc: string | null;
@@ -86,10 +106,12 @@ type ShoppingList = {
 
 type CookingSessionSummary = {
   id: string;
-  recipeId: string;
+  mealPlanSlotId: string | null;
   title: string;
   status: string;
   pantryUpdateMode: string;
+  recipeCount: number;
+  focusedRecipeTitle: string | null;
   currentStepIndex: number;
   totalStepCount: number;
   checkedIngredientCount: number;
@@ -169,8 +191,26 @@ type ImportReview = {
   warnings: string[];
 };
 
+type RecipeDraft = {
+  recipeId: string | null;
+  importJobId: string | null;
+  mode: "manual" | "import" | "edit";
+  title: string;
+  summary: string;
+  yieldText: string;
+  tags: string;
+  notes: string;
+  ingredients: RecipeIngredient[];
+  steps: RecipeStep[];
+};
+
+type MealComposerRow = {
+  recipeId: string;
+  role: string;
+};
+
 function formatDate(date: string) {
-  const d = new Date(date + "T00:00:00");
+  const d = new Date(`${date}T00:00:00`);
   return d.toLocaleDateString([], {
     weekday: "short",
     month: "short",
@@ -207,24 +247,56 @@ function emptyStep(position: number): RecipeStep {
   return { position, instruction: "" };
 }
 
+function createRecipeDraft(mode: RecipeDraft["mode"], recipeId: string | null = null): RecipeDraft {
+  return {
+    recipeId,
+    importJobId: null,
+    mode,
+    title: "",
+    summary: "",
+    yieldText: "",
+    tags: "",
+    notes: "",
+    ingredients: [emptyIngredient()],
+    steps: [emptyStep(1)]
+  };
+}
+
+function recipeToDraft(recipe: RecipeDetail): RecipeDraft {
+  return {
+    recipeId: recipe.id,
+    importJobId: null,
+    mode: "edit",
+    title: recipe.title,
+    summary: recipe.summary ?? "",
+    yieldText: recipe.householdDefaultRevision.yieldText ?? "",
+    tags: recipe.householdDefaultRevision.tags ?? recipe.tags ?? "",
+    notes: recipe.householdDefaultRevision.notes ?? recipe.notes ?? "",
+    ingredients: recipe.householdDefaultRevision.ingredients.length > 0
+      ? recipe.householdDefaultRevision.ingredients
+      : [emptyIngredient()],
+    steps: recipe.householdDefaultRevision.steps.length > 0
+      ? recipe.householdDefaultRevision.steps
+      : [emptyStep(1)]
+  };
+}
+
 export function FoodHub() {
   const [data, setData] = useState<FoodDashboard | null>(null);
+  const [recipeLibrary, setRecipeLibrary] = useState<RecipeSummary[]>([]);
   const [selectedRecipe, setSelectedRecipe] = useState<RecipeDetail | null>(null);
   const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null);
+  const [selectedPantryItemId, setSelectedPantryItemId] = useState<string | null>(null);
+  const [pantryHistory, setPantryHistory] = useState<PantryHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
+  const [recipeQuery, setRecipeQuery] = useState("");
   const [importUrl, setImportUrl] = useState("");
   const [importReview, setImportReview] = useState<ImportReview | null>(null);
-  const [importTitle, setImportTitle] = useState("");
-  const [importSummary, setImportSummary] = useState("");
-  const [importYieldText, setImportYieldText] = useState("");
-  const [importTags, setImportTags] = useState("");
-  const [importNotes, setImportNotes] = useState("");
-  const [importIngredients, setImportIngredients] = useState<RecipeIngredient[]>([]);
-  const [importSteps, setImportSteps] = useState<RecipeStep[]>([]);
+  const [recipeDraft, setRecipeDraft] = useState<RecipeDraft | null>(null);
 
   const [pantryName, setPantryName] = useState("");
   const [pantryLocationId, setPantryLocationId] = useState<string>("");
@@ -233,16 +305,36 @@ export function FoodHub() {
   const [pantryLowThreshold, setPantryLowThreshold] = useState("");
   const [pantryExpiresAt, setPantryExpiresAt] = useState("");
 
+  const [pantryEditLocationId, setPantryEditLocationId] = useState("");
+  const [pantryEditQuantity, setPantryEditQuantity] = useState("");
+  const [pantryEditUnit, setPantryEditUnit] = useState("");
+  const [pantryEditLowThreshold, setPantryEditLowThreshold] = useState("");
+  const [pantryEditStatus, setPantryEditStatus] = useState("InStock");
+  const [pantryEditPurchasedAt, setPantryEditPurchasedAt] = useState("");
+  const [pantryEditExpiresAt, setPantryEditExpiresAt] = useState("");
+  const [pantryEditNote, setPantryEditNote] = useState("");
+
   const [shoppingName, setShoppingName] = useState("");
   const [shoppingQuantity, setShoppingQuantity] = useState("");
   const [shoppingUnit, setShoppingUnit] = useState("");
   const [shoppingNotes, setShoppingNotes] = useState("");
 
-  const [mealRecipeId, setMealRecipeId] = useState("");
   const [mealDate, setMealDate] = useState("");
   const [mealSlotName, setMealSlotName] = useState("Dinner");
+  const [mealTitle, setMealTitle] = useState("");
   const [mealNotes, setMealNotes] = useState("");
   const [generateShopping, setGenerateShopping] = useState(true);
+  const [mealRows, setMealRows] = useState<MealComposerRow[]>([{ recipeId: "", role: "Main" }]);
+
+  const selectedPantryItem = useMemo(
+    () => data?.pantryItems.find((item) => item.id === selectedPantryItemId) ?? null,
+    [data, selectedPantryItemId]
+  );
+
+  const lowStockItems = useMemo(
+    () => data?.pantryItems.filter((item) => item.status !== "InStock") ?? [],
+    [data]
+  );
 
   async function loadDashboard() {
     const response = await fetch("/api/food/dashboard", {
@@ -259,12 +351,27 @@ export function FoodHub() {
     if (!pantryLocationId && body.pantryLocations.length > 0) {
       setPantryLocationId(body.pantryLocations[0].id);
     }
-    if (!mealRecipeId && body.recipes.length > 0) {
-      setMealRecipeId(body.recipes[0].id);
+    if (!selectedPantryItemId && body.pantryItems.length > 0) {
+      setSelectedPantryItemId(body.pantryItems[0].id);
     }
     if (!selectedRecipeId && body.recipes.length > 0) {
       setSelectedRecipeId(body.recipes[0].id);
     }
+    if (!mealRows[0]?.recipeId && body.recipes.length > 0) {
+      setMealRows([{ recipeId: body.recipes[0].id, role: "Main" }]);
+    }
+  }
+
+  async function loadRecipeLibrary(query: string) {
+    const search = query.trim() ? `?query=${encodeURIComponent(query.trim())}` : "";
+    const response = await fetch(`/api/food/recipes${search}`, {
+      credentials: "same-origin",
+      cache: "no-store"
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to load recipe library: ${response.status}`);
+    }
+    setRecipeLibrary((await response.json()) as RecipeSummary[]);
   }
 
   async function loadRecipe(recipeId: string) {
@@ -275,13 +382,23 @@ export function FoodHub() {
     if (!response.ok) {
       throw new Error(`Failed to load recipe: ${response.status}`);
     }
-    const body = (await response.json()) as RecipeDetail;
-    setSelectedRecipe(body);
+    setSelectedRecipe((await response.json()) as RecipeDetail);
+  }
+
+  async function loadPantryHistory(pantryItemId: string) {
+    const response = await fetch(`/api/food/pantry-items/${pantryItemId}/history`, {
+      credentials: "same-origin",
+      cache: "no-store"
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to load pantry history: ${response.status}`);
+    }
+    setPantryHistory((await response.json()) as PantryHistoryItem[]);
   }
 
   useEffect(() => {
     startTransition(() => {
-      loadDashboard()
+      Promise.all([loadDashboard(), loadRecipeLibrary("")])
         .then(() => setLoading(false))
         .catch((err: unknown) => {
           setError(err instanceof Error ? err.message : "Unable to load food.");
@@ -299,27 +416,79 @@ export function FoodHub() {
     });
   }, [selectedRecipeId]);
 
+  useEffect(() => {
+    if (!selectedPantryItemId) return;
+    startTransition(() => {
+      loadPantryHistory(selectedPantryItemId).catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : "Unable to load pantry history.");
+      });
+    });
+  }, [selectedPantryItemId]);
+
+  useEffect(() => {
+    if (!selectedPantryItem) return;
+    setPantryEditLocationId(selectedPantryItem.pantryLocationId ?? "");
+    setPantryEditQuantity(selectedPantryItem.quantity?.toString() ?? "");
+    setPantryEditUnit(selectedPantryItem.unit ?? "");
+    setPantryEditLowThreshold(selectedPantryItem.lowThreshold?.toString() ?? "");
+    setPantryEditStatus(selectedPantryItem.status);
+    setPantryEditPurchasedAt(
+      selectedPantryItem.purchasedAtUtc ? selectedPantryItem.purchasedAtUtc.slice(0, 10) : ""
+    );
+    setPantryEditExpiresAt(
+      selectedPantryItem.expiresAtUtc ? selectedPantryItem.expiresAtUtc.slice(0, 10) : ""
+    );
+    setPantryEditNote("");
+  }, [selectedPantryItem]);
+
+  useEffect(() => {
+    startTransition(() => {
+      loadRecipeLibrary(recipeQuery).catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : "Unable to load recipes.");
+      });
+    });
+  }, [recipeQuery]);
+
   function showSuccess(message: string) {
     setSuccess(message);
     setTimeout(() => setSuccess(null), 3000);
   }
 
   async function refreshAll() {
-    await loadDashboard();
+    await Promise.all([loadDashboard(), loadRecipeLibrary(recipeQuery)]);
     if (selectedRecipeId) {
       await loadRecipe(selectedRecipeId);
+    }
+    if (selectedPantryItemId) {
+      await loadPantryHistory(selectedPantryItemId);
     }
   }
 
   function beginImportReview(review: ImportReview) {
     setImportReview(review);
-    setImportTitle(review.title ?? "");
-    setImportSummary(review.summary ?? "");
-    setImportYieldText(review.yieldText ?? "");
-    setImportTags("");
-    setImportNotes("");
-    setImportIngredients(review.ingredients.length > 0 ? review.ingredients : [emptyIngredient()]);
-    setImportSteps(review.steps.length > 0 ? review.steps : [emptyStep(1)]);
+    setRecipeDraft({
+      recipeId: null,
+      importJobId: review.importJobId,
+      mode: "import",
+      title: review.title ?? "",
+      summary: review.summary ?? "",
+      yieldText: review.yieldText ?? "",
+      tags: "",
+      notes: "",
+      ingredients: review.ingredients.length > 0 ? review.ingredients : [emptyIngredient()],
+      steps: review.steps.length > 0 ? review.steps : [emptyStep(1)]
+    });
+  }
+
+  function startManualRecipe() {
+    setImportReview(null);
+    setRecipeDraft(createRecipeDraft("manual"));
+  }
+
+  function startEditingSelectedRecipe() {
+    if (!selectedRecipe) return;
+    setImportReview(null);
+    setRecipeDraft(recipeToDraft(selectedRecipe));
   }
 
   async function handleImportRecipe() {
@@ -335,52 +504,61 @@ export function FoodHub() {
       throw new Error(text || `Import failed with ${response.status}.`);
     }
 
-    const body = (await response.json()) as ImportReview;
-    beginImportReview(body);
+    beginImportReview((await response.json()) as ImportReview);
   }
 
-  async function handleSaveImportedRecipe() {
-    if (!importReview) return;
+  async function handleSaveRecipeDraft() {
+    if (!recipeDraft) return;
 
-    const response = await fetch("/api/food/recipes", {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        importJobId: importReview.importJobId,
-        title: importTitle.trim(),
-        summary: importSummary.trim() || null,
-        yieldText: importYieldText.trim() || null,
-        tags: importTags.trim() || null,
-        notes: importNotes.trim() || null,
-        ingredients: importIngredients.map((item) => ({
-          ingredientName: item.ingredientName,
-          quantity: item.quantity,
-          unit: item.unit,
-          preparation: item.preparation,
-          isOptional: item.isOptional
-        })),
-        steps: importSteps.map((step, index) => ({
-          position: index + 1,
-          instruction: step.instruction
-        }))
-      })
-    });
+    const payload = {
+      importJobId: recipeDraft.importJobId,
+      title: recipeDraft.title.trim(),
+      summary: recipeDraft.summary.trim() || null,
+      yieldText: recipeDraft.yieldText.trim() || null,
+      tags: recipeDraft.tags.trim() || null,
+      notes: recipeDraft.notes.trim() || null,
+      ingredients: recipeDraft.ingredients.map((item) => ({
+        ingredientName: item.ingredientName,
+        quantity: item.quantity,
+        unit: item.unit,
+        preparation: item.preparation,
+        isOptional: item.isOptional
+      })),
+      steps: recipeDraft.steps.map((step, index) => ({
+        position: index + 1,
+        instruction: step.instruction
+      }))
+    };
+
+    const response = await fetch(
+      recipeDraft.mode === "edit" && recipeDraft.recipeId
+        ? `/api/food/recipes/${recipeDraft.recipeId}`
+        : "/api/food/recipes",
+      {
+        method: recipeDraft.mode === "edit" && recipeDraft.recipeId ? "PATCH" : "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload)
+      }
+    );
 
     if (!response.ok) {
       const text = await response.text();
-      throw new Error(text || `Save failed with ${response.status}.`);
+      throw new Error(text || `Recipe save failed with ${response.status}.`);
     }
 
     const recipe = (await response.json()) as RecipeDetail;
-    setImportUrl("");
-    setImportReview(null);
-    setImportIngredients([]);
-    setImportSteps([]);
     setSelectedRecipe(recipe);
     setSelectedRecipeId(recipe.id);
+    setRecipeDraft(null);
+    setImportReview(null);
+    setImportUrl("");
     await refreshAll();
-    showSuccess("Recipe saved to the household library.");
+    showSuccess(
+      recipeDraft.mode === "edit"
+        ? "Household recipe updated."
+        : "Recipe saved to the household library."
+    );
   }
 
   async function handleAddPantryItem() {
@@ -390,7 +568,7 @@ export function FoodHub() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         ingredientName: pantryName.trim(),
-        pantryLocationId,
+        pantryLocationId: pantryLocationId || null,
         quantity: pantryQuantity ? Number(pantryQuantity) : null,
         unit: pantryUnit.trim() || null,
         lowThreshold: pantryLowThreshold ? Number(pantryLowThreshold) : null,
@@ -404,13 +582,47 @@ export function FoodHub() {
       throw new Error(text || `Pantry add failed with ${response.status}.`);
     }
 
+    const pantryItem = (await response.json()) as PantryItem;
     setPantryName("");
     setPantryQuantity("");
     setPantryUnit("");
     setPantryLowThreshold("");
     setPantryExpiresAt("");
+    setSelectedPantryItemId(pantryItem.id);
     await refreshAll();
     showSuccess("Pantry item added.");
+  }
+
+  async function handleUpdatePantryItem() {
+    if (!selectedPantryItemId) return;
+
+    const response = await fetch(`/api/food/pantry-items/${selectedPantryItemId}`, {
+      method: "PATCH",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        pantryLocationId: pantryEditLocationId || null,
+        quantity: pantryEditQuantity ? Number(pantryEditQuantity) : null,
+        unit: pantryEditUnit.trim() || null,
+        lowThreshold: pantryEditLowThreshold ? Number(pantryEditLowThreshold) : null,
+        status: pantryEditStatus,
+        purchasedAtUtc: pantryEditPurchasedAt
+          ? new Date(`${pantryEditPurchasedAt}T12:00:00`).toISOString()
+          : null,
+        expiresAtUtc: pantryEditExpiresAt
+          ? new Date(`${pantryEditExpiresAt}T12:00:00`).toISOString()
+          : null,
+        note: pantryEditNote.trim() || null
+      })
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || `Pantry update failed with ${response.status}.`);
+    }
+
+    setPantryEditNote("");
+    await refreshAll();
+    showSuccess("Pantry item updated.");
   }
 
   async function handleAddShoppingItem() {
@@ -463,11 +675,18 @@ export function FoodHub() {
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        recipeId: mealRecipeId,
+        recipeId: null,
         date: mealDate,
         slotName: mealSlotName.trim() || "Dinner",
+        title: mealTitle.trim() || null,
         notes: mealNotes.trim() || null,
-        generateShoppingList: generateShopping
+        generateShoppingList: generateShopping,
+        recipes: mealRows
+          .filter((row) => row.recipeId)
+          .map((row) => ({
+            recipeId: row.recipeId,
+            role: row.role
+          }))
       })
     });
     if (!response.ok) {
@@ -476,18 +695,24 @@ export function FoodHub() {
     }
 
     setMealNotes("");
+    setMealTitle("");
     await refreshAll();
-    showSuccess(generateShopping ? "Meal planned and missing ingredients drafted to shopping." : "Meal planned.");
+    showSuccess(generateShopping ? "Meal planned and shopping gaps drafted." : "Meal planned.");
   }
 
-  async function handleStartCooking(recipeId: string, pantryUpdateMode: "Progressive" | "ConfirmOnComplete" = "Progressive") {
+  async function handleStartCooking(params: {
+    recipeId?: string;
+    mealPlanSlotId?: string;
+    pantryUpdateMode?: "Progressive" | "ConfirmOnComplete";
+  }) {
     const response = await fetch("/api/food/cooking-sessions", {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        recipeId,
-        pantryUpdateMode
+        recipeId: params.recipeId ?? null,
+        mealPlanSlotId: params.mealPlanSlotId ?? null,
+        pantryUpdateMode: params.pantryUpdateMode ?? "Progressive"
       })
     });
     if (!response.ok) {
@@ -498,11 +723,6 @@ export function FoodHub() {
     const session = (await response.json()) as { id: string };
     window.location.href = `/app/food/cooking/${session.id}`;
   }
-
-  const lowStockItems = useMemo(
-    () => data?.pantryItems.filter((item) => item.status !== "InStock") ?? [],
-    [data]
-  );
 
   if (loading) {
     return (
@@ -547,7 +767,7 @@ export function FoodHub() {
           <div className="eyebrow">Food hub</div>
           <h2>Household food operating system</h2>
           <p className="muted">
-            Pantry, recipes, shopping, meal planning, and cooking stay tied together here.
+            Pantry, recipes, shopping, meal planning, and cooking stay connected here.
           </p>
           <div className="summary-grid" style={{ marginTop: "16px" }}>
             <div className="stack-card">
@@ -573,9 +793,16 @@ export function FoodHub() {
           <div className="eyebrow">Tonight</div>
           <h2>{data.tonightCookView?.title ?? "No dinner planned yet"}</h2>
           <p className="muted" style={{ marginTop: "8px" }}>
-            {data.tonightCookView?.reason ?? "Pick a recipe, drop it into the meal plan, and draft shopping automatically."}
+            {data.tonightCookView?.reason ?? "Plan a meal, generate shopping gaps, and jump straight into cooking mode."}
           </p>
-          {data.tonightCookView && data.tonightCookView.missingIngredients.length > 0 ? (
+          {data.tonightCookView?.plannedRecipeTitles?.length ? (
+            <div className="pill-row" style={{ marginTop: "12px" }}>
+              {data.tonightCookView.plannedRecipeTitles.map((title) => (
+                <span className="pill" key={title}>{title}</span>
+              ))}
+            </div>
+          ) : null}
+          {data.tonightCookView?.missingIngredients.length ? (
             <div className="stack-list" style={{ marginTop: "12px" }}>
               {data.tonightCookView.missingIngredients.map((item) => (
                 <div className="stack-card" key={item}>
@@ -584,14 +811,14 @@ export function FoodHub() {
               ))}
             </div>
           ) : null}
-          {data.tonightCookView?.recipeId ? (
+          {data.tonightCookView?.mealPlanSlotId ? (
             <div className="action-row">
               <button
                 className="action-button"
                 disabled={isPending}
                 onClick={() => {
                   startTransition(() => {
-                    handleStartCooking(data.tonightCookView!.recipeId!).catch((err: unknown) => {
+                    handleStartCooking({ mealPlanSlotId: data.tonightCookView!.mealPlanSlotId! }).catch((err: unknown) => {
                       setError(err instanceof Error ? err.message : "Unable to start cooking.");
                     });
                   });
@@ -608,8 +835,8 @@ export function FoodHub() {
 
       <section className="grid food-section-grid">
         <article className="panel">
-          <div className="eyebrow">Import</div>
-          <h2>Bring in a recipe by link</h2>
+          <div className="eyebrow">Recipe capture</div>
+          <h2>Bring in a recipe by link or create one from scratch</h2>
           <div className="field" style={{ marginTop: "12px" }}>
             <span>Recipe URL</span>
             <input
@@ -633,49 +860,83 @@ export function FoodHub() {
             >
               Import for review
             </button>
+            <button
+              className="action-button-secondary"
+              disabled={isPending}
+              onClick={startManualRecipe}
+            >
+              New manual recipe
+            </button>
           </div>
 
           {importReview ? (
-            <div className="stack-list" style={{ marginTop: "18px" }}>
-              <div className="stack-card">
-                <div className="pill-row">
-                  <span className="pill">Status {importReview.status}</span>
-                  <span className="pill">Confidence {(importReview.parserConfidence * 100).toFixed(0)}%</span>
-                  {importReview.sourceSiteName ? <span className="pill">{importReview.sourceSiteName}</span> : null}
-                </div>
-                {importReview.warnings.length > 0 ? (
-                  <div className="stack-list" style={{ marginTop: "10px" }}>
-                    {importReview.warnings.map((warning) => (
-                      <div className="stack-card home-attention-card" key={warning}>
-                        <span>{warning}</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : null}
+            <div className="stack-card" style={{ marginTop: "16px" }}>
+              <div className="pill-row">
+                <span className="pill">Status {importReview.status}</span>
+                <span className="pill">Confidence {(importReview.parserConfidence * 100).toFixed(0)}%</span>
+                {importReview.sourceSiteName ? <span className="pill">{importReview.sourceSiteName}</span> : null}
               </div>
+              {importReview.warnings.length > 0 ? (
+                <div className="stack-list" style={{ marginTop: "10px" }}>
+                  {importReview.warnings.map((warning) => (
+                    <div className="stack-card home-attention-card" key={warning}>
+                      <span>{warning}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
+          {recipeDraft ? (
+            <div className="stack-list" style={{ marginTop: "16px" }}>
               <div className="stack-card">
+                <div className="stack-card-header">
+                  <strong>
+                    {recipeDraft.mode === "edit"
+                      ? "Edit household default"
+                      : recipeDraft.mode === "import"
+                        ? "Review imported recipe"
+                        : "New household recipe"}
+                  </strong>
+                  <span className="pill">{recipeDraft.mode}</span>
+                </div>
                 <div className="field">
                   <span>Title</span>
-                  <input value={importTitle} onChange={(event) => setImportTitle(event.target.value)} />
+                  <input
+                    value={recipeDraft.title}
+                    onChange={(event) => setRecipeDraft((current) => current ? { ...current, title: event.target.value } : current)}
+                  />
                 </div>
                 <div className="field">
                   <span>Summary</span>
-                  <input value={importSummary} onChange={(event) => setImportSummary(event.target.value)} />
+                  <input
+                    value={recipeDraft.summary}
+                    onChange={(event) => setRecipeDraft((current) => current ? { ...current, summary: event.target.value } : current)}
+                  />
                 </div>
                 <div className="grid">
                   <div className="field">
                     <span>Yield</span>
-                    <input value={importYieldText} onChange={(event) => setImportYieldText(event.target.value)} />
+                    <input
+                      value={recipeDraft.yieldText}
+                      onChange={(event) => setRecipeDraft((current) => current ? { ...current, yieldText: event.target.value } : current)}
+                    />
                   </div>
                   <div className="field">
                     <span>Tags</span>
-                    <input value={importTags} onChange={(event) => setImportTags(event.target.value)} placeholder="weeknight, kids, batch" />
+                    <input
+                      value={recipeDraft.tags}
+                      onChange={(event) => setRecipeDraft((current) => current ? { ...current, tags: event.target.value } : current)}
+                    />
                   </div>
                 </div>
                 <div className="field">
                   <span>Household notes</span>
-                  <input value={importNotes} onChange={(event) => setImportNotes(event.target.value)} placeholder="What the household learned about this recipe" />
+                  <input
+                    value={recipeDraft.notes}
+                    onChange={(event) => setRecipeDraft((current) => current ? { ...current, notes: event.target.value } : current)}
+                  />
                 </div>
               </div>
 
@@ -685,60 +946,59 @@ export function FoodHub() {
                   <button
                     className="pill-button"
                     type="button"
-                    onClick={() => setImportIngredients((current) => [...current, emptyIngredient()])}
+                    onClick={() => setRecipeDraft((current) => current ? {
+                      ...current,
+                      ingredients: [...current.ingredients, emptyIngredient()]
+                    } : current)}
                   >
                     + Ingredient
                   </button>
                 </div>
-                <div className="stack-list">
-                  {importIngredients.map((ingredient, index) => (
-                    <div className="grid" key={`${ingredient.ingredientName}-${index}`}>
-                      <div className="field">
-                        <span>Name</span>
-                        <input
-                          value={ingredient.ingredientName}
-                          onChange={(event) =>
-                            setImportIngredients((current) =>
-                              current.map((item, itemIndex) =>
-                                itemIndex === index
-                                  ? { ...item, ingredientName: event.target.value }
-                                  : item
-                              )
-                            )
-                          }
-                        />
-                      </div>
-                      <div className="field">
-                        <span>Qty</span>
-                        <input
-                          type="number"
-                          step="0.25"
-                          value={ingredient.quantity ?? ""}
-                          onChange={(event) =>
-                            setImportIngredients((current) =>
-                              current.map((item, itemIndex) =>
-                                itemIndex === index
-                                  ? { ...item, quantity: event.target.value ? Number(event.target.value) : null }
-                                  : item
-                              )
-                            )
-                          }
-                        />
-                      </div>
-                      <div className="field">
-                        <span>Unit</span>
-                        <input
-                          value={ingredient.unit ?? ""}
-                          onChange={(event) =>
-                            setImportIngredients((current) =>
-                              current.map((item, itemIndex) =>
-                                itemIndex === index
-                                  ? { ...item, unit: event.target.value || null }
-                                  : item
-                              )
-                            )
-                          }
-                        />
+                <div className="stack-list" style={{ marginTop: "10px" }}>
+                  {recipeDraft.ingredients.map((ingredient, index) => (
+                    <div className="stack-card" key={`draft-ingredient-${index}`}>
+                      <div className="grid">
+                        <div className="field">
+                          <span>Ingredient</span>
+                          <input
+                            value={ingredient.ingredientName}
+                            onChange={(event) => setRecipeDraft((current) => {
+                              if (!current) return current;
+                              const ingredients = [...current.ingredients];
+                              ingredients[index] = { ...ingredients[index], ingredientName: event.target.value };
+                              return { ...current, ingredients };
+                            })}
+                          />
+                        </div>
+                        <div className="field">
+                          <span>Qty</span>
+                          <input
+                            type="number"
+                            step="0.25"
+                            value={ingredient.quantity ?? ""}
+                            onChange={(event) => setRecipeDraft((current) => {
+                              if (!current) return current;
+                              const ingredients = [...current.ingredients];
+                              ingredients[index] = {
+                                ...ingredients[index],
+                                quantity: event.target.value ? Number(event.target.value) : null
+                              };
+                              return { ...current, ingredients };
+                            })}
+                          />
+                        </div>
+                        <div className="field">
+                          <span>Unit</span>
+                          <input
+                            value={ingredient.unit ?? ""}
+                            onChange={(event) => setRecipeDraft((current) => {
+                              if (!current) return current;
+                              const ingredients = [...current.ingredients];
+                              ingredients[index] = { ...ingredients[index], unit: event.target.value || null };
+                              return { ...current, ingredients };
+                            })}
+                          />
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -751,68 +1011,90 @@ export function FoodHub() {
                   <button
                     className="pill-button"
                     type="button"
-                    onClick={() => setImportSteps((current) => [...current, emptyStep(current.length + 1)])}
+                    onClick={() => setRecipeDraft((current) => current ? {
+                      ...current,
+                      steps: [...current.steps, emptyStep(current.steps.length + 1)]
+                    } : current)}
                   >
                     + Step
                   </button>
                 </div>
-                <div className="stack-list">
-                  {importSteps.map((step, index) => (
-                    <div className="field" key={`${step.position}-${index}`}>
-                      <span>Step {index + 1}</span>
-                      <input
-                        value={step.instruction}
-                        onChange={(event) =>
-                          setImportSteps((current) =>
-                            current.map((item, itemIndex) =>
-                              itemIndex === index
-                                ? { ...item, instruction: event.target.value }
-                                : item
-                            )
-                          )
-                        }
-                      />
+                <div className="stack-list" style={{ marginTop: "10px" }}>
+                  {recipeDraft.steps.map((step, index) => (
+                    <div className="stack-card" key={`draft-step-${index}`}>
+                      <div className="field">
+                        <span>Step {index + 1}</span>
+                        <input
+                          value={step.instruction}
+                          onChange={(event) => setRecipeDraft((current) => {
+                            if (!current) return current;
+                            const steps = [...current.steps];
+                            steps[index] = { position: index + 1, instruction: event.target.value };
+                            return { ...current, steps };
+                          })}
+                        />
+                      </div>
                     </div>
                   ))}
                 </div>
-                <div className="action-row">
-                  <button
-                    className="action-button"
-                    disabled={isPending || !importTitle.trim()}
-                    onClick={() => {
-                      setError(null);
-                      startTransition(() => {
-                        handleSaveImportedRecipe().catch((err: unknown) => {
-                          setError(err instanceof Error ? err.message : "Unable to save recipe.");
-                        });
+              </div>
+
+              <div className="action-row">
+                <button
+                  className="action-button"
+                  disabled={isPending}
+                  onClick={() => {
+                    setError(null);
+                    startTransition(() => {
+                      handleSaveRecipeDraft().catch((err: unknown) => {
+                        setError(err instanceof Error ? err.message : "Unable to save recipe.");
                       });
-                    }}
-                  >
-                    Save household recipe
-                  </button>
-                </div>
+                    });
+                  }}
+                >
+                  {recipeDraft.mode === "edit" ? "Save household default" : "Save recipe"}
+                </button>
+                <button
+                  className="action-button-secondary"
+                  disabled={isPending}
+                  onClick={() => {
+                    setRecipeDraft(null);
+                    setImportReview(null);
+                  }}
+                >
+                  Cancel
+                </button>
               </div>
             </div>
           ) : null}
         </article>
 
         <article className="panel">
-          <div className="eyebrow">Recipes</div>
-          <h2>Household recipe library</h2>
-          <div className="stack-list" style={{ marginTop: "12px" }}>
-            {data.recipes.map((recipe) => (
+          <div className="eyebrow">Recipe library</div>
+          <div className="stack-card-header">
+            <h2 style={{ margin: 0 }}>Shared household recipes</h2>
+            <span className="pill">{recipeLibrary.length} shown</span>
+          </div>
+          <div className="field" style={{ marginTop: "12px" }}>
+            <span>Search</span>
+            <input
+              value={recipeQuery}
+              onChange={(event) => setRecipeQuery(event.target.value)}
+              placeholder="weeknight, chicken, lunch"
+            />
+          </div>
+          <div className="stack-list" style={{ marginTop: "14px" }}>
+            {recipeLibrary.map((recipe) => (
               <div className="stack-card" key={recipe.id}>
                 <div className="stack-card-header">
                   <div style={{ flex: 1 }}>
                     <strong>{recipe.title}</strong>
-                    {recipe.summary ? <div className="muted">{recipe.summary}</div> : null}
-                    <div className="muted" style={{ fontSize: "0.85rem" }}>
-                      {recipe.ingredientCount} ingredients • {recipe.stepCount} steps
-                      {recipe.sourceLabel ? ` • from ${recipe.sourceLabel}` : ""}
+                    <div className="muted">
+                      {recipe.ingredientCount} ingredients • {recipe.stepCount} steps • updated {formatTimestamp(recipe.updatedAtUtc)}
                     </div>
                   </div>
                   <button
-                    className={`pill-button ${selectedRecipeId === recipe.id ? "pill-button-active" : ""}`}
+                    className="pill-button"
                     onClick={() => setSelectedRecipeId(recipe.id)}
                   >
                     View
@@ -821,33 +1103,7 @@ export function FoodHub() {
                 <div className="pill-row">
                   {recipe.tags ? <span className="pill">{recipe.tags}</span> : null}
                   {recipe.yieldText ? <span className="pill">{recipe.yieldText}</span> : null}
-                </div>
-                <div className="compact-action-row action-row">
-                  <button
-                    className="action-button"
-                    disabled={isPending}
-                    onClick={() => {
-                      setMealRecipeId(recipe.id);
-                      setMealDate(mealDate || new Date().toISOString().slice(0, 10));
-                      window.scrollTo({ top: document.body.scrollHeight / 2, behavior: "smooth" });
-                    }}
-                  >
-                    Plan meal
-                  </button>
-                  <button
-                    className="action-button-secondary"
-                    disabled={isPending}
-                    onClick={() => {
-                      setError(null);
-                      startTransition(() => {
-                        handleStartCooking(recipe.id).catch((err: unknown) => {
-                          setError(err instanceof Error ? err.message : "Unable to start cooking.");
-                        });
-                      });
-                    }}
-                  >
-                    Cook now
-                  </button>
+                  {recipe.sourceLabel ? <span className="pill">{recipe.sourceLabel}</span> : null}
                 </div>
               </div>
             ))}
@@ -859,225 +1115,97 @@ export function FoodHub() {
 
       <section className="grid food-section-grid">
         <article className="panel">
-          <div className="eyebrow">Pantry</div>
-          <h2>What the household has on hand</h2>
-          <div className="stack-card" style={{ marginTop: "12px" }}>
-            <div className="grid">
-              <div className="field">
-                <span>Ingredient</span>
-                <input value={pantryName} onChange={(event) => setPantryName(event.target.value)} />
-              </div>
-              <div className="field">
-                <span>Location</span>
-                <select value={pantryLocationId} onChange={(event) => setPantryLocationId(event.target.value)}>
-                  {data.pantryLocations.map((location) => (
-                    <option key={location.id} value={location.id}>
-                      {location.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+          <div className="eyebrow">Meal planning</div>
+          <h2>Build a real meal, not just a single recipe slot</h2>
+          <div className="grid" style={{ marginTop: "12px" }}>
+            <div className="field">
+              <span>Date</span>
+              <input type="date" value={mealDate} onChange={(event) => setMealDate(event.target.value)} />
             </div>
-            <div className="grid">
-              <div className="field">
-                <span>Quantity</span>
-                <input type="number" step="0.25" value={pantryQuantity} onChange={(event) => setPantryQuantity(event.target.value)} />
-              </div>
-              <div className="field">
-                <span>Unit</span>
-                <input value={pantryUnit} onChange={(event) => setPantryUnit(event.target.value)} />
-              </div>
-              <div className="field">
-                <span>Low threshold</span>
-                <input type="number" step="0.25" value={pantryLowThreshold} onChange={(event) => setPantryLowThreshold(event.target.value)} />
-              </div>
-              <div className="field">
-                <span>Expires</span>
-                <input type="date" value={pantryExpiresAt} onChange={(event) => setPantryExpiresAt(event.target.value)} />
-              </div>
+            <div className="field">
+              <span>Slot</span>
+              <input value={mealSlotName} onChange={(event) => setMealSlotName(event.target.value)} />
             </div>
-            <div className="action-row">
-              <button
-                className="action-button"
-                disabled={isPending || !pantryName.trim()}
-                onClick={() => {
-                  setError(null);
-                  startTransition(() => {
-                    handleAddPantryItem().catch((err: unknown) => {
-                      setError(err instanceof Error ? err.message : "Unable to add pantry item.");
-                    });
-                  });
-                }}
-              >
-                Add pantry item
-              </button>
+            <div className="field">
+              <span>Meal title</span>
+              <input value={mealTitle} onChange={(event) => setMealTitle(event.target.value)} placeholder="Taco night" />
             </div>
           </div>
-
-          {lowStockItems.length > 0 ? (
-            <div className="stack-list" style={{ marginTop: "16px" }}>
-              {lowStockItems.map((item) => (
-                <div className="stack-card home-attention-card" key={item.id}>
-                  <div className="stack-card-header">
-                    <strong>{item.ingredientName}</strong>
-                    <span className="pill">{item.status}</span>
+          <div className="field">
+            <span>Notes</span>
+            <input value={mealNotes} onChange={(event) => setMealNotes(event.target.value)} />
+          </div>
+          <div className="stack-list" style={{ marginTop: "12px" }}>
+            {mealRows.map((row, index) => (
+              <div className="stack-card" key={`meal-row-${index}`}>
+                <div className="grid">
+                  <div className="field">
+                    <span>Recipe</span>
+                    <select
+                      value={row.recipeId}
+                      onChange={(event) => setMealRows((current) => current.map((item, rowIndex) =>
+                        rowIndex === index ? { ...item, recipeId: event.target.value } : item))}
+                    >
+                      <option value="">Choose a recipe</option>
+                      {recipeLibrary.map((recipe) => (
+                        <option key={recipe.id} value={recipe.id}>{recipe.title}</option>
+                      ))}
+                    </select>
                   </div>
-                  <div className="muted">
-                    {item.locationName ?? "Pantry"} • {formatQuantity(item.quantity, item.unit)}
+                  <div className="field">
+                    <span>Role</span>
+                    <select
+                      value={row.role}
+                      onChange={(event) => setMealRows((current) => current.map((item, rowIndex) =>
+                        rowIndex === index ? { ...item, role: event.target.value } : item))}
+                    >
+                      <option value="Main">Main</option>
+                      <option value="Side">Side</option>
+                      <option value="Sauce">Sauce</option>
+                      <option value="Dessert">Dessert</option>
+                      <option value="Drink">Drink</option>
+                      <option value="Other">Other</option>
+                    </select>
                   </div>
                 </div>
-              ))}
-            </div>
-          ) : null}
-
-          <div className="stack-list" style={{ marginTop: "16px" }}>
-            {data.pantryItems.map((item) => (
-              <div className="stack-card" key={item.id}>
-                <div className="stack-card-header">
-                  <div style={{ flex: 1 }}>
-                    <strong>{item.ingredientName}</strong>
-                    <div className="muted">
-                      {item.locationName ?? "Pantry"} • {formatQuantity(item.quantity, item.unit) || "Quantity not set"}
-                    </div>
-                  </div>
-                  <span className="pill">{item.status}</span>
-                </div>
-                {item.expiresAtUtc ? (
-                  <div className="muted" style={{ fontSize: "0.85rem" }}>
-                    Expires {formatTimestamp(item.expiresAtUtc)}
-                  </div>
-                ) : null}
               </div>
             ))}
           </div>
-        </article>
-
-        <article className="panel">
-          <div className="eyebrow">Plan + shop</div>
-          <h2>Meal planning and shopping stay in sync</h2>
-
-          <div className="stack-card" style={{ marginTop: "12px" }}>
-            <div className="grid">
-              <div className="field">
-                <span>Recipe</span>
-                <select value={mealRecipeId} onChange={(event) => setMealRecipeId(event.target.value)}>
-                  <option value="">Select a recipe</option>
-                  {data.recipes.map((recipe) => (
-                    <option key={recipe.id} value={recipe.id}>
-                      {recipe.title}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="field">
-                <span>Date</span>
-                <input type="date" value={mealDate} onChange={(event) => setMealDate(event.target.value)} />
-              </div>
-              <div className="field">
-                <span>Slot</span>
-                <input value={mealSlotName} onChange={(event) => setMealSlotName(event.target.value)} />
-              </div>
-            </div>
-            <div className="field">
-              <span>Notes</span>
-              <input value={mealNotes} onChange={(event) => setMealNotes(event.target.value)} placeholder="Busy night, leftovers, guests..." />
-            </div>
-            <label className="checkbox-field" style={{ marginTop: "8px" }}>
+          <div className="action-row">
+            <button
+              className="pill-button"
+              type="button"
+              onClick={() => setMealRows((current) => [...current, {
+                recipeId: recipeLibrary[0]?.id ?? "",
+                role: "Side"
+              }])}
+            >
+              + Add recipe to meal
+            </button>
+            <label className="checkbox-field">
               <input
                 type="checkbox"
                 checked={generateShopping}
                 onChange={(event) => setGenerateShopping(event.target.checked)}
               />
-              Draft missing ingredients to the shared shopping list
+              Draft missing shopping items
             </label>
-            <div className="action-row">
-              <button
-                className="action-button"
-                disabled={isPending || !mealRecipeId || !mealDate}
-                onClick={() => {
-                  setError(null);
-                  startTransition(() => {
-                    handlePlanMeal().catch((err: unknown) => {
-                      setError(err instanceof Error ? err.message : "Unable to plan meal.");
-                    });
-                  });
-                }}
-              >
-                Add to meal plan
-              </button>
-            </div>
           </div>
-
-          <div className="stack-card" style={{ marginTop: "16px" }}>
-            <div className="stack-card-header">
-              <strong>{data.shoppingList.name}</strong>
-              <span className="pill">{data.shoppingList.items.filter((item) => !item.isCompleted).length} open</span>
-            </div>
-            <div className="grid">
-              <div className="field">
-                <span>Item</span>
-                <input value={shoppingName} onChange={(event) => setShoppingName(event.target.value)} />
-              </div>
-              <div className="field">
-                <span>Qty</span>
-                <input type="number" step="0.25" value={shoppingQuantity} onChange={(event) => setShoppingQuantity(event.target.value)} />
-              </div>
-              <div className="field">
-                <span>Unit</span>
-                <input value={shoppingUnit} onChange={(event) => setShoppingUnit(event.target.value)} />
-              </div>
-            </div>
-            <div className="field">
-              <span>Notes</span>
-              <input value={shoppingNotes} onChange={(event) => setShoppingNotes(event.target.value)} />
-            </div>
-            <div className="action-row">
-              <button
-                className="action-button-secondary"
-                disabled={isPending || !shoppingName.trim()}
-                onClick={() => {
-                  setError(null);
-                  startTransition(() => {
-                    handleAddShoppingItem().catch((err: unknown) => {
-                      setError(err instanceof Error ? err.message : "Unable to add shopping item.");
-                    });
+          <div className="action-row">
+            <button
+              className="action-button"
+              disabled={isPending || !mealDate || mealRows.every((row) => !row.recipeId)}
+              onClick={() => {
+                setError(null);
+                startTransition(() => {
+                  handlePlanMeal().catch((err: unknown) => {
+                    setError(err instanceof Error ? err.message : "Unable to plan meal.");
                   });
-                }}
-              >
-                Add to list
-              </button>
-            </div>
-
-            <div className="stack-list" style={{ marginTop: "14px" }}>
-              {data.shoppingList.items.map((item) => (
-                <label className="stack-card" key={item.id}>
-                  <div className="stack-card-header">
-                    <div style={{ flex: 1 }}>
-                      <strong style={{ textDecoration: item.isCompleted ? "line-through" : "none" }}>
-                        {item.ingredientName}
-                      </strong>
-                      <div className="muted">
-                        {formatQuantity(item.quantity, item.unit)}
-                        {item.sourceRecipeTitle ? ` • from ${item.sourceRecipeTitle}` : ""}
-                      </div>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={item.isCompleted}
-                      onChange={(event) => {
-                        setError(null);
-                        startTransition(() => {
-                          handleToggleShoppingItem(item, event.target.checked).catch((err: unknown) => {
-                            setError(err instanceof Error ? err.message : "Unable to update shopping item.");
-                          });
-                        });
-                      }}
-                    />
-                  </div>
-                  {item.notes ? <div className="muted">{item.notes}</div> : null}
-                </label>
-              ))}
-            </div>
+                });
+              }}
+            >
+              Save meal
+            </button>
           </div>
 
           {data.upcomingMeals.length > 0 ? (
@@ -1085,10 +1213,28 @@ export function FoodHub() {
               {data.upcomingMeals.map((slot) => (
                 <div className="stack-card" key={slot.id}>
                   <div className="stack-card-header">
-                    <strong>{slot.recipeTitle ?? "Meal"}</strong>
-                    <span className="pill">
-                      {formatDate(slot.date)} • {slot.slotName}
-                    </span>
+                    <div style={{ flex: 1 }}>
+                      <strong>{slot.title}</strong>
+                      <div className="muted">{formatDate(slot.date)} • {slot.slotName}</div>
+                    </div>
+                    <button
+                      className="pill-button"
+                      onClick={() => {
+                        setError(null);
+                        startTransition(() => {
+                          handleStartCooking({ mealPlanSlotId: slot.id }).catch((err: unknown) => {
+                            setError(err instanceof Error ? err.message : "Unable to start meal cooking.");
+                          });
+                        });
+                      }}
+                    >
+                      Cook meal
+                    </button>
+                  </div>
+                  <div className="pill-row">
+                    {slot.recipes.map((recipe) => (
+                      <span className="pill" key={recipe.id}>{recipe.role}: {recipe.title}</span>
+                    ))}
                   </div>
                   {slot.notes ? <div className="muted">{slot.notes}</div> : null}
                 </div>
@@ -1096,11 +1242,7 @@ export function FoodHub() {
             </div>
           ) : null}
         </article>
-      </section>
 
-      <div className="section-spacer" />
-
-      <section className="grid food-section-grid">
         <article className="panel">
           <div className="eyebrow">Recipe detail</div>
           <h2>{selectedRecipe?.title ?? "Pick a recipe"}</h2>
@@ -1109,14 +1251,12 @@ export function FoodHub() {
               <p className="muted" style={{ marginTop: "8px" }}>
                 {selectedRecipe.summary ?? "This household-owned recipe keeps imported source and default household edits separate."}
               </p>
-
               <div className="pill-row" style={{ marginTop: "12px" }}>
                 <span className="pill">Default rev {selectedRecipe.householdDefaultRevision.revisionNumber}</span>
                 <span className="pill">Imported rev {selectedRecipe.importedSourceRevision.revisionNumber}</span>
                 <span className="pill">{selectedRecipe.revisionCount} total revisions</span>
                 {selectedRecipe.householdDefaultRevision.yieldText ? <span className="pill">{selectedRecipe.householdDefaultRevision.yieldText}</span> : null}
               </div>
-
               {selectedRecipe.source?.sourceUrl ? (
                 <p className="muted" style={{ marginTop: "12px" }}>
                   Imported from{" "}
@@ -1124,11 +1264,15 @@ export function FoodHub() {
                     {selectedRecipe.source.sourceSiteName ?? selectedRecipe.source.sourceUrl}
                   </a>
                 </p>
-              ) : null}
+              ) : (
+                <p className="muted" style={{ marginTop: "12px" }}>
+                  Manual household recipe. Imported lineage and household default are intentionally separate.
+                </p>
+              )}
 
               <div className="grid" style={{ marginTop: "14px" }}>
                 <div className="stack-card">
-                  <div className="eyebrow">Household default</div>
+                  <div className="eyebrow">Household default ingredients</div>
                   <div className="stack-list" style={{ marginTop: "10px" }}>
                     {selectedRecipe.householdDefaultRevision.ingredients.map((ingredient, index) => (
                       <div className="stack-card" key={`${ingredient.ingredientName}-${index}`}>
@@ -1159,31 +1303,302 @@ export function FoodHub() {
                   onClick={() => {
                     setError(null);
                     startTransition(() => {
-                      handleStartCooking(selectedRecipe.id, "Progressive").catch((err: unknown) => {
+                      handleStartCooking({ recipeId: selectedRecipe.id }).catch((err: unknown) => {
                         setError(err instanceof Error ? err.message : "Unable to start cooking.");
                       });
                     });
                   }}
                 >
-                  Start mobile cooking mode
+                  Start cooking
+                </button>
+                <button
+                  className="action-button-secondary"
+                  disabled={isPending}
+                  onClick={startEditingSelectedRecipe}
+                >
+                  Edit household default
                 </button>
                 <button
                   className="action-button-secondary"
                   disabled={isPending}
                   onClick={() => {
-                    setMealRecipeId(selectedRecipe.id);
                     setMealDate(mealDate || new Date().toISOString().slice(0, 10));
+                    setMealRows([{ recipeId: selectedRecipe.id, role: "Main" }]);
+                    if (!mealTitle) setMealTitle(selectedRecipe.title);
                   }}
                 >
-                  Plan this meal
+                  Add to meal
                 </button>
               </div>
             </>
           ) : (
             <p className="muted" style={{ marginTop: "12px" }}>
-              Import a recipe or choose one from the household library to see the revision-aware detail view.
+              Choose a recipe from the shared library to inspect or edit the household default.
             </p>
           )}
+        </article>
+      </section>
+
+      <div className="section-spacer" />
+
+      <section className="grid food-section-grid">
+        <article className="panel">
+          <div className="eyebrow">Pantry</div>
+          <h2>Low-friction inventory with real adjustment history</h2>
+          <div className="grid" style={{ marginTop: "12px" }}>
+            <div className="field">
+              <span>Item</span>
+              <input value={pantryName} onChange={(event) => setPantryName(event.target.value)} />
+            </div>
+            <div className="field">
+              <span>Location</span>
+              <select value={pantryLocationId} onChange={(event) => setPantryLocationId(event.target.value)}>
+                {data.pantryLocations.map((location) => (
+                  <option key={location.id} value={location.id}>{location.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="field">
+              <span>Qty</span>
+              <input type="number" step="0.25" value={pantryQuantity} onChange={(event) => setPantryQuantity(event.target.value)} />
+            </div>
+            <div className="field">
+              <span>Unit</span>
+              <input value={pantryUnit} onChange={(event) => setPantryUnit(event.target.value)} />
+            </div>
+          </div>
+          <div className="grid">
+            <div className="field">
+              <span>Low threshold</span>
+              <input type="number" step="0.25" value={pantryLowThreshold} onChange={(event) => setPantryLowThreshold(event.target.value)} />
+            </div>
+            <div className="field">
+              <span>Expires</span>
+              <input type="date" value={pantryExpiresAt} onChange={(event) => setPantryExpiresAt(event.target.value)} />
+            </div>
+          </div>
+          <div className="action-row">
+            <button
+              className="action-button"
+              disabled={isPending || !pantryName.trim()}
+              onClick={() => {
+                setError(null);
+                startTransition(() => {
+                  handleAddPantryItem().catch((err: unknown) => {
+                    setError(err instanceof Error ? err.message : "Unable to add pantry item.");
+                  });
+                });
+              }}
+            >
+              Add pantry item
+            </button>
+          </div>
+
+          {lowStockItems.length > 0 ? (
+            <div className="stack-list" style={{ marginTop: "16px" }}>
+              {lowStockItems.map((item) => (
+                <button
+                  className="stack-card home-attention-card"
+                  key={item.id}
+                  type="button"
+                  onClick={() => setSelectedPantryItemId(item.id)}
+                >
+                  <div className="stack-card-header">
+                    <strong>{item.ingredientName}</strong>
+                    <span className="pill">{item.status}</span>
+                  </div>
+                  <div className="muted">{formatQuantity(item.quantity, item.unit)} • {item.locationName ?? "Unassigned"}</div>
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          <div className="stack-list" style={{ marginTop: "16px" }}>
+            {data.pantryItems.map((item) => (
+              <button
+                className="stack-card"
+                key={item.id}
+                type="button"
+                onClick={() => setSelectedPantryItemId(item.id)}
+              >
+                <div className="stack-card-header">
+                  <strong>{item.ingredientName}</strong>
+                  <span className="pill">{item.status}</span>
+                </div>
+                <div className="muted">
+                  {formatQuantity(item.quantity, item.unit)} • {item.locationName ?? "Unassigned"}
+                </div>
+              </button>
+            ))}
+          </div>
+        </article>
+
+        <article className="panel">
+          <div className="eyebrow">Pantry detail</div>
+          <h2>{selectedPantryItem?.ingredientName ?? "Choose a pantry item"}</h2>
+          {selectedPantryItem ? (
+            <>
+              <div className="grid" style={{ marginTop: "12px" }}>
+                <div className="field">
+                  <span>Location</span>
+                  <select value={pantryEditLocationId} onChange={(event) => setPantryEditLocationId(event.target.value)}>
+                    {data.pantryLocations.map((location) => (
+                      <option key={location.id} value={location.id}>{location.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="field">
+                  <span>Status</span>
+                  <select value={pantryEditStatus} onChange={(event) => setPantryEditStatus(event.target.value)}>
+                    <option value="InStock">In stock</option>
+                    <option value="Low">Low</option>
+                    <option value="Out">Out</option>
+                  </select>
+                </div>
+              </div>
+              <div className="grid">
+                <div className="field">
+                  <span>Quantity</span>
+                  <input type="number" step="0.25" value={pantryEditQuantity} onChange={(event) => setPantryEditQuantity(event.target.value)} />
+                </div>
+                <div className="field">
+                  <span>Unit</span>
+                  <input value={pantryEditUnit} onChange={(event) => setPantryEditUnit(event.target.value)} />
+                </div>
+                <div className="field">
+                  <span>Low threshold</span>
+                  <input type="number" step="0.25" value={pantryEditLowThreshold} onChange={(event) => setPantryEditLowThreshold(event.target.value)} />
+                </div>
+              </div>
+              <div className="grid">
+                <div className="field">
+                  <span>Purchased</span>
+                  <input type="date" value={pantryEditPurchasedAt} onChange={(event) => setPantryEditPurchasedAt(event.target.value)} />
+                </div>
+                <div className="field">
+                  <span>Expires</span>
+                  <input type="date" value={pantryEditExpiresAt} onChange={(event) => setPantryEditExpiresAt(event.target.value)} />
+                </div>
+              </div>
+              <div className="field">
+                <span>Adjustment note</span>
+                <input value={pantryEditNote} onChange={(event) => setPantryEditNote(event.target.value)} placeholder="Why did this change?" />
+              </div>
+              <div className="action-row">
+                <button
+                  className="action-button"
+                  disabled={isPending}
+                  onClick={() => {
+                    setError(null);
+                    startTransition(() => {
+                      handleUpdatePantryItem().catch((err: unknown) => {
+                        setError(err instanceof Error ? err.message : "Unable to update pantry item.");
+                      });
+                    });
+                  }}
+                >
+                  Save pantry change
+                </button>
+              </div>
+
+              <div className="stack-list" style={{ marginTop: "16px" }}>
+                {pantryHistory.map((entry) => (
+                  <div className="stack-card" key={entry.id}>
+                    <div className="stack-card-header">
+                      <strong>{entry.kind}</strong>
+                      <span className="pill">{formatTimestamp(entry.occurredAtUtc)}</span>
+                    </div>
+                    <div className="muted">
+                      {entry.quantityDelta != null ? `${entry.quantityDelta > 0 ? "+" : ""}${formatQuantity(entry.quantityDelta, entry.unit)}` : "No quantity change"} • after {formatQuantity(entry.quantityAfter, entry.unit)}
+                    </div>
+                    {entry.sourceLabel ? <div className="muted">Source: {entry.sourceLabel}</div> : null}
+                    {entry.note ? <div className="muted">{entry.note}</div> : null}
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            <p className="muted" style={{ marginTop: "12px" }}>
+              Select a pantry item to edit quantities, update status, and review its recent activity.
+            </p>
+          )}
+        </article>
+      </section>
+
+      <div className="section-spacer" />
+
+      <section className="grid food-section-grid">
+        <article className="panel">
+          <div className="eyebrow">Shopping</div>
+          <div className="stack-card-header">
+            <h2 style={{ margin: 0 }}>{data.shoppingList.name}</h2>
+            <span className="pill">{data.shoppingList.items.filter((item) => !item.isCompleted).length} open</span>
+          </div>
+          <div className="grid" style={{ marginTop: "12px" }}>
+            <div className="field">
+              <span>Item</span>
+              <input value={shoppingName} onChange={(event) => setShoppingName(event.target.value)} />
+            </div>
+            <div className="field">
+              <span>Qty</span>
+              <input type="number" step="0.25" value={shoppingQuantity} onChange={(event) => setShoppingQuantity(event.target.value)} />
+            </div>
+            <div className="field">
+              <span>Unit</span>
+              <input value={shoppingUnit} onChange={(event) => setShoppingUnit(event.target.value)} />
+            </div>
+          </div>
+          <div className="field">
+            <span>Notes</span>
+            <input value={shoppingNotes} onChange={(event) => setShoppingNotes(event.target.value)} />
+          </div>
+          <div className="action-row">
+            <button
+              className="action-button"
+              disabled={isPending || !shoppingName.trim()}
+              onClick={() => {
+                setError(null);
+                startTransition(() => {
+                  handleAddShoppingItem().catch((err: unknown) => {
+                    setError(err instanceof Error ? err.message : "Unable to add shopping item.");
+                  });
+                });
+              }}
+            >
+              Add to list
+            </button>
+          </div>
+
+          <div className="stack-list" style={{ marginTop: "14px" }}>
+            {data.shoppingList.items.map((item) => (
+              <label className="stack-card" key={item.id}>
+                <div className="stack-card-header">
+                  <div style={{ flex: 1 }}>
+                    <strong style={{ textDecoration: item.isCompleted ? "line-through" : "none" }}>
+                      {item.ingredientName}
+                    </strong>
+                    <div className="muted">
+                      {formatQuantity(item.quantity, item.unit)}
+                      {item.sourceMealTitle ? ` • for ${item.sourceMealTitle}` : item.sourceRecipeTitle ? ` • from ${item.sourceRecipeTitle}` : ""}
+                    </div>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={item.isCompleted}
+                    onChange={(event) => {
+                      setError(null);
+                      startTransition(() => {
+                        handleToggleShoppingItem(item, event.target.checked).catch((err: unknown) => {
+                          setError(err instanceof Error ? err.message : "Unable to update shopping item.");
+                        });
+                      });
+                    }}
+                  />
+                </div>
+                {item.notes ? <div className="muted">{item.notes}</div> : null}
+              </label>
+            ))}
+          </div>
         </article>
 
         <article className="panel">
@@ -1191,7 +1606,7 @@ export function FoodHub() {
           <h2>Active sessions</h2>
           {data.activeCookingSessions.length === 0 ? (
             <p className="muted" style={{ marginTop: "12px" }}>
-              Start a cooking session from a recipe to get interactive mobile cooking mode plus a TV-ready display.
+              Start cooking from a recipe or meal plan to get total ingredients, recipe switching, pantry-aware deductions, and TV mode.
             </p>
           ) : (
             <div className="stack-list" style={{ marginTop: "12px" }}>
@@ -1201,10 +1616,11 @@ export function FoodHub() {
                     <div style={{ flex: 1 }}>
                       <strong>{session.title}</strong>
                       <div className="muted">
-                        Step {session.currentStepIndex + 1} of {session.totalStepCount} • {session.checkedIngredientCount}/{session.totalIngredientCount} ingredients checked
+                        {session.focusedRecipeTitle ? `${session.focusedRecipeTitle} • ` : ""}
+                        Step {session.currentStepIndex + 1} of {session.totalStepCount} • {session.checkedIngredientCount}/{session.totalIngredientCount} ingredients resolved
                       </div>
                     </div>
-                    <span className="pill">{session.pantryUpdateMode}</span>
+                    <span className="pill">{session.recipeCount} recipes</span>
                   </div>
                   <div className="action-row">
                     <Link className="action-button" href={`/app/food/cooking/${session.id}`}>

@@ -64,6 +64,259 @@ public class FoodServiceTests
     }
 
     [Fact]
+    public async Task SaveRecipeAsync_Creates_Manual_Household_Recipe()
+    {
+        await using var dbContext = CreateDbContext();
+        var nowUtc = new DateTimeOffset(2026, 4, 18, 12, 0, 0, TimeSpan.Zero);
+        var service = new FoodService(
+            dbContext,
+            new FakeHttpClientFactory(new HttpClient(new StubHttpHandler(string.Empty))));
+
+        var recipe = await service.SaveRecipeAsync(
+            HouseholdId,
+            UserId,
+            new SaveRecipeRequest(
+                ImportJobId: null,
+                Title: "Family Pancakes",
+                Summary: "Weekend breakfast",
+                YieldText: "4 servings",
+                Tags: "breakfast",
+                Notes: "Add vanilla",
+                Ingredients:
+                [
+                    new RecipeEditableIngredientRequest("Flour", 2, "cups", null, false),
+                    new RecipeEditableIngredientRequest("Eggs", 2, "count", null, false)
+                ],
+                Steps:
+                [
+                    new RecipeEditableStepRequest(1, "Whisk the batter."),
+                    new RecipeEditableStepRequest(2, "Cook on a griddle.")
+                ]),
+            nowUtc,
+            CancellationToken.None);
+
+        Assert.Equal("Family Pancakes", recipe.Title);
+        Assert.Equal("Manual", recipe.Source?.Kind);
+        Assert.Equal(2, recipe.HouseholdDefaultRevision.Ingredients.Count);
+        Assert.Equal(2, recipe.RevisionCount);
+    }
+
+    [Fact]
+    public async Task UpdateRecipeAsync_Creates_New_Household_Default_Revision()
+    {
+        await using var dbContext = CreateDbContext();
+        var nowUtc = new DateTimeOffset(2026, 4, 18, 12, 0, 0, TimeSpan.Zero);
+        var service = new FoodService(
+            dbContext,
+            new FakeHttpClientFactory(new HttpClient(new StubHttpHandler(string.Empty))));
+
+        var recipe = await CreateRecipeAsync(service, nowUtc, "Family Chili", "Beans", 2);
+
+        var updated = await service.UpdateRecipeAsync(
+            HouseholdId,
+            recipe.Id,
+            UserId,
+            new UpdateRecipeRequest(
+                Title: "Family Chili",
+                Summary: "Weeknight favorite",
+                YieldText: "6 servings",
+                Tags: "dinner, favorite",
+                Notes: "Use smoked paprika",
+                Ingredients:
+                [
+                    new RecipeEditableIngredientRequest("Beans", 3, "cans", null, false),
+                    new RecipeEditableIngredientRequest("Ground turkey", 1, "lb", null, false)
+                ],
+                Steps:
+                [
+                    new RecipeEditableStepRequest(1, "Brown the turkey."),
+                    new RecipeEditableStepRequest(2, "Simmer with beans.")
+                ]),
+            nowUtc.AddMinutes(5),
+            CancellationToken.None);
+
+        Assert.NotNull(updated);
+        Assert.Equal(3, updated!.RevisionCount);
+        Assert.Equal("Weeknight favorite", updated.Summary);
+        Assert.Equal(2, updated.HouseholdDefaultRevision.Steps.Count);
+        Assert.Equal(3, updated.HouseholdDefaultRevision.Ingredients[0].Quantity);
+        Assert.Equal("cans", updated.HouseholdDefaultRevision.Ingredients[0].Unit);
+        Assert.Equal("Family Chili", updated.ImportedSourceRevision.Title);
+    }
+
+    [Fact]
+    public async Task CreateMealPlanSlotAsync_Allows_Multiple_Recipes_Per_Meal()
+    {
+        await using var dbContext = CreateDbContext();
+        var nowUtc = new DateTimeOffset(2026, 4, 18, 12, 0, 0, TimeSpan.Zero);
+        var service = new FoodService(
+            dbContext,
+            new FakeHttpClientFactory(new HttpClient(new StubHttpHandler(string.Empty))));
+
+        var tacos = await CreateRecipeAsync(service, nowUtc, "Chicken Tacos", "Chicken", 1);
+        var rice = await CreateRecipeAsync(service, nowUtc, "Cilantro Rice", "Rice", 1);
+
+        var slot = await service.CreateMealPlanSlotAsync(
+            HouseholdId,
+            new CreateMealPlanSlotRequest(
+                RecipeId: null,
+                Date: new DateOnly(2026, 4, 18),
+                SlotName: "Dinner",
+                Title: "Taco night",
+                Notes: "Use leftovers for lunch",
+                GenerateShoppingList: false,
+                Recipes:
+                [
+                    new CreateMealPlanRecipeRequest(tacos.Id, "Main"),
+                    new CreateMealPlanRecipeRequest(rice.Id, "Side")
+                ]),
+            nowUtc,
+            CancellationToken.None);
+
+        Assert.NotNull(slot);
+        Assert.Equal("Taco night", slot!.Title);
+        Assert.Equal(2, slot.Recipes.Count);
+        Assert.Equal("Main", slot.Recipes[0].Role);
+        Assert.Equal("Side", slot.Recipes[1].Role);
+    }
+
+    [Fact]
+    public async Task StartCookingSessionAsync_ForMealSlot_Returns_Multiple_Recipes_And_TotalIngredients()
+    {
+        await using var dbContext = CreateDbContext();
+        var nowUtc = new DateTimeOffset(2026, 4, 18, 12, 0, 0, TimeSpan.Zero);
+        var service = new FoodService(
+            dbContext,
+            new FakeHttpClientFactory(new HttpClient(new StubHttpHandler(string.Empty))));
+
+        var tacos = await CreateRecipeAsync(service, nowUtc, "Chicken Tacos", "Chicken", 1);
+        var salsa = await CreateRecipeAsync(service, nowUtc, "Fresh Salsa", "Tomato", 2);
+
+        var mealSlot = await service.CreateMealPlanSlotAsync(
+            HouseholdId,
+            new CreateMealPlanSlotRequest(
+                RecipeId: null,
+                Date: new DateOnly(2026, 4, 18),
+                SlotName: "Dinner",
+                Title: "Taco night",
+                Notes: null,
+                GenerateShoppingList: false,
+                Recipes:
+                [
+                    new CreateMealPlanRecipeRequest(tacos.Id, "Main"),
+                    new CreateMealPlanRecipeRequest(salsa.Id, "Sauce")
+                ]),
+            nowUtc,
+            CancellationToken.None);
+
+        var session = await service.StartCookingSessionAsync(
+            HouseholdId,
+            UserId,
+            new StartCookingSessionRequest(
+                RecipeId: null,
+                MealPlanSlotId: mealSlot!.Id,
+                PantryUpdateMode: PantryUpdateModes.Progressive),
+            nowUtc,
+            CancellationToken.None);
+
+        Assert.Equal("Taco night", session.Title);
+        Assert.Equal(2, session.RecipeCount);
+        Assert.Equal(2, session.Recipes.Count);
+        Assert.Contains(session.TotalIngredients, item => item.IngredientName.Contains("Chicken", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal("Chicken Tacos", session.Recipes[0].Title);
+    }
+
+    [Fact]
+    public async Task CreateMealPlanSlotAsync_GenerateShoppingList_Combines_Compatible_Ingredients_And_Separates_Uncertain_Units()
+    {
+        await using var dbContext = CreateDbContext();
+        var nowUtc = new DateTimeOffset(2026, 4, 18, 12, 0, 0, TimeSpan.Zero);
+        var service = new FoodService(
+            dbContext,
+            new FakeHttpClientFactory(new HttpClient(new StubHttpHandler(string.Empty))));
+
+        var tacos = await service.SaveRecipeAsync(
+            HouseholdId,
+            UserId,
+            new SaveRecipeRequest(
+                ImportJobId: null,
+                Title: "Chicken Tacos",
+                Summary: null,
+                YieldText: "4 servings",
+                Tags: null,
+                Notes: null,
+                Ingredients:
+                [
+                    new RecipeEditableIngredientRequest("Chicken", 1, "lb", null, false),
+                    new RecipeEditableIngredientRequest("Cilantro", 1, "bunch", null, false)
+                ],
+                Steps:
+                [
+                    new RecipeEditableStepRequest(1, "Cook the chicken.")
+                ]),
+            nowUtc,
+            CancellationToken.None);
+
+        var salsa = await service.SaveRecipeAsync(
+            HouseholdId,
+            UserId,
+            new SaveRecipeRequest(
+                ImportJobId: null,
+                Title: "Fresh Salsa",
+                Summary: null,
+                YieldText: "4 servings",
+                Tags: null,
+                Notes: null,
+                Ingredients:
+                [
+                    new RecipeEditableIngredientRequest("Chicken", 2, "lb", null, false),
+                    new RecipeEditableIngredientRequest("Cilantro", null, null, null, false)
+                ],
+                Steps:
+                [
+                    new RecipeEditableStepRequest(1, "Mix the salsa.")
+                ]),
+            nowUtc,
+            CancellationToken.None);
+
+        var slot = await service.CreateMealPlanSlotAsync(
+            HouseholdId,
+            new CreateMealPlanSlotRequest(
+                RecipeId: null,
+                Date: new DateOnly(2026, 4, 19),
+                SlotName: "Dinner",
+                Title: "Taco night",
+                Notes: null,
+                GenerateShoppingList: true,
+                Recipes:
+                [
+                    new CreateMealPlanRecipeRequest(tacos.Id, "Main"),
+                    new CreateMealPlanRecipeRequest(salsa.Id, "Sauce")
+                ]),
+            nowUtc,
+            CancellationToken.None);
+
+        Assert.NotNull(slot);
+
+        var shoppingItems = await dbContext.ShoppingListItems
+            .OrderBy(item => item.IngredientName)
+            .ToListAsync();
+
+        var chicken = Assert.Single(shoppingItems.Where(item =>
+            item.NormalizedIngredientName == "chicken" && item.Unit == "lb"));
+        Assert.Equal(3, chicken.Quantity);
+        Assert.Contains("Chicken Tacos", chicken.SourceRecipeTitle ?? string.Empty, StringComparison.Ordinal);
+        Assert.Contains("Fresh Salsa", chicken.SourceRecipeTitle ?? string.Empty, StringComparison.Ordinal);
+
+        var cilantroItems = shoppingItems
+            .Where(item => item.NormalizedIngredientName == "cilantro")
+            .ToList();
+        Assert.Equal(2, cilantroItems.Count);
+        Assert.Contains(cilantroItems, item => item.Unit == "bunch" && item.Quantity == 1);
+        Assert.Contains(cilantroItems, item => item.Unit is null && item.Quantity is null);
+    }
+
+    [Fact]
     public async Task UpdateCookingIngredientAsync_Uses_Actual_Quantity_And_Reverses_Previous_Deduction()
     {
         await using var dbContext = CreateDbContext();
@@ -156,11 +409,11 @@ public class FoodServiceTests
         var session = await service.StartCookingSessionAsync(
             HouseholdId,
             UserId,
-            new StartCookingSessionRequest(recipeId, PantryUpdateModes.Progressive),
+            new StartCookingSessionRequest(recipeId, null, PantryUpdateModes.Progressive),
             nowUtc,
             CancellationToken.None);
 
-        var ingredient = Assert.Single(session.Ingredients);
+        var ingredient = Assert.Single(session.Recipes[0].Ingredients);
 
         await service.UpdateCookingIngredientAsync(
             HouseholdId,
@@ -183,6 +436,38 @@ public class FoodServiceTests
 
         var afterEdit = await dbContext.PantryItems.SingleAsync(item => item.Id == pantryItem.Id);
         Assert.Equal(2, afterEdit.Quantity);
+
+        var historyCount = await dbContext.PantryItemActivities.CountAsync(item => item.PantryItemId == pantryItem.Id);
+        Assert.True(historyCount >= 2);
+    }
+
+    private static async Task<RecipeDetailResponse> CreateRecipeAsync(
+        FoodService service,
+        DateTimeOffset nowUtc,
+        string title,
+        string ingredientName,
+        decimal quantity)
+    {
+        return await service.SaveRecipeAsync(
+            HouseholdId,
+            UserId,
+            new SaveRecipeRequest(
+                ImportJobId: null,
+                Title: title,
+                Summary: null,
+                YieldText: "4 servings",
+                Tags: null,
+                Notes: null,
+                Ingredients:
+                [
+                    new RecipeEditableIngredientRequest(ingredientName, quantity, "count", null, false)
+                ],
+                Steps:
+                [
+                    new RecipeEditableStepRequest(1, $"Cook the {ingredientName}.")
+                ]),
+            nowUtc,
+            CancellationToken.None);
     }
 
     private static HouseholdOpsDbContext CreateDbContext()
