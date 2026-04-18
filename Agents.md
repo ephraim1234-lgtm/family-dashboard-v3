@@ -4,31 +4,13 @@
 
 This repository is for a self-hosted household operations platform.
 
-The long-term vision is broader than the current implementation scope, but the codebase must remain disciplined and incremental. Preserve awareness of future domains without scaffolding them prematurely.
+Keep the codebase disciplined and incremental. Preserve awareness of future domains without scaffolding them early.
 
-This file should help the coding agent make forward progress, not just preserve the current state.
+Use this file for durable repository rules. Put repeated procedural detail in shared skills under `.agents/skills/`.
 
----
-
-## Working model
-
-The product has:
-
-- active core areas that must remain healthy
-- active expansion areas that are approved for real implementation work
-- future candidate areas that should influence planning, but not implementation unless explicitly activated
-
-The active implementation scope is expected to evolve over time.
-
-When the product meaningfully progresses, this file and related product/architecture docs should be updated to reflect that reality.
-
----
-
-## Current active implementation scope
+## Product scope
 
 ### Active core
-
-These remain foundational and should stay coherent as the platform grows:
 
 - Households
 - Identity/Auth
@@ -38,83 +20,29 @@ These remain foundational and should stay coherent as the platform grows:
 - Administration
 - Worker foundation
 
-These are the core product surfaces and enabling infrastructure.
-
-### Active expansion track
-
-These are approved next implementation areas. They are not just ideas to remember. They are legitimate areas for actual feature delivery when the current task calls for forward progress:
+### Active expansion
 
 - Notifications / Reminders
-- Calendar Integrations
+- Calendar integrations
 - Chores / Routines
 
-These should be implemented incrementally and pragmatically, without overgeneralizing for distant future domains.
+### Existing but not expansion-driving surface
 
----
+- Notes exists in the current codebase as a lightweight implemented surface.
+- Maintain Notes coherently when touched, but do not use it as justification for broader document or knowledge-management abstractions.
 
-## Current product emphasis
+### Future domains
 
-The platform should continue improving the current core where necessary, but it should not remain stuck in permanent MVP refinement.
+- Food operations
+- Household documents
+- Maintenance tracking
+- Budgeting / bills
 
-Once the core is sufficiently stable for a task area, prefer moving into the active expansion track rather than repeatedly polishing low-leverage details.
+Future domains should influence naming and boundaries, not trigger speculative code.
 
-Good examples of forward progress:
+## Required summary before non-trivial work
 
-- adding useful reminder flows tied to scheduling
-- implementing a first narrow external calendar sync path
-- adding a basic recurring chores/routines capability
-- improving display usefulness in support of newly active product areas
-
-Less desirable behavior:
-
-- endlessly reworking current modules without unlocking meaningful new user value
-- introducing broad abstractions instead of shipping the next narrow capability
-- treating every future-facing concern as a reason to defer implementation
-
----
-
-- household membership and context
-- scheduling and calendar events
-- one-way external calendar import foundation
-- recurrence support
-- display devices and display projections
-- admin/configuration for the above
-
-## Future domains exist, but are not current implementation scope
-
-Examples of future domains include:
-
-- food operations
-  - recipes
-  - meal planning
-  - pantry
-  - shopping
-  - cooking
-- household notes
-- household documents
-- maintenance tracking
-- budgeting / bills
-
-These future domains are intentionally documented in repo docs, but they must NOT be scaffolded or abstracted for unless the task explicitly calls for them.
-
-Use them to maintain good naming and module boundary discipline, not to justify speculative code.
-
----
-
-## Required behavior before non-trivial work
-
-Plan before coding for tasks that affect:
-
-- architecture
-- auth/session behavior
-- recurrence/date-time semantics
-- display projections or display access
-- worker behavior
-- cross-module contracts
-- database design or migrations
-- activation of a new expansion area
-
-For those tasks, first summarize briefly:
+Before work that affects architecture, auth/session behavior, recurrence/date-time semantics, display projections/access, worker behavior, cross-module contracts, database design/migrations, or activation of a new expansion area, briefly summarize:
 
 - goal
 - modules/files likely affected
@@ -127,87 +55,34 @@ For those tasks, first summarize briefly:
 
 Then implement in small, reviewable steps.
 
----
-
-## Working rules
+## Architecture rules
 
 - Keep the backend modular-monolith-first.
 - Keep meaningful changes deployable through Docker.
-- Prefer runtime validation through Docker when runtime testing is relevant, especially when host SDK/tooling validation is unreliable.
-- When runtime validation is relevant, prefer exposing the API on port `3001` and test the real running system rather than relying only on host SDK builds.
-- Use Playwright/browser automation only when the user explicitly asks for it.
-- Favor host-portable project setup over machine-specific local tooling assumptions.
 - Do not introduce new services without clear justification.
-- Do not scaffold future modules unless explicitly requested or they have been promoted into the active expansion track.
-- Do not introduce speculative abstractions to support possible future domains.
-- Use documented future domains only to avoid painting the architecture into a corner.
-- When a current design decision could affect future domains, note the tradeoff briefly, but keep implementation centered on the active scope.
-- Prefer explicit ADRs or short design notes over speculative code.
-- Prefer small, reviewable changes over large scaffolds.
-- Avoid generic repositories, generic service bases, and speculative extension points.
-- Date/time and recurrence logic must be test-backed.
-- Display must consume explicit display projection/read-model endpoints, not raw operational queries from the frontend.
+- Do not scaffold future modules unless explicitly requested or intentionally promoted into active scope.
+- Do not introduce speculative abstractions, generic repositories, generic service bases, or broad extension points.
 - Use explicit request/response contracts instead of exposing persistence models directly.
-- Keep repo guidance/docs in sync when engineering rules, product reality, roadmap status, or deferred ideas materially change.
-- Future external calendar integration work should remember likely Google OAuth env vars such as `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
-- Future external calendar integration work should also assume some OAuth callback and sync-management flows may require hosted-environment testing, not only the local Docker loop.
+- Keep module ownership clear. Cross-module use should happen through explicit contracts or query boundaries.
 
----
+## Stack rules
 
-## Implementation bias
-
-When asked to choose the next sensible task, prefer in this order:
-
-1. unblock or stabilize a core area that prevents progress
-2. deliver a narrow slice in an active expansion area
-3. improve ergonomics of an already-active feature that is clearly limiting usage
-4. update docs to match real product evolution
-
-Do not default to cosmetic refactors or deeper abstractions when a concrete feature slice can be shipped instead.
-
----
-
-## Current architectural direction
-
-- Backend: ASP.NET Core
-- Frontend: Next.js
-- Database: PostgreSQL
+- Backend: ASP.NET Core minimal APIs with module route groups and infrastructure-backed services
+- Frontend: Next.js App Router with app, admin, and display shells
+- Database: PostgreSQL through EF Core + Npgsql
 - Hosting: self-hosted
 - Client strategy: web-only for now
-- Architecture: modular monolith core + one worker/service
 - Display access: tokenized / kiosk-style
 
----
+## Validation rules
 
-## Active backend module areas
+- Prefer runtime validation through Docker when runtime testing is relevant.
+- Prefer exposing the API on port `3001` for local validation unless the user asks otherwise.
+- Prefer targeted tests and builds first, then Docker runtime checks for behavior-sensitive changes.
+- Date/time and recurrence logic must be test-backed.
+- Display must consume explicit display projection/read-model endpoints, not raw operational queries from the frontend.
 
-Core active areas:
-
-- Households
-- Identity
-- Integrations
-- Scheduling
-- Display
-- Administration
-
-Active expansion areas:
-
-- Notifications
-- Chores
-
-Reserved future module areas include:
-
-- Food
-- Notes
-- Documents
-- Maintenance
-- Finance/Bills
-
-Active expansion areas may receive real implementation. Reserved future areas should not receive speculative code.
-
----
-
-## High-risk areas requiring extra care
+## High-risk areas
 
 Stop and summarize tradeoffs before major changes in:
 
@@ -220,28 +95,35 @@ Stop and summarize tradeoffs before major changes in:
 - sync/conflict ownership for external calendar integration
 - reminder scheduling semantics
 
----
+## Documentation rules
 
-## Documentation usage
+- Before major architecture changes, consult:
+  - `docs/product/vision.md`
+  - `docs/product/domain-roadmap.md`
+  - `docs/architecture/module-boundaries.md`
+- Keep repo guidance and product docs in sync when product reality or engineering rules materially change.
 
-Before making major architecture changes, consult:
+## Codex skill usage
 
-- `docs/product/vision.md`
-- `docs/product/domain-roadmap.md`
-- `docs/architecture/module-boundaries.md`
+- Shared repository skills live in `.agents/skills/`.
+- Use the approved repo skills when their trigger conditions match instead of rewriting the same workflow in prompts.
+- Keep `AGENTS.md` concise and durable; keep detailed repeated procedures in skills and their references.
 
-Use those docs to preserve long-term intent, but only implement areas explicitly in the active scope for the current task.
+## Docker-first defaults
 
----
+- Use Docker Compose from the repository root for runtime validation.
+- Standard local validation ports are:
+  - API: `3001`
+  - Web: `3000`
+- Keep checked-in examples sanitized. Never commit real `.env` files, OAuth secrets, or live display tokens.
 
-## Active-scope maintenance rule
+## Implementation bias
 
-This file should be updated when any of the following become true:
+When choosing the next sensible task, prefer:
 
-- a future candidate becomes an active expansion area
-- an expansion area becomes part of stable core product reality
-- the actual codebase/product behavior materially diverges from the current docs
-- a new domain/module is intentionally activated
+1. unblock or stabilize a core area that prevents progress
+2. deliver a narrow slice in an active expansion area
+3. improve ergonomics of an already-active feature that is clearly limiting usage
+4. update docs to match real product evolution
 
-Do not let the documented active implementation scope become stale.
-
+Do not default to cosmetic refactors or deeper abstractions when a concrete feature slice can be shipped instead.

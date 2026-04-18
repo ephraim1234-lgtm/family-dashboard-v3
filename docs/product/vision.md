@@ -27,8 +27,9 @@ The current product core is intentionally centered on:
 - recurring events
 - display / ambient household visibility
 - administration and configuration
+- integrations, reminders, chores, and notes in narrow practical slices
 
-This is the first real product boundary and should remain the implementation center until it is stable enough to support expansion.
+This is the first real product boundary and should remain the implementation center, but the codebase has already moved beyond pure bootstrap and now includes adjacent narrow slices where they materially support household use.
 
 ## Why this core comes first
 
@@ -70,7 +71,32 @@ These are the most likely and most appropriate adjacent expansions after the ini
 
 Calendar integrations are now actively underway with a narrow first slice focused on disciplined one-way import rather than broad sync.
 
+Current narrow implemented support already exists in these areas.
+
+Notes also exists as a lightweight support surface, but it should remain intentionally narrow and should not be treated as activation of a full documents or knowledge-management domain.
+
 They should still be built in narrow, disciplined slices.
+
+## Current maturity posture
+
+Several adjacent domains are now implemented enough to use, but not mature enough to treat as complete:
+
+- Notes is implemented as a practical household pinboard and shared-information surface, not as a generalized documents or knowledge-management domain.
+- Calendar integrations is implemented as a disciplined one-way Google import slice with OAuth linking, managed links, and worker sync, not as a broad integration platform.
+- Reminders is implemented as an event-reminder slice with worker processing and household visibility, not as a broad notification system.
+- Chores is implemented as a focused recurring-operations slice with assignment and completion tracking, not as a generalized task-management platform.
+
+The next stage is not to widen these into abstract platforms. It is to deepen each one until the current active product boundary feels coherent for real household use.
+
+## Current finishing bias
+
+When deciding what to "finish" next inside the active product boundary, bias toward:
+
+1. Scheduling ergonomics, because Scheduling remains the center of day-to-day use.
+2. Reminder triage and review flows, so the current reminder slice becomes operationally useful.
+3. Calendar-integration hardening and import refinement, so one-way sync stays trustworthy.
+4. Chore workflow depth, so chores feel like a dependable household-ops tool instead of a thin list.
+5. Notes ergonomics only as a supporting household surface, without promoting it into a broader documents domain.
 
 ## Future domains under consideration
 
@@ -90,7 +116,6 @@ These are meaningful future product areas that may become real modules later:
 - completion tracking
 
 ### Communication and memory
-- household notes
 - shared reference information
 - household documents
 

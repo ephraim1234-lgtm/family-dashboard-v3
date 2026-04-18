@@ -67,6 +67,8 @@ type GoogleOAuthCalendarListResponse = {
   items: GoogleOAuthCalendarSummary[];
 };
 
+type LinkReviewFilter = "All" | "NeedsAttention" | "Healthy" | "AutoOff";
+
 export function AdminCalendarIntegrationsPanel() {
   const { isOwner, isLoading: isSessionLoading } = useAdminOwnerSession();
   const [displayName, setDisplayName] = useState("Family Google Calendar");
@@ -78,6 +80,7 @@ export function AdminCalendarIntegrationsPanel() {
   const [recommendedRedirectUri, setRecommendedRedirectUri] = useState<string | null>(null);
   const [oauthMessage, setOauthMessage] = useState<string | null>(null);
   const [calendarLinkingKey, setCalendarLinkingKey] = useState<string | null>(null);
+  const [linkReviewFilter, setLinkReviewFilter] = useState<LinkReviewFilter>("All");
   const [syncSettings, setSyncSettings] = useState<Record<string, {
     autoSyncEnabled: boolean;
     syncIntervalMinutes: number;
@@ -490,6 +493,24 @@ export function AdminCalendarIntegrationsPanel() {
     );
   }
 
+  const healthyLinks = links.filter((link) => link.lastSyncStatus === "Succeeded");
+  const attentionLinks = links.filter(
+    (link) => link.lastSyncStatus === "Failed" || link.lastSyncError != null
+  );
+  const autoSyncPausedLinks = links.filter((link) => !link.autoSyncEnabled);
+  const filteredLinks = links.filter((link) => {
+    switch (linkReviewFilter) {
+      case "NeedsAttention":
+        return link.lastSyncStatus === "Failed" || link.lastSyncError != null;
+      case "Healthy":
+        return link.lastSyncStatus === "Succeeded";
+      case "AutoOff":
+        return !link.autoSyncEnabled;
+      default:
+        return true;
+    }
+  });
+
   return (
     <section className="grid">
       <article className="panel">
@@ -686,8 +707,9 @@ export function AdminCalendarIntegrationsPanel() {
       <article className="panel">
         <h2>Linked Google calendars</h2>
         {links.length > 0 ? (() => {
-          const healthyCount = links.filter((l) => l.lastSyncStatus === "Succeeded").length;
-          const errorCount = links.filter((l) => l.lastSyncStatus === "Failed").length;
+          const healthyCount = healthyLinks.length;
+          const errorCount = attentionLinks.length;
+          const autoOffCount = autoSyncPausedLinks.length;
           const lastCompleted = links
             .map((l) => l.lastSyncCompletedAtUtc)
             .filter((t): t is string => t != null)
@@ -701,6 +723,7 @@ export function AdminCalendarIntegrationsPanel() {
                   <div className="muted" style={{ fontSize: "0.82rem" }}>
                     {links.length} linked &middot; {healthyCount} healthy
                     {errorCount > 0 ? ` · ${errorCount} in error` : ""}
+                    {autoOffCount > 0 ? ` · ${autoOffCount} auto-sync paused` : ""}
                   </div>
                   <div className="muted" style={{ fontSize: "0.82rem" }}>
                     Last successful sync{" "}
@@ -719,11 +742,47 @@ export function AdminCalendarIntegrationsPanel() {
             </div>
           );
         })() : null}
+        {links.length > 0 ? (
+          <div className="pill-row" style={{ marginBottom: "12px" }}>
+            <button
+              className={linkReviewFilter === "All" ? "pill-button pill-button-active" : "pill-button"}
+              onClick={() => setLinkReviewFilter("All")}
+              type="button"
+            >
+              All ({links.length})
+            </button>
+            <button
+              className={linkReviewFilter === "NeedsAttention" ? "pill-button pill-button-active" : "pill-button"}
+              onClick={() => setLinkReviewFilter("NeedsAttention")}
+              type="button"
+            >
+              Needs attention ({attentionLinks.length})
+            </button>
+            <button
+              className={linkReviewFilter === "Healthy" ? "pill-button pill-button-active" : "pill-button"}
+              onClick={() => setLinkReviewFilter("Healthy")}
+              type="button"
+            >
+              Healthy ({healthyLinks.length})
+            </button>
+            <button
+              className={linkReviewFilter === "AutoOff" ? "pill-button pill-button-active" : "pill-button"}
+              onClick={() => setLinkReviewFilter("AutoOff")}
+              type="button"
+            >
+              Auto sync off ({autoSyncPausedLinks.length})
+            </button>
+          </div>
+        ) : null}
         {links.length === 0 ? (
           <p className="muted">No Google calendars have been linked yet.</p>
+        ) : filteredLinks.length === 0 ? (
+          <p className="muted">
+            No linked calendars match the current review filter.
+          </p>
         ) : (
           <div className="stack-list">
-            {links.map((link) => (
+            {filteredLinks.map((link) => (
               <div className="stack-card" key={link.id}>
                 {syncSettings[link.id] == null ? null : (
                   <>

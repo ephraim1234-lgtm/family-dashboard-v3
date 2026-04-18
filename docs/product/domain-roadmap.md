@@ -140,11 +140,37 @@ This is partly a dedicated functional area and partly an application-layer group
 
 ---
 
+### Notes
+
+**Purpose**
+Provide lightweight shared household notes and pinned information without turning into a generalized document platform.
+
+**Likely responsibilities**
+- shared notes
+- pinned notes or messages
+- simple household information capture
+- note-management workflows
+
+**Likely key entities**
+- Note
+
+**Current scope**
+Implemented support surface, kept intentionally narrow.
+
+**Notes**
+Do not use this as evidence that Documents or broader knowledge-management work should be activated.
+
+**Target maturity inside current product scope**
+- make note capture, pinning, editing, and visibility feel complete for lightweight household coordination
+- support practical shared-information use without introducing document storage, attachments, or knowledge-base abstractions
+
+---
+
 ## Active expansion domains
 
 These are approved next implementation areas.
 
-They should be built in narrow, useful slices once the current task justifies forward feature movement. They are not merely “maybe later” ideas.
+They should be built in narrow, useful slices once the current task justifies forward feature movement. They are not merely "maybe later" ideas.
 
 ### Notifications / Reminders
 
@@ -176,6 +202,17 @@ Active expansion.
 
 **Implementation bias**
 Prefer a narrow first slice such as event reminders or a simple household digest before broader notification infrastructure.
+
+**Current implemented slice**
+- event reminders tied to scheduled events
+- reminder persistence and due-time processing in the worker
+- admin reminder management visibility
+- reminder-aware display projection support
+
+**Target maturity inside current product scope**
+- clearer pending vs overdue vs fired review states
+- stronger owner triage flows in Admin and stronger member-facing triage on the app home surface
+- dependable reminder ergonomics before any expansion into broader delivery channels
 
 ---
 
@@ -255,6 +292,10 @@ Prefer a first narrow provider path and clear sync ownership before broad integr
 - broader external recurrence support beyond the current narrow subset
 - bidirectional sync and conflict resolution
 
+**Target maturity inside current product scope**
+- make the current one-way Google path trustworthy, understandable, and low-friction for owners
+- improve sync hardening, import transparency, and narrow recurrence coverage without turning Integrations into a generalized provider platform
+
 ---
 
 ### Chores / Routines
@@ -284,6 +325,17 @@ Active expansion.
 
 **Implementation bias**
 Prefer a basic recurring chores/routines model with clear ownership and simple completion flows before richer engagement ideas.
+
+**Current implemented slice**
+- recurring chores with household or member assignment
+- completion tracking
+- owner/admin management flows
+- chore insight and admin-summary support
+
+**Target maturity inside current product scope**
+- make recurring household chores dependable for daily use
+- improve assignment, completion visibility, and lightweight operational insight
+- keep the domain focused on household operations rather than generic work-management patterns
 
 ---
 
@@ -317,6 +369,14 @@ One broad Food module at first, with subdomains inside it rather than separate e
 - predictive shopping logic
 - generalized inventory engine
 - overly abstract food domain hierarchy
+
+---
+
+## Notes / shared information status
+
+Lightweight Notes support is implemented already.
+
+Broader shared-information, document-management, and household knowledge-base capabilities remain future scope and should only be activated intentionally.
 
 **Status**
 Future candidate, not active.
@@ -428,3 +488,4 @@ A future candidate should be promoted to active expansion when:
 An active expansion area may later be treated as part of the active core once it becomes a stable, ongoing part of normal product reality.
 
 This document should be updated as that progression occurs.
+

@@ -6,8 +6,7 @@ COPY src/backend ./src/backend
 RUN dotnet restore ./src/backend/HouseholdOps.Worker/HouseholdOps.Worker.csproj
 RUN dotnet publish ./src/backend/HouseholdOps.Worker/HouseholdOps.Worker.csproj -c Release -o /app/publish
 
-FROM mcr.microsoft.com/dotnet/runtime:9.0
+FROM mcr.microsoft.com/dotnet/aspnet:9.0
 WORKDIR /app
 COPY --from=build /app/publish .
 ENTRYPOINT ["dotnet", "HouseholdOps.Worker.dll"]
-

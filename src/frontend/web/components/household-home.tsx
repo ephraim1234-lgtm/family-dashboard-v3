@@ -1,6 +1,12 @@
 "use client";
 
 import { useEffect, useState, useTransition, useCallback } from "react";
+import {
+  applySuggestedEnd,
+  buildMemberEventRequest,
+  createDefaultMemberEventDraft,
+  getMemberEventValidationIssues
+} from "./member-event-draft";
 import { useAdminOwnerSession } from "./use-admin-owner-session";
 
 type HouseholdMemberOption = {
@@ -111,7 +117,38 @@ function formatWeekdayShort(dateStr: string): string {
   return d.toLocaleDateString([], { weekday: "short" });
 }
 
+function formatReminderDueLabel(utc: string): string {
+  const due = new Date(utc);
+  return (
+    due.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }) +
+    " " +
+    due.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+  );
+}
+
+function formatReminderTriageState(utc: string): string {
+  const deltaMinutes = Math.round((new Date(utc).getTime() - Date.now()) / 60_000);
+
+  if (deltaMinutes < 0) {
+    const overdueMinutes = Math.abs(deltaMinutes);
+    if (overdueMinutes < 60) return `Overdue by ${overdueMinutes} min`;
+    if (overdueMinutes % 60 === 0) return `Overdue by ${overdueMinutes / 60} hr`;
+    return `Overdue by ${overdueMinutes} min`;
+  }
+
+  if (deltaMinutes < 60) return `Due in ${deltaMinutes} min`;
+  if (deltaMinutes % 60 === 0) return `Due in ${deltaMinutes / 60} hr`;
+  return `Due in ${deltaMinutes} min`;
+}
+
 export function HouseholdHome() {
+  const initialEventDraft = {
+    title: "",
+    isAllDay: false,
+    allDayDate: "",
+    startsAtLocal: "",
+    endsAtLocal: ""
+  };
   const [data, setData] = useState<HomeResponse | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -132,14 +169,36 @@ export function HouseholdHome() {
 
   // Event creation state
   const [showEventForm, setShowEventForm] = useState(false);
-  const [eventTitle, setEventTitle] = useState("");
+  const [eventTitle, setEventTitle] = useState(initialEventDraft.title);
   const [eventDesc, setEventDesc] = useState("");
-  const [eventAllDay, setEventAllDay] = useState(false);
-  const [eventStart, setEventStart] = useState("");
-  const [eventEnd, setEventEnd] = useState("");
+  const [eventAllDay, setEventAllDay] = useState(initialEventDraft.isAllDay);
+  const [eventAllDayDate, setEventAllDayDate] = useState(initialEventDraft.allDayDate);
+  const [eventStart, setEventStart] = useState(initialEventDraft.startsAtLocal);
+  const [eventEnd, setEventEnd] = useState(initialEventDraft.endsAtLocal);
 
   // Success messages
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const eventValidationIssues = getMemberEventValidationIssues({
+    title: eventTitle,
+    isAllDay: eventAllDay,
+    allDayDate: eventAllDayDate,
+    startsAtLocal: eventStart,
+    endsAtLocal: eventEnd
+  });
+
+  function resetEventDraft() {
+    const nextDraft = createDefaultMemberEventDraft();
+    setEventTitle(nextDraft.title);
+    setEventDesc("");
+    setEventAllDay(nextDraft.isAllDay);
+    setEventAllDayDate(nextDraft.allDayDate);
+    setEventStart(nextDraft.startsAtLocal);
+    setEventEnd(nextDraft.endsAtLocal);
+  }
+
+  useEffect(() => {
+    resetEventDraft();
+  }, []);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/app/home", {
@@ -374,13 +433,14 @@ export function HouseholdHome() {
 
   // ── Event creation ──
   async function addEvent() {
-    const body = {
-      title: eventTitle.trim(),
-      description: eventDesc.trim() || null,
+    const body = buildMemberEventRequest({
+      title: eventTitle,
+      description: eventDesc,
       isAllDay: eventAllDay,
-      startsAtUtc: eventStart ? new Date(eventStart).toISOString() : null,
-      endsAtUtc: eventEnd ? new Date(eventEnd).toISOString() : null,
-    };
+      allDayDate: eventAllDayDate,
+      startsAtLocal: eventStart,
+      endsAtLocal: eventEnd,
+    });
     const res = await fetch("/api/scheduling/events/member", {
       method: "POST",
       credentials: "same-origin",
@@ -391,18 +451,14 @@ export function HouseholdHome() {
       const text = await res.text();
       throw new Error(text || `Request failed with ${res.status}.`);
     }
-    setEventTitle("");
-    setEventDesc("");
-    setEventAllDay(false);
-    setEventStart("");
-    setEventEnd("");
+    resetEventDraft();
     setShowEventForm(false);
     showSuccess("Event added.");
     await refresh();
   }
 
   function handleAddEvent() {
-    if (!eventTitle.trim()) return;
+    if (eventValidationIssues.length > 0) return;
     startTransition(() => {
       addEvent().catch((err: unknown) => {
         setError(err instanceof Error ? err.message : "Unable to add event.");
@@ -433,6 +489,12 @@ export function HouseholdHome() {
     data.todayEvents.length > 0 ||
     data.todayChores.length > 0 ||
     data.pendingReminderCount > 0;
+  const overdueReminders = data.pendingReminders.filter(
+    (r) => new Date(r.dueAtUtc).getTime() < Date.now()
+  );
+  const upcomingReminders = data.pendingReminders.filter(
+    (r) => new Date(r.dueAtUtc).getTime() >= Date.now()
+  );
 
   return (
     <>
@@ -594,57 +656,110 @@ export function HouseholdHome() {
           <section className="grid">
             <article className="panel">
               <div className="eyebrow">Reminders</div>
-              <h2>Upcoming reminders</h2>
+              <h2>Reminder triage</h2>
               <p className="muted" style={{ marginTop: "4px" }}>
-                Dismiss or snooze pending reminders in the next 7 days.
+                Dismiss or snooze pending reminders. Overdue reminders stay at the top until reviewed.
               </p>
-              <div className="stack-list" style={{ marginTop: "12px" }}>
-                {data.pendingReminders.map((r) => {
-                  const due = new Date(r.dueAtUtc);
-                  const dueLabel =
-                    due.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }) +
-                    " " +
-                    due.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-                  return (
-                    <div className="stack-card" key={r.id}>
-                      <div className="stack-card-header">
-                        <div style={{ flex: 1 }}>
-                          <strong>{r.eventTitle}</strong>
-                          <div className="muted" style={{ fontSize: "0.82rem" }}>
-                            Due {dueLabel} &middot; {r.minutesBefore} min before event
+              {overdueReminders.length > 0 ? (
+                <>
+                  <div className="eyebrow home-attention-label" style={{ marginTop: "12px" }}>
+                    Overdue reminders
+                  </div>
+                  <div className="stack-list" style={{ marginTop: "8px" }}>
+                    {overdueReminders.map((r) => (
+                      <div className="stack-card home-attention-card" key={r.id}>
+                        <div className="stack-card-header">
+                          <div style={{ flex: 1 }}>
+                            <strong>{r.eventTitle}</strong>
+                            <div className="muted" style={{ fontSize: "0.82rem" }}>
+                              Due {formatReminderDueLabel(r.dueAtUtc)} &middot; {r.minutesBefore} min before event
+                            </div>
+                          </div>
+                          <div className="pill-row" style={{ flexShrink: 0 }}>
+                            <span className="pill reminder-overdue-pill">
+                              {formatReminderTriageState(r.dueAtUtc)}
+                            </span>
+                            <button
+                              className="action-button-secondary"
+                              style={{ fontSize: "0.75rem", padding: "6px 10px" }}
+                              onClick={() => handleSnoozeReminder(r.id, 60)}
+                              disabled={isPending}
+                            >
+                              Snooze 1h
+                            </button>
+                            <button
+                              className="action-button-secondary"
+                              style={{ fontSize: "0.75rem", padding: "6px 10px" }}
+                              onClick={() => handleSnoozeReminder(r.id, 1440)}
+                              disabled={isPending}
+                            >
+                              Snooze 1d
+                            </button>
+                            <button
+                              className="action-button"
+                              style={{ fontSize: "0.75rem", padding: "6px 10px" }}
+                              onClick={() => handleDismissReminder(r.id)}
+                              disabled={isPending}
+                            >
+                              Dismiss
+                            </button>
                           </div>
                         </div>
-                        <div className="pill-row" style={{ flexShrink: 0 }}>
-                          <button
-                            className="action-button-secondary"
-                            style={{ fontSize: "0.75rem", padding: "6px 10px" }}
-                            onClick={() => handleSnoozeReminder(r.id, 60)}
-                            disabled={isPending}
-                          >
-                            Snooze 1h
-                          </button>
-                          <button
-                            className="action-button-secondary"
-                            style={{ fontSize: "0.75rem", padding: "6px 10px" }}
-                            onClick={() => handleSnoozeReminder(r.id, 1440)}
-                            disabled={isPending}
-                          >
-                            Snooze 1d
-                          </button>
-                          <button
-                            className="action-button"
-                            style={{ fontSize: "0.75rem", padding: "6px 10px" }}
-                            onClick={() => handleDismissReminder(r.id)}
-                            disabled={isPending}
-                          >
-                            Dismiss
-                          </button>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : null}
+              {upcomingReminders.length > 0 ? (
+                <>
+                  <div className="eyebrow" style={{ marginTop: "12px" }}>
+                    Upcoming reminders
+                  </div>
+                  <div className="stack-list" style={{ marginTop: "8px" }}>
+                    {upcomingReminders.map((r) => (
+                      <div className="stack-card" key={r.id}>
+                        <div className="stack-card-header">
+                          <div style={{ flex: 1 }}>
+                            <strong>{r.eventTitle}</strong>
+                            <div className="muted" style={{ fontSize: "0.82rem" }}>
+                              Due {formatReminderDueLabel(r.dueAtUtc)} &middot; {r.minutesBefore} min before event
+                            </div>
+                          </div>
+                          <div className="pill-row" style={{ flexShrink: 0 }}>
+                            <span className="pill">
+                              {formatReminderTriageState(r.dueAtUtc)}
+                            </span>
+                            <button
+                              className="action-button-secondary"
+                              style={{ fontSize: "0.75rem", padding: "6px 10px" }}
+                              onClick={() => handleSnoozeReminder(r.id, 60)}
+                              disabled={isPending}
+                            >
+                              Snooze 1h
+                            </button>
+                            <button
+                              className="action-button-secondary"
+                              style={{ fontSize: "0.75rem", padding: "6px 10px" }}
+                              onClick={() => handleSnoozeReminder(r.id, 1440)}
+                              disabled={isPending}
+                            >
+                              Snooze 1d
+                            </button>
+                            <button
+                              className="action-button"
+                              style={{ fontSize: "0.75rem", padding: "6px 10px" }}
+                              onClick={() => handleDismissReminder(r.id)}
+                              disabled={isPending}
+                            >
+                              Dismiss
+                            </button>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    ))}
+                  </div>
+                </>
+              ) : null}
             </article>
           </section>
         </>
@@ -762,18 +877,36 @@ export function HouseholdHome() {
                     placeholder="Optional"
                   />
                 </div>
-                <div className="form-row">
-                  <label className="form-label">
+              <div className="form-row">
+                <label className="form-label">
+                  <input
+                    type="checkbox"
+                    checked={eventAllDay}
+                    onChange={(e) => {
+                      const nextIsAllDay = e.target.checked;
+                      setEventAllDay(nextIsAllDay);
+                      if (nextIsAllDay) {
+                        setEventEnd("");
+                      } else if (!eventEnd && eventStart) {
+                        setEventEnd(applySuggestedEnd(eventStart, 60));
+                      }
+                    }}
+                    style={{ marginRight: "6px" }}
+                  />
+                  All day
+                </label>
+              </div>
+                {eventAllDay ? (
+                  <div className="form-row">
+                    <label className="form-label">Date</label>
                     <input
-                      type="checkbox"
-                      checked={eventAllDay}
-                      onChange={(e) => setEventAllDay(e.target.checked)}
-                      style={{ marginRight: "6px" }}
+                      className="form-input"
+                      type="date"
+                      value={eventAllDayDate}
+                      onChange={(e) => setEventAllDayDate(e.target.value)}
                     />
-                    All day
-                  </label>
-                </div>
-                {!eventAllDay ? (
+                  </div>
+                ) : (
                   <>
                     <div className="form-row">
                       <label className="form-label">Starts</label>
@@ -783,6 +916,32 @@ export function HouseholdHome() {
                         value={eventStart}
                         onChange={(e) => setEventStart(e.target.value)}
                       />
+                    </div>
+                    <div className="pill-row scheduling-helper-row">
+                      <button
+                        className="pill-button"
+                        onClick={() => setEventEnd(applySuggestedEnd(eventStart, 30))}
+                        disabled={isPending || !eventStart}
+                        type="button"
+                      >
+                        End +30m
+                      </button>
+                      <button
+                        className="pill-button"
+                        onClick={() => setEventEnd(applySuggestedEnd(eventStart, 60))}
+                        disabled={isPending || !eventStart}
+                        type="button"
+                      >
+                        End +1h
+                      </button>
+                      <button
+                        className="pill-button"
+                        onClick={() => setEventEnd(applySuggestedEnd(eventStart, 120))}
+                        disabled={isPending || !eventStart}
+                        type="button"
+                      >
+                        End +2h
+                      </button>
                     </div>
                     <div className="form-row">
                       <label className="form-label">Ends</label>
@@ -794,12 +953,24 @@ export function HouseholdHome() {
                       />
                     </div>
                   </>
+                )}
+                <p className="muted" style={{ marginTop: "4px" }}>
+                  {eventAllDay
+                    ? "All-day events use the selected local date and store it in UTC."
+                    : "Times use your current browser locale and are stored in UTC."}
+                </p>
+                {eventValidationIssues.length > 0 ? (
+                  <div className="scheduling-validation-list">
+                    {eventValidationIssues.map((issue) => (
+                      <div className="error-text" key={issue}>{issue}</div>
+                    ))}
+                  </div>
                 ) : null}
                 <div className="pill-row" style={{ marginTop: "8px" }}>
                   <button
                     className="action-button"
                     onClick={handleAddEvent}
-                    disabled={isPending || !eventTitle.trim()}
+                    disabled={isPending || eventValidationIssues.length > 0}
                   >
                     Add event
                   </button>
@@ -807,11 +978,7 @@ export function HouseholdHome() {
                     className="action-button-secondary"
                     onClick={() => {
                       setShowEventForm(false);
-                      setEventTitle("");
-                      setEventDesc("");
-                      setEventAllDay(false);
-                      setEventStart("");
-                      setEventEnd("");
+                      resetEventDraft();
                     }}
                     disabled={isPending}
                   >
@@ -903,7 +1070,10 @@ export function HouseholdHome() {
               </button>
               <button
                 className="action-button-secondary"
-                onClick={() => setShowEventForm(true)}
+                onClick={() => {
+                  resetEventDraft();
+                  setShowEventForm(true);
+                }}
               >
                 + Event
               </button>

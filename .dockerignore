@@ -1,0 +1,16 @@
+.git
+.github
+.claude
+.dotnet
+.env
+.env.local
+.env.*.local
+docs
+tests
+ops/*.log
+**/bin
+**/obj
+**/node_modules
+src/frontend/web/.next
+Thumbs.db
+.DS_Store

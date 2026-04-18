@@ -88,6 +88,10 @@ export function AuthStatusPanel() {
     }
 
     await refresh();
+
+    if (typeof window !== "undefined") {
+      window.location.reload();
+    }
   }
 
   return (
@@ -171,4 +175,3 @@ export function AuthStatusPanel() {
     </section>
   );
 }
-

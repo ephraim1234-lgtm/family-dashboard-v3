@@ -134,6 +134,23 @@ Administration is mostly an application/workflow surface over existing domain mo
 
 ---
 
+### Notes
+
+Owns:
+- lightweight shared household notes
+- pinned note or shared-information capture
+- simple shared-information workflows
+
+Does not own:
+- generalized documents
+- file storage
+- knowledge-management platforms
+
+Important rule:
+Notes is an intentionally lightweight implemented surface. Keep it narrow and operational.
+
+---
+
 ## Active expansion module areas
 
 These are approved areas for real implementation work, but they should be introduced in narrow, explicit slices.
@@ -213,10 +230,7 @@ It should reuse core domain/application logic where appropriate, while maintaini
 
 The following are plausible future module areas but are not current implementation scope:
 
-- Notifications
-- Chores
 - Food
-- Notes
 - Documents
 - Maintenance
 - Finance/Bills

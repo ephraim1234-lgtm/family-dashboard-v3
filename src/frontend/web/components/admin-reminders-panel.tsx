@@ -25,10 +25,35 @@ function formatLeadTime(minutes: number): string {
   return `${minutes} min before`;
 }
 
+function formatReminderState(reminder: ReminderItem, nowMs: number): string {
+  const dueMs = new Date(reminder.dueAtUtc).getTime();
+  const deltaMinutes = Math.round((dueMs - nowMs) / 60_000);
+
+  if (reminder.status === "Fired") {
+    return "Fired";
+  }
+
+  if (reminder.status === "Dismissed") {
+    return "Dismissed";
+  }
+
+  if (deltaMinutes < 0) {
+    const overdueMinutes = Math.abs(deltaMinutes);
+    if (overdueMinutes < 60) return `Overdue by ${overdueMinutes} min`;
+    if (overdueMinutes % 60 === 0) return `Overdue by ${overdueMinutes / 60} hr`;
+    return `Overdue by ${overdueMinutes} min`;
+  }
+
+  if (deltaMinutes < 60) return `Due in ${deltaMinutes} min`;
+  if (deltaMinutes % 60 === 0) return `Due in ${deltaMinutes / 60} hr`;
+  return `Due in ${deltaMinutes} min`;
+}
+
 export function AdminRemindersPanel() {
   const { isOwner, isLoading: isSessionLoading } = useAdminOwnerSession();
   const [pending, setPending] = useState<ReminderItem[]>([]);
   const [fired, setFired] = useState<ReminderItem[]>([]);
+  const [dismissed, setDismissed] = useState<ReminderItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -55,6 +80,12 @@ export function AdminRemindersPanel() {
       data.items
         .filter((r) => r.status === "Fired")
         .sort((a, b) => new Date(b.firedAtUtc ?? b.dueAtUtc).getTime() - new Date(a.firedAtUtc ?? a.dueAtUtc).getTime())
+        .slice(0, 20)
+    );
+    setDismissed(
+      data.items
+        .filter((r) => r.status === "Dismissed")
+        .sort((a, b) => new Date(b.dueAtUtc).getTime() - new Date(a.dueAtUtc).getTime())
         .slice(0, 20)
     );
   }
@@ -89,20 +120,88 @@ export function AdminRemindersPanel() {
     await refresh();
   }
 
+  function handleDismiss(reminderId: string) {
+    startTransition(() => {
+      dismissReminder(reminderId).catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : "Unable to dismiss reminder.");
+      });
+    });
+  }
+
+  async function dismissReminder(reminderId: string) {
+    setError(null);
+    const response = await fetch(`/api/notifications/reminders/${reminderId}/dismiss`, {
+      method: "POST",
+      credentials: "same-origin"
+    });
+    if (!response.ok && response.status !== 404) {
+      throw new Error(`Dismiss failed with ${response.status}.`);
+    }
+    await refresh();
+  }
+
+  function handleSnooze(reminderId: string, snoozeMinutes: number) {
+    startTransition(() => {
+      snoozeReminder(reminderId, snoozeMinutes).catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : "Unable to snooze reminder.");
+      });
+    });
+  }
+
+  async function snoozeReminder(reminderId: string, snoozeMinutes: number) {
+    setError(null);
+    const response = await fetch(`/api/notifications/reminders/${reminderId}/snooze`, {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ snoozeMinutes })
+    });
+    if (!response.ok && response.status !== 404) {
+      throw new Error(`Snooze failed with ${response.status}.`);
+    }
+    await refresh();
+  }
+
   if (!isOwner && !isSessionLoading) {
     return null;
   }
+
+  const nowMs = Date.now();
+  const overdue = pending.filter((r) => new Date(r.dueAtUtc).getTime() < nowMs);
+  const upcoming = pending.filter((r) => new Date(r.dueAtUtc).getTime() >= nowMs);
 
   return (
     <>
       <section className="grid">
         <article className="panel">
           <div className="eyebrow">Reminders</div>
-          <h2>Pending reminders</h2>
+          <h2>Reminder triage</h2>
           <p className="muted">
-            Reminders waiting to fire. The worker checks every 60 s and marks
-            them fired once their due time passes.
+            Pending reminders stay split into overdue and upcoming review states.
+            The worker checks every 60 s and marks them fired once their due time passes.
           </p>
+          <div className="summary-grid" style={{ marginTop: "16px" }}>
+            <div className="stack-card">
+              <div className="eyebrow">Pending</div>
+              <div className="summary-stat">{pending.length}</div>
+              <div className="muted">Needs review before it fires</div>
+            </div>
+            <div className="stack-card reminder-overdue-summary-card">
+              <div className="eyebrow">Overdue</div>
+              <div className="summary-stat">{overdue.length}</div>
+              <div className="muted">Past due but still pending</div>
+            </div>
+            <div className="stack-card">
+              <div className="eyebrow">Recently fired</div>
+              <div className="summary-stat">{fired.length}</div>
+              <div className="muted">Most recent audit entries</div>
+            </div>
+            <div className="stack-card">
+              <div className="eyebrow">Dismissed</div>
+              <div className="summary-stat">{dismissed.length}</div>
+              <div className="muted">Reviewed and cleared</div>
+            </div>
+          </div>
           <div className="action-row">
             <button
               className="action-button action-button-ghost"
@@ -119,33 +218,115 @@ export function AdminRemindersPanel() {
             </button>
           </div>
           {error ? <p className="error-text">{error}</p> : null}
-          {pending.length === 0 ? (
-            <p className="muted">No pending reminders.</p>
-          ) : (
-            <div className="stack-list">
-              {pending.map((r) => (
-                <div className="stack-card" key={r.id}>
-                  <div className="stack-card-header">
-                    <div>
-                      <strong>{r.eventTitle}</strong>
-                      <div className="muted">{formatLeadTime(r.minutesBefore)}</div>
-                    </div>
-                    <div className="pill-row">
-                      <span className="pill">
-                        Due {new Date(r.dueAtUtc).toLocaleString()}
-                      </span>
-                      <button
-                        className="action-button action-button-secondary"
-                        onClick={() => handleDelete(r.id)}
-                        disabled={isPending}
-                      >
-                        Delete
-                      </button>
+          {overdue.length > 0 ? (
+            <>
+              <div className="eyebrow" style={{ marginTop: "16px" }}>Overdue</div>
+              <div className="stack-list">
+                {overdue.map((r) => (
+                  <div className="stack-card reminder-overdue-card" key={r.id}>
+                    <div className="stack-card-header">
+                      <div>
+                        <strong>{r.eventTitle}</strong>
+                        <div className="muted">{formatLeadTime(r.minutesBefore)}</div>
+                      </div>
+                      <div className="pill-row">
+                        <span className="pill reminder-overdue-pill">
+                          {formatReminderState(r, nowMs)}
+                        </span>
+                        <span className="pill">
+                          Due {new Date(r.dueAtUtc).toLocaleString()}
+                        </span>
+                        <button
+                          className="action-button action-button-ghost"
+                          onClick={() => handleSnooze(r.id, 60)}
+                          disabled={isPending}
+                        >
+                          Snooze 1h
+                        </button>
+                        <button
+                          className="action-button action-button-ghost"
+                          onClick={() => handleSnooze(r.id, 1440)}
+                          disabled={isPending}
+                        >
+                          Snooze 1d
+                        </button>
+                        <button
+                          className="action-button"
+                          onClick={() => handleDismiss(r.id)}
+                          disabled={isPending}
+                        >
+                          Dismiss
+                        </button>
+                        <button
+                          className="action-button action-button-secondary"
+                          onClick={() => handleDelete(r.id)}
+                          disabled={isPending}
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            </>
+          ) : null}
+          {upcoming.length === 0 ? (
+            <p className="muted" style={{ marginTop: overdue.length > 0 ? "16px" : undefined }}>
+              No upcoming pending reminders.
+            </p>
+          ) : (
+            <>
+              <div className="eyebrow" style={{ marginTop: "16px" }}>Upcoming</div>
+              <div className="stack-list">
+                {upcoming.map((r) => (
+                  <div className="stack-card" key={r.id}>
+                    <div className="stack-card-header">
+                      <div>
+                        <strong>{r.eventTitle}</strong>
+                        <div className="muted">{formatLeadTime(r.minutesBefore)}</div>
+                      </div>
+                      <div className="pill-row">
+                        <span className="pill">
+                          {formatReminderState(r, nowMs)}
+                        </span>
+                        <span className="pill">
+                          Due {new Date(r.dueAtUtc).toLocaleString()}
+                        </span>
+                        <button
+                          className="action-button action-button-ghost"
+                          onClick={() => handleSnooze(r.id, 60)}
+                          disabled={isPending}
+                        >
+                          Snooze 1h
+                        </button>
+                        <button
+                          className="action-button action-button-ghost"
+                          onClick={() => handleSnooze(r.id, 1440)}
+                          disabled={isPending}
+                        >
+                          Snooze 1d
+                        </button>
+                        <button
+                          className="action-button"
+                          onClick={() => handleDismiss(r.id)}
+                          disabled={isPending}
+                        >
+                          Dismiss
+                        </button>
+                        <button
+                          className="action-button action-button-secondary"
+                          onClick={() => handleDelete(r.id)}
+                          disabled={isPending}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </>
           )}
         </article>
 
@@ -170,6 +351,44 @@ export function AdminRemindersPanel() {
                     <span className="pill">
                       Fired {r.firedAtUtc ? new Date(r.firedAtUtc).toLocaleString() : "—"}
                     </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </article>
+
+        <article className="panel">
+          <div className="eyebrow">Reminders</div>
+          <h2>Recently dismissed</h2>
+          <p className="muted">
+            The 20 most recently dismissed reminders. This keeps reviewed reminders
+            separate from fired audit history.
+          </p>
+          {dismissed.length === 0 ? (
+            <p className="muted">No dismissed reminders yet.</p>
+          ) : (
+            <div className="stack-list">
+              {dismissed.map((r) => (
+                <div className="stack-card" key={r.id}>
+                  <div className="stack-card-header">
+                    <div>
+                      <strong>{r.eventTitle}</strong>
+                      <div className="muted">{formatLeadTime(r.minutesBefore)}</div>
+                    </div>
+                    <div className="pill-row">
+                      <span className="pill">Dismissed</span>
+                      <span className="pill">
+                        Due {new Date(r.dueAtUtc).toLocaleString()}
+                      </span>
+                      <button
+                        className="action-button action-button-secondary"
+                        onClick={() => handleDelete(r.id)}
+                        disabled={isPending}
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}

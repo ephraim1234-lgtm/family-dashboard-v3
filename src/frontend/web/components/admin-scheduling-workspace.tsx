@@ -105,6 +105,19 @@ function createDefaultState() {
   };
 }
 
+function createEmptyState() {
+  return {
+    title: "Morning routine",
+    description: "Recurring household check-in",
+    startsAtLocal: "",
+    endsAtLocal: "",
+    isAllDay: false,
+    recurrencePattern: "None" as RecurrencePattern,
+    weeklyDays: ["Monday"],
+    recursUntilLocal: ""
+  };
+}
+
 function dayHeading(date: string) {
   const value = new Date(`${date}T00:00:00Z`);
   return value.toLocaleDateString(undefined, {
@@ -230,10 +243,113 @@ function formatFrameRange(startUtc: string, endUtc: string) {
   return `${new Date(startUtc).toLocaleDateString()} - ${new Date(endUtc).toLocaleDateString()}`;
 }
 
+function formatSeriesDateTime(value: string | null, isAllDay: boolean) {
+  if (!value) {
+    return "Not set";
+  }
+
+  return new Date(value).toLocaleString([], {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: isAllDay ? undefined : "numeric",
+    minute: isAllDay ? undefined : "2-digit"
+  });
+}
+
+function recurrenceEditorSummary(
+  recurrencePattern: RecurrencePattern,
+  weeklyDays: string[],
+  recursUntilLocal: string,
+  isAllDay: boolean)
+{
+  if (recurrencePattern === "None") {
+    return "One-time event";
+  }
+
+  const recurrenceLabel = recurrencePattern === "Daily"
+    ? "Repeats daily"
+    : `Repeats weekly on ${weeklyDays.length > 0 ? weeklyDays.join(", ") : "selected weekdays"}`;
+
+  if (!recursUntilLocal) {
+    return recurrenceLabel;
+  }
+
+  return `${recurrenceLabel} until ${formatSeriesDateTime(recursUntilLocal, isAllDay)}`;
+}
+
+function deriveWeeklyDayFromStart(startsAtLocal: string) {
+  if (!startsAtLocal) {
+    return null;
+  }
+
+  const dayIndex = new Date(startsAtLocal).getDay();
+  const weekdayByIndex = [
+    "Sunday",
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday"
+  ] as const;
+
+  return weekdayByIndex[dayIndex] ?? null;
+}
+
+function addLocalDays(value: string, days: number) {
+  const date = new Date(value);
+  date.setDate(date.getDate() + days);
+  return formatLocalInputValue(date);
+}
+
+function getSeriesValidationIssues(input: {
+  title: string;
+  startsAtLocal: string;
+  endsAtLocal: string;
+  recurrencePattern: RecurrencePattern;
+  weeklyDays: string[];
+  recursUntilLocal: string;
+}) {
+  const issues: string[] = [];
+
+  if (!input.title.trim()) {
+    issues.push("Title is required.");
+  }
+
+  if (!input.startsAtLocal) {
+    issues.push("Start date and time are required.");
+  }
+
+  if (input.startsAtLocal && input.endsAtLocal) {
+    const startsAt = new Date(input.startsAtLocal);
+    const endsAt = new Date(input.endsAtLocal);
+
+    if (endsAt <= startsAt) {
+      issues.push("End must be after the start.");
+    }
+  }
+
+  if (input.recurrencePattern === "Weekly" && input.weeklyDays.length === 0) {
+    issues.push("Weekly recurrence needs at least one weekday.");
+  }
+
+  if (input.startsAtLocal && input.recursUntilLocal) {
+    const startsAt = new Date(input.startsAtLocal);
+    const recursUntil = new Date(input.recursUntilLocal);
+
+    if (recursUntil < startsAt) {
+      issues.push("Repeat until must be on or after the first start.");
+    }
+  }
+
+  return issues;
+}
+
 export function AdminSchedulingWorkspace() {
   const { isOwner, isLoading: isSessionLoading } = useAdminOwnerSession();
   const hydratedPreferencesRef = useRef(false);
-  const initialState = useMemo(() => createDefaultState(), []);
+  const initialState = useMemo(() => createEmptyState(), []);
   const [title, setTitle] = useState(initialState.title);
   const [description, setDescription] = useState(initialState.description);
   const [startsAtLocal, setStartsAtLocal] = useState(initialState.startsAtLocal);
@@ -255,6 +371,11 @@ export function AdminSchedulingWorkspace() {
   const [reminderMinutesBefore, setReminderMinutesBefore] = useState(15);
   const [reminderError, setReminderError] = useState<string | null>(null);
   const [isReminderPending, startReminderTransition] = useTransition();
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    resetForm();
+  }, []);
 
   function resetForm() {
     const next = createDefaultState();
@@ -269,6 +390,29 @@ export function AdminSchedulingWorkspace() {
     setEditingEventId(null);
     setReminders([]);
     setReminderError(null);
+  }
+
+  function beginDraftFromSeries(item: ScheduledEventSeriesItem) {
+    setEditingEventId(null);
+    setTitle(`${item.title} copy`);
+    setDescription(item.description ?? "");
+    setStartsAtLocal(
+      item.startsAtUtc ? formatLocalInputValue(new Date(item.startsAtUtc)) : ""
+    );
+    setEndsAtLocal(
+      item.endsAtUtc ? formatLocalInputValue(new Date(item.endsAtUtc)) : ""
+    );
+    setIsAllDay(item.isAllDay);
+    setRecurrencePattern(item.recurrencePattern);
+    setWeeklyDays(item.weeklyDays);
+    setRecursUntilLocal(
+      item.recursUntilUtc
+        ? formatLocalInputValue(new Date(item.recursUntilUtc))
+        : ""
+    );
+    setReminders([]);
+    setReminderError(null);
+    setSaveMessage(`Loaded "${item.title}" as a new draft.`);
   }
 
   async function refreshBrowse(startUtc = browseStartUtc, windowDays = browseWindowDays) {
@@ -630,6 +774,7 @@ export function AdminSchedulingWorkspace() {
         ? formatLocalInputValue(new Date(item.recursUntilUtc))
         : ""
     );
+    setSaveMessage(null);
   }
 
   function handleSubmit() {
@@ -646,6 +791,7 @@ export function AdminSchedulingWorkspace() {
 
   async function saveSeries() {
     setError(null);
+    setSaveMessage(null);
 
     const payload = {
       title,
@@ -685,6 +831,7 @@ export function AdminSchedulingWorkspace() {
       return;
     }
 
+    setSaveMessage(editingEventId ? "Series changes saved." : "Scheduled event series created.");
     resetForm();
     await refreshAll();
   }
@@ -703,6 +850,7 @@ export function AdminSchedulingWorkspace() {
 
   async function deleteSeries(eventId: string) {
     setError(null);
+    setSaveMessage(null);
 
     const response = await fetch(`/api/scheduling/events/${eventId}`, {
       method: "DELETE",
@@ -718,8 +866,58 @@ export function AdminSchedulingWorkspace() {
       resetForm();
     }
 
+    setSaveMessage("Scheduled event series deleted.");
     await refreshAll();
   }
+
+  function setSuggestedEnd(durationMinutes: number) {
+    if (!startsAtLocal) {
+      return;
+    }
+
+    const date = new Date(startsAtLocal);
+    date.setMinutes(date.getMinutes() + durationMinutes);
+    setEndsAtLocal(formatLocalInputValue(date));
+  }
+
+  function applySuggestedRecurrenceLength(days: number) {
+    if (!startsAtLocal) {
+      return;
+    }
+
+    setRecursUntilLocal(addLocalDays(startsAtLocal, days));
+  }
+
+  const validationIssues = useMemo(() => getSeriesValidationIssues({
+    title,
+    startsAtLocal,
+    endsAtLocal,
+    recurrencePattern,
+    weeklyDays,
+    recursUntilLocal
+  }), [
+    title,
+    startsAtLocal,
+    endsAtLocal,
+    recurrencePattern,
+    weeklyDays,
+    recursUntilLocal
+  ]);
+
+  const editorSummary = useMemo(() => {
+    const timingSummary = isAllDay
+      ? `All day on ${formatSeriesDateTime(startsAtLocal || null, true)}`
+      : `${formatSeriesDateTime(startsAtLocal || null, false)}${endsAtLocal ? ` to ${formatSeriesDateTime(endsAtLocal, false)}` : ""}`;
+
+    return {
+      timingSummary,
+      recurrenceSummary: recurrenceEditorSummary(
+        recurrencePattern,
+        weeklyDays,
+        recursUntilLocal,
+        isAllDay)
+    };
+  }, [endsAtLocal, isAllDay, recurrencePattern, recursUntilLocal, startsAtLocal, weeklyDays]);
 
   const isViewingCurrentWindow = browse
     ? isSameUtcDay(browse.windowStartUtc, getCurrentWindowStartIso())
@@ -839,6 +1037,7 @@ export function AdminSchedulingWorkspace() {
             </button>
           </div>
           {error ? <p className="error-text">{error}</p> : null}
+          {saveMessage ? <p className="success-text">{saveMessage}</p> : null}
         </article>
       </section>
 
@@ -994,12 +1193,39 @@ export function AdminSchedulingWorkspace() {
 
         <article className="panel">
           <div className="eyebrow">Series editor</div>
-        <h2>{editingEventId ? "Edit scheduled event series" : "Create scheduled event series"}</h2>
-        <p className="muted">
-          This form manages whole scheduled events. Recurrence stays narrow and
-          explicit: one-time, daily, or weekly with selected weekdays. Imported
-          calendars flow in separately and stay read-only here.
-        </p>
+          <h2>{editingEventId ? "Edit scheduled event series" : "Create scheduled event series"}</h2>
+          <p className="muted">
+            This form manages whole scheduled events. Recurrence stays narrow and
+            explicit: one-time, daily, or weekly with selected weekdays. Imported
+            calendars flow in separately and stay read-only here.
+          </p>
+
+          <div className="stack-card scheduling-editor-status-card">
+            <div className="stack-card-header">
+              <div>
+                <strong>{editingEventId ? "Editing an existing series" : "Drafting a new series"}</strong>
+                <div className="muted">
+                  Times are entered in your current browser locale, then stored in UTC.
+                </div>
+              </div>
+              <span className="pill">
+                {editingEventId ? "Existing series" : "New draft"}
+              </span>
+            </div>
+            <div className="pill-row">
+              <span className="pill">{editorSummary.timingSummary}</span>
+              <span className="pill">{editorSummary.recurrenceSummary}</span>
+            </div>
+            {validationIssues.length > 0 ? (
+              <div className="scheduling-validation-list">
+                {validationIssues.map((issue) => (
+                  <div className="error-text" key={issue}>{issue}</div>
+                ))}
+              </div>
+            ) : (
+              <div className="muted">Ready to save when you are.</div>
+            )}
+          </div>
 
           <div className="form-stack">
             <label className="field">
@@ -1024,12 +1250,39 @@ export function AdminSchedulingWorkspace() {
               />
             </label>
 
+            {!isAllDay ? (
+              <div className="pill-row scheduling-helper-row">
+                <button
+                  className="pill-button"
+                  onClick={() => setSuggestedEnd(30)}
+                  disabled={isPending || !startsAtLocal}
+                >
+                  End +30m
+                </button>
+                <button
+                  className="pill-button"
+                  onClick={() => setSuggestedEnd(60)}
+                  disabled={isPending || !startsAtLocal}
+                >
+                  End +1h
+                </button>
+                <button
+                  className="pill-button"
+                  onClick={() => setSuggestedEnd(120)}
+                  disabled={isPending || !startsAtLocal}
+                >
+                  End +2h
+                </button>
+              </div>
+            ) : null}
+
             <label className="field">
               <span>Ends</span>
               <input
                 type="datetime-local"
                 value={endsAtLocal}
                 onChange={(event) => setEndsAtLocal(event.target.value)}
+                disabled={isAllDay}
               />
             </label>
 
@@ -1037,7 +1290,14 @@ export function AdminSchedulingWorkspace() {
               <input
                 type="checkbox"
                 checked={isAllDay}
-                onChange={(event) => setIsAllDay(event.target.checked)}
+                onChange={(event) => {
+                  const nextIsAllDay = event.target.checked;
+                  setIsAllDay(nextIsAllDay);
+
+                  if (nextIsAllDay) {
+                    setEndsAtLocal("");
+                  }
+                }}
               />
               <span>All day</span>
             </label>
@@ -1046,9 +1306,23 @@ export function AdminSchedulingWorkspace() {
               <span>Recurrence</span>
               <select
                 value={recurrencePattern}
-                onChange={(event) =>
-                  setRecurrencePattern(event.target.value as RecurrencePattern)
-                }
+                onChange={(event) => {
+                  const nextPattern = event.target.value as RecurrencePattern;
+                  setRecurrencePattern(nextPattern);
+
+                  if (nextPattern !== "Weekly") {
+                    return;
+                  }
+
+                  if (weeklyDays.length > 0) {
+                    return;
+                  }
+
+                  const suggestedDay = deriveWeeklyDayFromStart(startsAtLocal);
+                  if (suggestedDay) {
+                    setWeeklyDays([suggestedDay]);
+                  }
+                }}
               >
                 <option value="None">One-time</option>
                 <option value="Daily">Daily</option>
@@ -1071,18 +1345,66 @@ export function AdminSchedulingWorkspace() {
                     </label>
                   ))}
                 </div>
+                {startsAtLocal ? (
+                  <div className="pill-row scheduling-helper-row">
+                    <button
+                      className="pill-button"
+                      onClick={() => {
+                        const suggestedDay = deriveWeeklyDayFromStart(startsAtLocal);
+                        if (suggestedDay) {
+                          setWeeklyDays([suggestedDay]);
+                        }
+                      }}
+                      disabled={isPending}
+                    >
+                      Match start day
+                    </button>
+                    <button
+                      className="pill-button"
+                      onClick={() => setWeeklyDays([])}
+                      disabled={isPending || weeklyDays.length === 0}
+                    >
+                      Clear days
+                    </button>
+                  </div>
+                ) : null}
               </div>
             ) : null}
 
             {recurrencePattern !== "None" ? (
-              <label className="field">
-                <span>Repeat until</span>
-                <input
-                  type="datetime-local"
-                  value={recursUntilLocal}
-                  onChange={(event) => setRecursUntilLocal(event.target.value)}
-                />
-              </label>
+              <>
+                <label className="field">
+                  <span>Repeat until</span>
+                  <input
+                    type="datetime-local"
+                    value={recursUntilLocal}
+                    onChange={(event) => setRecursUntilLocal(event.target.value)}
+                  />
+                </label>
+                <div className="pill-row scheduling-helper-row">
+                  <button
+                    className="pill-button"
+                    onClick={() => applySuggestedRecurrenceLength(7)}
+                    disabled={isPending || !startsAtLocal}
+                  >
+                    +7 days
+                  </button>
+                  <button
+                    className="pill-button"
+                    onClick={() => applySuggestedRecurrenceLength(30)}
+                    disabled={isPending || !startsAtLocal}
+                  >
+                    +30 days
+                  </button>
+                  <button
+                    className="pill-button"
+                    onClick={() => setRecursUntilLocal("")}
+                    disabled={isPending || !recursUntilLocal}
+                  >
+                    Clear repeat end
+                  </button>
+                </div>
+              </>
             ) : null}
           </div>
 
@@ -1093,6 +1415,11 @@ export function AdminSchedulingWorkspace() {
                 Reminders fire before the event starts. All-day events are not
                 supported.
               </p>
+              {isAllDay ? (
+                <p className="muted">
+                  Switch this series back to a timed event if you need reminders.
+                </p>
+              ) : null}
 
               <div className="reminder-add-row">
                 <label className="field reminder-minutes-field">
@@ -1127,7 +1454,7 @@ export function AdminSchedulingWorkspace() {
                 <button
                   className="action-button"
                   onClick={handleAddReminder}
-                  disabled={isReminderPending}
+                  disabled={isReminderPending || isAllDay}
                 >
                   {isReminderPending ? "Saving..." : "Add Reminder"}
                 </button>
@@ -1178,7 +1505,11 @@ export function AdminSchedulingWorkspace() {
           ) : null}
 
           <div className="action-row">
-            <button className="action-button" onClick={handleSubmit} disabled={isPending}>
+            <button
+              className="action-button"
+              onClick={handleSubmit}
+              disabled={isPending || validationIssues.length > 0}
+            >
               {editingEventId ? "Save Series Changes" : "Create Event"}
             </button>
             {editingEventId ? (
@@ -1190,6 +1521,13 @@ export function AdminSchedulingWorkspace() {
                 Cancel Editing
               </button>
             ) : null}
+            <button
+              className="action-button action-button-ghost"
+              onClick={resetForm}
+              disabled={isPending}
+            >
+              Reset Draft
+            </button>
           </div>
         </article>
       </section>
@@ -1245,6 +1583,13 @@ export function AdminSchedulingWorkspace() {
                       disabled={isPending}
                     >
                       Edit Series
+                    </button>
+                    <button
+                      className="action-button action-button-ghost"
+                      onClick={() => beginDraftFromSeries(item)}
+                      disabled={isPending}
+                    >
+                      Use as Starting Point
                     </button>
                     <button
                       className="action-button action-button-secondary"

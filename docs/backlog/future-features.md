@@ -99,12 +99,14 @@ Keep these grouped as a future Food domain rather than scattering them into unre
 
 ## Notes / documents ideas
 
-- shared household notes
 - emergency contact info
 - school reference info
 - important household documents
 - expiration reminders for documents/cards
 - quick access info for the display or admin area
+
+Notes:
+Basic household notes already exist. Keep future work here focused on broader shared-information and document capabilities beyond the current lightweight notes slice.
 
 ---
 

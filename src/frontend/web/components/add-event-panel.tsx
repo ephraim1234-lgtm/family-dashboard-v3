@@ -1,20 +1,35 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import {
+  applySuggestedEnd,
+  buildMemberEventRequest,
+  createDefaultMemberEventDraft,
+  getMemberEventValidationIssues
+} from "./member-event-draft";
 
 export function AddEventPanel() {
+  const initialDraft = createDefaultMemberEventDraft();
   const [showForm, setShowForm] = useState(false);
-  const [title, setTitle] = useState("");
+  const [title, setTitle] = useState(initialDraft.title);
   const [description, setDescription] = useState("");
-  const [isAllDay, setIsAllDay] = useState(false);
-  const [startsAt, setStartsAt] = useState("");
-  const [endsAt, setEndsAt] = useState("");
+  const [isAllDay, setIsAllDay] = useState(initialDraft.isAllDay);
+  const [allDayDate, setAllDayDate] = useState(initialDraft.allDayDate);
+  const [startsAt, setStartsAt] = useState(initialDraft.startsAtLocal);
+  const [endsAt, setEndsAt] = useState(initialDraft.endsAtLocal);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const validationIssues = getMemberEventValidationIssues({
+    title,
+    isAllDay,
+    allDayDate,
+    startsAtLocal: startsAt,
+    endsAtLocal: endsAt
+  });
 
   function handleSubmit() {
-    if (!title.trim()) return;
+    if (validationIssues.length > 0) return;
     startTransition(() => {
       submit().catch((err: unknown) => {
         setError(err instanceof Error ? err.message : "Unable to add event.");
@@ -23,13 +38,14 @@ export function AddEventPanel() {
   }
 
   async function submit() {
-    const body = {
-      title: title.trim(),
-      description: description.trim() || null,
+    const body = buildMemberEventRequest({
+      title,
+      description,
       isAllDay,
-      startsAtUtc: startsAt ? new Date(startsAt).toISOString() : null,
-      endsAtUtc: endsAt ? new Date(endsAt).toISOString() : null
-    };
+      allDayDate,
+      startsAtLocal: startsAt,
+      endsAtLocal: endsAt
+    });
 
     const res = await fetch("/api/scheduling/events/member", {
       method: "POST",
@@ -43,11 +59,13 @@ export function AddEventPanel() {
       throw new Error(text || `Request failed with ${res.status}.`);
     }
 
-    setTitle("");
+    const nextDraft = createDefaultMemberEventDraft();
+    setTitle(nextDraft.title);
     setDescription("");
-    setIsAllDay(false);
-    setStartsAt("");
-    setEndsAt("");
+    setIsAllDay(nextDraft.isAllDay);
+    setAllDayDate(nextDraft.allDayDate);
+    setStartsAt(nextDraft.startsAtLocal);
+    setEndsAt(nextDraft.endsAtLocal);
     setShowForm(false);
     setError(null);
     setSuccessMsg("Event added.");
@@ -66,7 +84,17 @@ export function AddEventPanel() {
           <div style={{ marginTop: "8px" }}>
             <button
               className="action-button-secondary"
-              onClick={() => setShowForm(true)}
+              onClick={() => {
+                const nextDraft = createDefaultMemberEventDraft();
+                setTitle(nextDraft.title);
+                setDescription("");
+                setIsAllDay(nextDraft.isAllDay);
+                setAllDayDate(nextDraft.allDayDate);
+                setStartsAt(nextDraft.startsAtLocal);
+                setEndsAt(nextDraft.endsAtLocal);
+                setError(null);
+                setShowForm(true);
+              }}
             >
               + Add event
             </button>
@@ -97,13 +125,31 @@ export function AddEventPanel() {
                   <input
                     type="checkbox"
                     checked={isAllDay}
-                    onChange={(e) => setIsAllDay(e.target.checked)}
+                    onChange={(e) => {
+                      const nextIsAllDay = e.target.checked;
+                      setIsAllDay(nextIsAllDay);
+                      if (nextIsAllDay) {
+                        setEndsAt("");
+                      } else if (!endsAt && startsAt) {
+                        setEndsAt(applySuggestedEnd(startsAt, 60));
+                      }
+                    }}
                     style={{ marginRight: "6px" }}
                   />
                   All day
                 </label>
               </div>
-              {!isAllDay ? (
+              {isAllDay ? (
+                <div className="form-row">
+                  <label className="form-label">Date</label>
+                  <input
+                    className="form-input"
+                    type="date"
+                    value={allDayDate}
+                    onChange={(e) => setAllDayDate(e.target.value)}
+                  />
+                </div>
+              ) : (
                 <>
                   <div className="form-row">
                     <label className="form-label">Starts</label>
@@ -111,8 +157,34 @@ export function AddEventPanel() {
                       className="form-input"
                       type="datetime-local"
                       value={startsAt}
-                      onChange={(e) => setStartsAt(e.target.value)}
-                    />
+                        onChange={(e) => setStartsAt(e.target.value)}
+                      />
+                  </div>
+                  <div className="pill-row scheduling-helper-row">
+                    <button
+                      className="pill-button"
+                      onClick={() => setEndsAt(applySuggestedEnd(startsAt, 30))}
+                      disabled={isPending || !startsAt}
+                      type="button"
+                    >
+                      End +30m
+                    </button>
+                    <button
+                      className="pill-button"
+                      onClick={() => setEndsAt(applySuggestedEnd(startsAt, 60))}
+                      disabled={isPending || !startsAt}
+                      type="button"
+                    >
+                      End +1h
+                    </button>
+                    <button
+                      className="pill-button"
+                      onClick={() => setEndsAt(applySuggestedEnd(startsAt, 120))}
+                      disabled={isPending || !startsAt}
+                      type="button"
+                    >
+                      End +2h
+                    </button>
                   </div>
                   <div className="form-row">
                     <label className="form-label">Ends</label>
@@ -124,20 +196,39 @@ export function AddEventPanel() {
                     />
                   </div>
                 </>
+              )}
+              <p className="muted" style={{ marginTop: "4px" }}>
+                {isAllDay
+                  ? "All-day events use the selected local date and store it in UTC."
+                  : "Times use your current browser locale and are stored in UTC."}
+              </p>
+              {validationIssues.length > 0 ? (
+                <div className="scheduling-validation-list">
+                  {validationIssues.map((issue) => (
+                    <div className="error-text" key={issue}>{issue}</div>
+                  ))}
+                </div>
               ) : null}
               <div className="pill-row" style={{ marginTop: "8px" }}>
                 <button
                   className="action-button"
                   onClick={handleSubmit}
-                  disabled={isPending || !title.trim()}
+                  disabled={isPending || validationIssues.length > 0}
                 >
                   Save
                 </button>
                 <button
                   className="action-button-secondary"
                   onClick={() => {
+                    const nextDraft = createDefaultMemberEventDraft();
                     setShowForm(false);
                     setError(null);
+                    setTitle(nextDraft.title);
+                    setDescription("");
+                    setIsAllDay(nextDraft.isAllDay);
+                    setAllDayDate(nextDraft.allDayDate);
+                    setStartsAt(nextDraft.startsAtLocal);
+                    setEndsAt(nextDraft.endsAtLocal);
                   }}
                   disabled={isPending}
                 >

@@ -2,11 +2,13 @@
 
 ## Status
 
-Proposed
+Accepted
 
 ## Context
 
-This repository is a brand-new build for a self-hosted household operations platform. The current scope is intentionally narrow: households, identity, scheduling, display, administration, and one worker foundation.
+This repository began as a narrow build for a self-hosted household operations platform centered on households, identity, scheduling, display, administration, and one worker foundation.
+
+The current codebase has progressed beyond that initial bootstrap slice and now also includes implemented narrow slices for calendar integrations, reminders, chores, and lightweight notes.
 
 The repo guidance explicitly rejects speculative modules, generalized platforms, and business-domain microservice sprawl.
 
@@ -32,5 +34,6 @@ Use a single monorepo with:
 
 - module boundaries must stay explicit because process boundaries will not enforce them
 - the infrastructure library must stay narrow and avoid becoming a dumping ground
+- adjacent slices should stay narrow and explicit instead of being generalized into broad cross-domain platforms
 - future domains should be added intentionally only when active scope expands
 

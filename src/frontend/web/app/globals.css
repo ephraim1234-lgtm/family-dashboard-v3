@@ -654,6 +654,19 @@ a {
   gap: 8px;
 }
 
+.scheduling-editor-status-card {
+  margin: 18px 0;
+}
+
+.scheduling-validation-list {
+  display: grid;
+  gap: 6px;
+}
+
+.scheduling-helper-row {
+  margin-top: 0;
+}
+
 .form-stack {
   display: grid;
   gap: 14px;
@@ -729,6 +742,22 @@ a {
 
 .reminder-card .stack-card-header {
   align-items: center;
+}
+
+.reminder-overdue-summary-card {
+  border-color: rgba(194, 65, 12, 0.28);
+  background: rgba(255, 237, 213, 0.62);
+}
+
+.reminder-overdue-card {
+  border-color: rgba(194, 65, 12, 0.28);
+  background: rgba(255, 237, 213, 0.62);
+}
+
+.reminder-overdue-pill {
+  background: rgba(194, 65, 12, 0.14);
+  border-color: rgba(194, 65, 12, 0.24);
+  color: #9a3412;
 }
 
 .admin-section-header {

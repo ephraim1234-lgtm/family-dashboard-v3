@@ -182,7 +182,6 @@ public sealed class HouseholdHomeService(
             .Where(r =>
                 r.HouseholdId == householdId
                 && r.Status == EventReminderStatuses.Pending
-                && r.DueAtUtc >= todayStart
                 && r.DueAtUtc < weekEnd)
             .OrderBy(r => r.DueAtUtc)
             .Take(5)
