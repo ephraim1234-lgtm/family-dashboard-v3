@@ -34,6 +34,31 @@ public sealed record CreateShoppingListItemRequest(
     string? IngredientName,
     decimal? Quantity,
     string? Unit,
-    string? Notes);
+    string? Notes,
+    bool ForceSeparate = false);
 
-public sealed record ToggleShoppingListItemRequest(bool IsCompleted, bool MoveToPantry);
+public sealed record UpdateShoppingListItemRequest(
+    bool? IsCompleted,
+    bool? MoveToPantry,
+    string? State,
+    decimal? QuantityPurchased,
+    string? Notes,
+    bool? ClearNeedsReview,
+    bool? ClaimForCurrentUser,
+    bool? ClearClaim);
+
+public sealed record AddItemsFromRecipeRequest(Guid RecipeId, bool PantryAware);
+
+public sealed record AddItemsFromMealPlanSlotRequest(Guid MealPlanSlotId, bool PantryAware);
+
+public sealed record BulkUpdateShoppingItemsRequest(IReadOnlyList<Guid> ItemIds, string State);
+
+public sealed record TransferToPantryRequest(IReadOnlyList<Guid> ItemIds, bool CompleteList);
+
+public sealed record CompleteShoppingListRequest(bool MoveCheckedToPantry);
+
+public sealed record MergePreviewItemRequest(
+    string? IngredientName,
+    decimal? Quantity,
+    string? Unit,
+    string? Notes);

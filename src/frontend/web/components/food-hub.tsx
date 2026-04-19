@@ -1,7 +1,21 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
+import { foodClient } from "../lib/food-client";
+import { CookingTab } from "./food/cooking/cooking-tab";
+import { DashboardTab } from "./food/dashboard/dashboard-tab";
+import { FoodHubProvider } from "./food/food-hub-context";
+import { useFoodDashboard } from "./food/hooks/use-food-dashboard";
+import { usePantryHistory } from "./food/hooks/use-pantry-history";
+import { useFoodRecipeDetail, useFoodRecipeLibrary } from "./food/hooks/use-food-recipes";
+import { useShoppingListDetail } from "./food/hooks/use-shopping-list-detail";
+import { MealPlanningWorkspace } from "./food/meal-plan/meal-planning-workspace";
+import { PantryWorkspace } from "./food/pantry/pantry-workspace";
+import { RecipesWorkspace } from "./food/recipes/recipes-workspace";
+import { ModuleTabs } from "./food/shared/module-tabs";
+import { ShoppingWorkspace } from "./food/shopping/shopping-workspace";
 
 type FoodSummary = {
   recipeCount: number;
@@ -81,18 +95,32 @@ type MealPlanSlot = {
   slotName: string;
   title: string;
   notes: string | null;
+  shoppingOpenIngredientCount: number;
+  shoppingTotalIngredientCount: number;
   recipes: MealPlanRecipe[];
 };
 
 type ShoppingListItem = {
   id: string;
   ingredientName: string;
-  quantity: number | null;
+  coreIngredientName: string;
+  preparation: string | null;
+  quantityNeeded: number | null;
+  quantityPurchased: number | null;
   unit: string | null;
+  unitCanonical: string | null;
   notes: string | null;
   sourceRecipeTitle: string | null;
   sourceMealTitle: string | null;
+  sourceRecipeIds: string | null;
+  sourceMealTitles: string | null;
+  sourceMealPlanSlotId: string | null;
+  state: string;
   isCompleted: boolean;
+  sortOrder: number;
+  aisleCategory: string | null;
+  claimedByUserId: string | null;
+  claimedAtUtc: string | null;
   createdAtUtc: string;
   completedAtUtc: string | null;
 };
@@ -101,6 +129,12 @@ type ShoppingList = {
   id: string;
   name: string;
   storeName: string | null;
+  status: string;
+  createdAtUtc: string;
+  completedAtUtc: string | null;
+  archivedAtUtc: string | null;
+  completedByUserId: string | null;
+  itemsPurchasedCount: number;
   items: ShoppingListItem[];
 };
 
@@ -127,6 +161,16 @@ type FoodDashboard = {
   pantryLocations: PantryLocation[];
   upcomingMeals: MealPlanSlot[];
   shoppingList: ShoppingList;
+  shoppingHistory: Array<{
+    id: string;
+    name: string;
+    status: string;
+    createdAtUtc: string;
+    completedAtUtc: string | null;
+    itemsPurchasedCount: number;
+    totalItemCount: number;
+    sourceMealTitles: string | null;
+  }>;
   activeCookingSessions: CookingSessionSummary[];
 };
 
@@ -209,6 +253,14 @@ type MealComposerRow = {
   role: string;
 };
 
+type ShoppingTab = "active" | "history";
+
+type ShoppingGroupMode = "flat" | "aisle";
+
+type FoodModuleTab = "dashboard" | "recipes" | "planning" | "pantry" | "shopping" | "cooking";
+
+type RecipeWorkspaceTab = "capture" | "library" | "detail";
+
 function formatDate(date: string) {
   const d = new Date(`${date}T00:00:00`);
   return d.toLocaleDateString([], {
@@ -286,6 +338,7 @@ function recipeToDraft(recipe: RecipeDetail): RecipeDraft {
 }
 
 export function FoodHub() {
+  const queryClient = useQueryClient();
   const [data, setData] = useState<FoodDashboard | null>(null);
   const [recipeLibrary, setRecipeLibrary] = useState<RecipeSummary[]>([]);
   const [selectedRecipe, setSelectedRecipe] = useState<RecipeDetail | null>(null);
@@ -322,6 +375,21 @@ export function FoodHub() {
   const [shoppingQuantity, setShoppingQuantity] = useState("");
   const [shoppingUnit, setShoppingUnit] = useState("");
   const [shoppingNotes, setShoppingNotes] = useState("");
+  const [shoppingTab, setShoppingTab] = useState<ShoppingTab>("active");
+  const [shoppingGroupMode, setShoppingGroupMode] = useState<ShoppingGroupMode>("flat");
+  const [activeModuleTab, setActiveModuleTab] = useState<FoodModuleTab>("dashboard");
+  const [recipeWorkspaceTab, setRecipeWorkspaceTab] = useState<RecipeWorkspaceTab>("capture");
+  const [shoppingMealFilterId, setShoppingMealFilterId] = useState<string | null>(null);
+  const [mergePreview, setMergePreview] = useState<{
+    willMerge: boolean;
+    existingItemId: string | null;
+    existingItemName: string | null;
+    mergedQuantityNeeded: number | null;
+    unit: string | null;
+  } | null>(null);
+  const [showCompleteTripDialog, setShowCompleteTripDialog] = useState(false);
+  const [moveCheckedToPantryOnComplete, setMoveCheckedToPantryOnComplete] = useState(true);
+  const [selectedHistoryTripId, setSelectedHistoryTripId] = useState<string | null>(null);
 
   const [mealDate, setMealDate] = useState("");
   const [mealSlotName, setMealSlotName] = useState("Dinner");
@@ -330,6 +398,12 @@ export function FoodHub() {
   const [generateShopping, setGenerateShopping] = useState(true);
   const [mealRows, setMealRows] = useState<MealComposerRow[]>([{ recipeId: "", role: "Main" }]);
 
+  const dashboardQuery = useFoodDashboard();
+  const recipeLibraryQuery = useFoodRecipeLibrary(recipeQuery);
+  const recipeDetailQuery = useFoodRecipeDetail(selectedRecipeId);
+  const pantryHistoryQuery = usePantryHistory(selectedPantryItemId);
+  const historyTripQuery = useShoppingListDetail(selectedHistoryTripId);
+
   const selectedPantryItem = useMemo(
     () => data?.pantryItems.find((item) => item.id === selectedPantryItemId) ?? null,
     [data, selectedPantryItemId]
@@ -337,6 +411,43 @@ export function FoodHub() {
 
   const lowStockItems = useMemo(
     () => data?.pantryItems.filter((item) => item.status !== "InStock") ?? [],
+    [data]
+  );
+
+  const needsReviewItems = useMemo(
+    () => data?.shoppingList.items.filter((item) => item.state === "NeedsReview") ?? [],
+    [data]
+  );
+
+  const filteredShoppingItems = useMemo(() => {
+    if (!data) return [];
+    return data.shoppingList.items.filter((item) => {
+      if (!shoppingMealFilterId) return true;
+      return item.sourceMealPlanSlotId === shoppingMealFilterId;
+    });
+  }, [data, shoppingMealFilterId]);
+
+  const activeShoppingItems = useMemo(
+    () => filteredShoppingItems.filter((item) => item.state !== "Purchased" && item.state !== "Skipped"),
+    [filteredShoppingItems]
+  );
+
+  const purchasedShoppingItems = useMemo(
+    () => filteredShoppingItems.filter((item) => item.state === "Purchased" || item.state === "Skipped"),
+    [filteredShoppingItems]
+  );
+
+  const shoppingItemsByAisle = useMemo(() => {
+    const grouped = new Map<string, ShoppingListItem[]>();
+    for (const item of activeShoppingItems) {
+      const key = item.aisleCategory ?? "other";
+      grouped.set(key, [...(grouped.get(key) ?? []), item]);
+    }
+    return Array.from(grouped.entries()).sort((left, right) => left[0].localeCompare(right[0]));
+  }, [activeShoppingItems]);
+
+  const purchasedCount = useMemo(
+    () => data?.shoppingList.items.filter((item) => item.state === "Purchased").length ?? 0,
     [data]
   );
 
@@ -401,33 +512,61 @@ export function FoodHub() {
   }
 
   useEffect(() => {
-    startTransition(() => {
-      Promise.all([loadDashboard(), loadRecipeLibrary("")])
-        .then(() => setLoading(false))
-        .catch((err: unknown) => {
-          setError(err instanceof Error ? err.message : "Unable to load food.");
-          setLoading(false);
-        });
-    });
-  }, []);
+    if (!dashboardQuery.data) return;
+
+    const body = dashboardQuery.data;
+    setData(body);
+    if (!pantryLocationId && body.pantryLocations.length > 0) {
+      setPantryLocationId(body.pantryLocations[0].id);
+    }
+    if (!selectedPantryItemId && body.pantryItems.length > 0) {
+      setSelectedPantryItemId(body.pantryItems[0].id);
+    }
+    if (!selectedRecipeId && body.recipes.length > 0) {
+      setSelectedRecipeId(body.recipes[0].id);
+    }
+    if (!mealRows[0]?.recipeId && body.recipes.length > 0) {
+      setMealRows([{ recipeId: body.recipes[0].id, role: "Main" }]);
+    }
+    setLoading(false);
+  }, [dashboardQuery.data, pantryLocationId, selectedPantryItemId, selectedRecipeId, mealRows]);
 
   useEffect(() => {
-    if (!selectedRecipeId) return;
-    startTransition(() => {
-      loadRecipe(selectedRecipeId).catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : "Unable to load recipe detail.");
-      });
-    });
-  }, [selectedRecipeId]);
+    if (recipeLibraryQuery.data) {
+      setRecipeLibrary(recipeLibraryQuery.data);
+    }
+  }, [recipeLibraryQuery.data]);
 
   useEffect(() => {
-    if (!selectedPantryItemId) return;
-    startTransition(() => {
-      loadPantryHistory(selectedPantryItemId).catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : "Unable to load pantry history.");
-      });
-    });
-  }, [selectedPantryItemId]);
+    if (recipeDetailQuery.data) {
+      setSelectedRecipe(recipeDetailQuery.data);
+    }
+  }, [recipeDetailQuery.data]);
+
+  useEffect(() => {
+    if (pantryHistoryQuery.data) {
+      setPantryHistory(pantryHistoryQuery.data);
+    }
+  }, [pantryHistoryQuery.data]);
+
+  useEffect(() => {
+    const queryError =
+      dashboardQuery.error ??
+      recipeLibraryQuery.error ??
+      recipeDetailQuery.error ??
+      pantryHistoryQuery.error ??
+      historyTripQuery.error;
+    if (queryError instanceof Error) {
+      setError(queryError.message);
+      setLoading(false);
+    }
+  }, [
+    dashboardQuery.error,
+    recipeLibraryQuery.error,
+    recipeDetailQuery.error,
+    pantryHistoryQuery.error,
+    historyTripQuery.error
+  ]);
 
   useEffect(() => {
     if (!selectedPantryItem) return;
@@ -446,12 +585,35 @@ export function FoodHub() {
   }, [selectedPantryItem]);
 
   useEffect(() => {
-    startTransition(() => {
-      loadRecipeLibrary(recipeQuery).catch((err: unknown) => {
-        setError(err instanceof Error ? err.message : "Unable to load recipes.");
-      });
-    });
-  }, [recipeQuery]);
+    const ingredientName = shoppingName.trim();
+    if (!ingredientName) {
+      setMergePreview(null);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      foodClient.getShoppingMergePreview({
+        ingredientName,
+        quantity: shoppingQuantity ? Number(shoppingQuantity) : null,
+        unit: shoppingUnit.trim() || null,
+        notes: shoppingNotes.trim() || null
+      })
+        .then((preview) => {
+          setMergePreview({
+            willMerge: preview.willMerge,
+            existingItemId: preview.existingItemId,
+            existingItemName: preview.existingItemName,
+            mergedQuantityNeeded: preview.mergedQuantityNeeded,
+            unit: preview.unit
+          });
+        })
+        .catch(() => {
+          setMergePreview(null);
+        });
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [shoppingName, shoppingQuantity, shoppingUnit, shoppingNotes]);
 
   function showSuccess(message: string) {
     setSuccess(message);
@@ -459,16 +621,18 @@ export function FoodHub() {
   }
 
   async function refreshAll() {
-    await Promise.all([loadDashboard(), loadRecipeLibrary(recipeQuery)]);
-    if (selectedRecipeId) {
-      await loadRecipe(selectedRecipeId);
-    }
-    if (selectedPantryItemId) {
-      await loadPantryHistory(selectedPantryItemId);
-    }
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["food", "dashboard"] }),
+      queryClient.invalidateQueries({ queryKey: ["food", "recipes"] }),
+      queryClient.invalidateQueries({ queryKey: ["food", "recipe"] }),
+      queryClient.invalidateQueries({ queryKey: ["food", "pantry-history"] }),
+      queryClient.invalidateQueries({ queryKey: ["food", "shopping-list"] })
+    ]);
   }
 
   function beginImportReview(review: ImportReview) {
+    setActiveModuleTab("recipes");
+    setRecipeWorkspaceTab("capture");
     setImportReview(review);
     setRecipeDraft({
       recipeId: null,
@@ -485,12 +649,16 @@ export function FoodHub() {
   }
 
   function startManualRecipe() {
+    setActiveModuleTab("recipes");
+    setRecipeWorkspaceTab("capture");
     setImportReview(null);
     setRecipeDraft(createRecipeDraft("manual"));
   }
 
   function startEditingSelectedRecipe() {
     if (!selectedRecipe) return;
+    setActiveModuleTab("recipes");
+    setRecipeWorkspaceTab("capture");
     setImportReview(null);
     setRecipeDraft(recipeToDraft(selectedRecipe));
   }
@@ -554,6 +722,8 @@ export function FoodHub() {
     const recipe = (await response.json()) as RecipeDetail;
     setSelectedRecipe(recipe);
     setSelectedRecipeId(recipe.id);
+    setActiveModuleTab("recipes");
+    setRecipeWorkspaceTab("detail");
     setRecipeDraft(null);
     setImportReview(null);
     setImportUrl("");
@@ -630,47 +800,129 @@ export function FoodHub() {
   }
 
   async function handleAddShoppingItem() {
-    const response = await fetch("/api/food/shopping-list/items", {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ingredientName: shoppingName.trim(),
-        quantity: shoppingQuantity ? Number(shoppingQuantity) : null,
-        unit: shoppingUnit.trim() || null,
-        notes: shoppingNotes.trim() || null
-      })
+    await foodClient.createShoppingItem({
+      ingredientName: shoppingName.trim(),
+      quantity: shoppingQuantity ? Number(shoppingQuantity) : null,
+      unit: shoppingUnit.trim() || null,
+      notes: shoppingNotes.trim() || null
     });
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || `Shopping add failed with ${response.status}.`);
-    }
 
     setShoppingName("");
     setShoppingQuantity("");
     setShoppingUnit("");
     setShoppingNotes("");
+    setMergePreview(null);
     await refreshAll();
-    showSuccess("Shopping item added.");
+    showSuccess(mergePreview?.willMerge ? "Shopping item merged into the existing line." : "Shopping item added.");
   }
 
   async function handleToggleShoppingItem(item: ShoppingListItem, nextCompleted: boolean) {
-    const response = await fetch(`/api/food/shopping-list/items/${item.id}`, {
-      method: "PATCH",
-      credentials: "same-origin",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        isCompleted: nextCompleted,
-        moveToPantry: nextCompleted
-      })
+    await foodClient.updateShoppingItem(item.id, {
+      isCompleted: nextCompleted,
+      moveToPantry: nextCompleted,
+      state: nextCompleted ? "Purchased" : item.state === "NeedsReview" ? "NeedsReview" : "Needed"
     });
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || `Shopping update failed with ${response.status}.`);
-    }
 
     await refreshAll();
     showSuccess(nextCompleted ? "Marked purchased and moved into pantry." : "Returned item to the shopping list.");
+  }
+
+  async function handleDeleteShoppingItem(item: ShoppingListItem) {
+    await foodClient.deleteShoppingItem(item.id);
+    await refreshAll();
+    showSuccess("Shopping item deleted.");
+  }
+
+  async function handleRecipeAddToShoppingList(recipeId: string) {
+    await foodClient.addItemsFromRecipe({ recipeId, pantryAware: true });
+    setActiveModuleTab("shopping");
+    setShoppingTab("active");
+    await refreshAll();
+    showSuccess("Recipe ingredients added to the shopping list.");
+  }
+
+  async function handleClearNeedsReview(item: ShoppingListItem) {
+    await foodClient.updateShoppingItem(item.id, {
+      clearNeedsReview: true,
+      state: "Needed"
+    });
+    await refreshAll();
+    showSuccess("Review flag cleared.");
+  }
+
+  async function handleSplitNeedsReview(item: ShoppingListItem) {
+    await foodClient.createShoppingItem({
+      ingredientName: item.ingredientName,
+      quantity: item.quantityNeeded,
+      unit: item.unit,
+      notes: item.notes,
+      forceSeparate: true
+    });
+    await foodClient.updateShoppingItem(item.id, {
+      clearNeedsReview: true,
+      state: "Needed"
+    });
+    await refreshAll();
+    showSuccess("Created a separate line so you can edit it independently.");
+  }
+
+  async function handleCompleteTrip() {
+    if (!data) return;
+    await foodClient.completeShoppingList(data.shoppingList.id, {
+      moveCheckedToPantry: moveCheckedToPantryOnComplete
+    });
+    setShowCompleteTripDialog(false);
+    await refreshAll();
+    showSuccess("Trip completed and a fresh active list is ready.");
+  }
+
+  async function handleClaimShoppingItem(item: ShoppingListItem) {
+    await foodClient.updateShoppingItem(item.id, {
+      claimForCurrentUser: true
+    });
+    await refreshAll();
+    showSuccess("Shopping item claimed.");
+  }
+
+  async function handleReleaseShoppingItem(item: ShoppingListItem) {
+    await foodClient.updateShoppingItem(item.id, {
+      clearClaim: true
+    });
+    await refreshAll();
+    showSuccess("Claim released.");
+  }
+
+  async function handleDeleteRecipe(recipeId: string) {
+    await foodClient.deleteRecipe(recipeId);
+    setSelectedRecipe(null);
+    setSelectedRecipeId(null);
+    setRecipeDraft(null);
+    setImportReview(null);
+    setRecipeWorkspaceTab("library");
+    await refreshAll();
+    showSuccess("Recipe deleted.");
+  }
+
+  async function handleDeletePantryItem(pantryItemId: string) {
+    await foodClient.deletePantryItem(pantryItemId);
+    setSelectedPantryItemId(null);
+    setPantryHistory([]);
+    await refreshAll();
+    showSuccess("Pantry item deleted.");
+  }
+
+  async function handleAddLowStockToShopping(item: PantryItem) {
+    await foodClient.createShoppingItem({
+      ingredientName: item.ingredientName,
+      quantity: item.lowThreshold ?? item.quantity ?? null,
+      unit: item.unit,
+      notes: `Pantry ${item.status.toLowerCase()} at ${item.locationName ?? "unassigned location"}`
+    });
+    setActiveModuleTab("shopping");
+    setShoppingTab("active");
+    setShoppingMealFilterId(null);
+    await refreshAll();
+    showSuccess("Low-stock pantry item added to shopping.");
   }
 
   async function handlePlanMeal() {
@@ -728,6 +980,124 @@ export function FoodHub() {
     window.location.href = `/app/food/cooking/${session.id}`;
   }
 
+  const foodHubContextValue = {
+    data,
+    isPending,
+    startTransition,
+    setError,
+    activeModuleTab,
+    setActiveModuleTab,
+    handleStartCooking,
+    buildFieldTestId,
+    formatQuantity,
+    formatTimestamp,
+    recipeWorkspaceTab,
+    setRecipeWorkspaceTab,
+    recipeLibrary,
+    recipeQuery,
+    setRecipeQuery,
+    selectedRecipe,
+    setSelectedRecipeId,
+    importUrl,
+    setImportUrl,
+    importReview,
+    setImportReview,
+    recipeDraft,
+    setRecipeDraft,
+    emptyIngredient,
+    emptyStep,
+    startManualRecipe,
+    startEditingSelectedRecipe,
+    handleImportRecipe,
+    handleSaveRecipeDraft,
+    handleRecipeAddToShoppingList,
+    handleDeleteRecipe,
+    pantryName,
+    setPantryName,
+    pantryLocationId,
+    setPantryLocationId,
+    pantryQuantity,
+    setPantryQuantity,
+    pantryUnit,
+    setPantryUnit,
+    pantryLowThreshold,
+    setPantryLowThreshold,
+    pantryExpiresAt,
+    setPantryExpiresAt,
+    handleAddPantryItem,
+    lowStockItems,
+    setSelectedPantryItemId,
+    handleAddLowStockToShopping,
+    selectedPantryItem,
+    pantryEditLocationId,
+    setPantryEditLocationId,
+    pantryEditStatus,
+    setPantryEditStatus,
+    pantryEditQuantity,
+    setPantryEditQuantity,
+    pantryEditUnit,
+    setPantryEditUnit,
+    pantryEditLowThreshold,
+    setPantryEditLowThreshold,
+    pantryEditPurchasedAt,
+    setPantryEditPurchasedAt,
+    pantryEditExpiresAt,
+    setPantryEditExpiresAt,
+    pantryEditNote,
+    setPantryEditNote,
+    handleUpdatePantryItem,
+    handleDeletePantryItem,
+    pantryHistory,
+    activeShoppingItems,
+    needsReviewItems,
+    shoppingTab,
+    setShoppingTab,
+    shoppingGroupMode,
+    setShoppingGroupMode,
+    shoppingMealFilterId,
+    setShoppingMealFilterId,
+    shoppingName,
+    setShoppingName,
+    shoppingQuantity,
+    setShoppingQuantity,
+    shoppingUnit,
+    setShoppingUnit,
+    shoppingNotes,
+    setShoppingNotes,
+    mergePreview,
+    handleAddShoppingItem,
+    purchasedCount,
+    showCompleteTripDialog,
+    setShowCompleteTripDialog,
+    moveCheckedToPantryOnComplete,
+    setMoveCheckedToPantryOnComplete,
+    handleCompleteTrip,
+    handleClearNeedsReview,
+    handleSplitNeedsReview,
+    handleToggleShoppingItem,
+    handleDeleteShoppingItem,
+    handleClaimShoppingItem,
+    handleReleaseShoppingItem,
+    selectedHistoryTripId,
+    setSelectedHistoryTripId,
+    historyTripQuery,
+    shoppingItemsByAisle,
+    purchasedShoppingItems,
+    mealDate,
+    setMealDate,
+    mealSlotName,
+    setMealSlotName,
+    mealTitle,
+    setMealTitle,
+    mealNotes,
+    setMealNotes,
+    mealRows,
+    setMealRows,
+    generateShopping,
+    setGenerateShopping,
+    handlePlanMeal
+  };
+
   if (loading) {
     return (
       <section className="grid" data-testid="food-hub-loading">
@@ -751,7 +1121,8 @@ export function FoodHub() {
   }
 
   return (
-    <>
+    <FoodHubProvider value={foodHubContextValue}>
+      <>
       {error ? (
         <section className="grid">
           <article className="panel">
@@ -772,1062 +1143,45 @@ export function FoodHub() {
         </section>
       ) : null}
 
-      <section className="grid food-hero-grid" data-testid="food-hub">
-        <article className="panel" data-testid="food-overview-panel">
-          <div className="eyebrow">Food hub</div>
-          <h2>Household food operating system</h2>
-          <p className="muted">
-            Pantry, recipes, shopping, meal planning, and cooking stay connected here.
-          </p>
-          <div className="summary-grid" style={{ marginTop: "16px" }}>
-            <div className="stack-card">
-              <div className="eyebrow">Recipes</div>
-              <div className="summary-stat">{data.summary.recipeCount}</div>
-            </div>
-            <div className="stack-card">
-              <div className="eyebrow">Pantry</div>
-              <div className="summary-stat">{data.summary.pantryItemCount}</div>
-            </div>
-            <div className="stack-card">
-              <div className="eyebrow">Shopping</div>
-              <div className="summary-stat">{data.summary.shoppingItemCount}</div>
-            </div>
-            <div className="stack-card">
-              <div className="eyebrow">Cooking now</div>
-              <div className="summary-stat">{data.summary.activeCookingSessionCount}</div>
-            </div>
-          </div>
-        </article>
-
+      <section className="grid">
         <article className="panel">
-          <div className="eyebrow">Tonight</div>
-          <h2>{data.tonightCookView?.title ?? "No dinner planned yet"}</h2>
-          <p className="muted" style={{ marginTop: "8px" }}>
-            {data.tonightCookView?.reason ?? "Plan a meal, generate shopping gaps, and jump straight into cooking mode."}
-          </p>
-          {data.tonightCookView?.plannedRecipeTitles?.length ? (
-            <div className="pill-row" style={{ marginTop: "12px" }}>
-              {data.tonightCookView.plannedRecipeTitles.map((title) => (
-                <span className="pill" key={title}>{title}</span>
-              ))}
-            </div>
-          ) : null}
-          {data.tonightCookView?.missingIngredients.length ? (
-            <div className="stack-list" style={{ marginTop: "12px" }}>
-              {data.tonightCookView.missingIngredients.map((item) => (
-                <div className="stack-card" key={item}>
-                  <strong>{item}</strong>
-                </div>
-              ))}
-            </div>
-          ) : null}
-          {data.tonightCookView?.mealPlanSlotId ? (
-            <div className="action-row">
-              <button
-                className="action-button"
-                disabled={isPending}
-                onClick={() => {
-                  startTransition(() => {
-                    handleStartCooking({ mealPlanSlotId: data.tonightCookView!.mealPlanSlotId! }).catch((err: unknown) => {
-                      setError(err instanceof Error ? err.message : "Unable to start cooking.");
-                    });
-                  });
-                }}
-              >
-                Cook tonight
-              </button>
-            </div>
-          ) : null}
+          <div className="eyebrow">Food surface</div>
+          <h2>Food is now its own workspace</h2>
+          <p className="muted">Jump between focused tabs instead of scrolling one giant page.</p>
+          <ModuleTabs
+            tabs={[
+              { id: "dashboard", label: "Dashboard" },
+              { id: "recipes", label: "Recipes" },
+              { id: "planning", label: "Planning" },
+              { id: "pantry", label: "Pantry" },
+              { id: "shopping", label: "Shopping" },
+              { id: "cooking", label: "Cooking" }
+            ]}
+            activeTab={activeModuleTab}
+            onChange={setActiveModuleTab}
+          />
         </article>
       </section>
+
+      {activeModuleTab === "dashboard" ? <DashboardTab /> : null}
 
       <div className="section-spacer" />
 
-      <section className="grid food-section-grid">
-        <article className="panel" data-testid="food-recipe-capture-panel">
-          <div className="eyebrow">Recipe capture</div>
-          <h2>Bring in a recipe by link or create one from scratch</h2>
-          <div className="field" style={{ marginTop: "12px" }}>
-            <span>Recipe URL</span>
-            <input
-              aria-label="Recipe URL"
-              data-testid={buildFieldTestId("food-import", "url")}
-              value={importUrl}
-              onChange={(event) => setImportUrl(event.target.value)}
-              placeholder="https://example.com/recipe"
-            />
-          </div>
-          <div className="action-row">
-            <button
-              className="action-button"
-              data-testid="food-import-submit"
-              disabled={isPending || !importUrl.trim()}
-              onClick={() => {
-                setError(null);
-                startTransition(() => {
-                  handleImportRecipe().catch((err: unknown) => {
-                    setError(err instanceof Error ? err.message : "Unable to import recipe.");
-                  });
-                });
-              }}
-            >
-              Import for review
-            </button>
-            <button
-              className="action-button-secondary"
-              data-testid="food-recipe-start-manual"
-              disabled={isPending}
-              onClick={startManualRecipe}
-            >
-              New manual recipe
-            </button>
-          </div>
-
-          {importReview ? (
-            <div className="stack-card" style={{ marginTop: "16px" }} data-testid="food-import-review">
-              <div className="pill-row">
-                <span className="pill">Status {importReview.status}</span>
-                <span className="pill">Confidence {(importReview.parserConfidence * 100).toFixed(0)}%</span>
-                {importReview.sourceSiteName ? <span className="pill">{importReview.sourceSiteName}</span> : null}
-              </div>
-              {importReview.warnings.length > 0 ? (
-                <div className="stack-list" style={{ marginTop: "10px" }}>
-                  {importReview.warnings.map((warning) => (
-                    <div className="stack-card home-attention-card" key={warning}>
-                      <span>{warning}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          ) : null}
-
-          {recipeDraft ? (
-            <div className="stack-list" style={{ marginTop: "16px" }}>
-              <div className="stack-card" data-testid="food-recipe-draft">
-                <div className="stack-card-header">
-                  <strong>
-                    {recipeDraft.mode === "edit"
-                      ? "Edit household default"
-                      : recipeDraft.mode === "import"
-                        ? "Review imported recipe"
-                        : "New household recipe"}
-                  </strong>
-                  <span className="pill">{recipeDraft.mode}</span>
-                </div>
-                <div className="field">
-                  <span>Title</span>
-                  <input
-                    aria-label="Recipe title"
-                    data-testid={buildFieldTestId("food-recipe-draft", "title")}
-                    value={recipeDraft.title}
-                    onChange={(event) => setRecipeDraft((current) => current ? { ...current, title: event.target.value } : current)}
-                  />
-                </div>
-                <div className="field">
-                  <span>Summary</span>
-                  <input
-                    aria-label="Recipe summary"
-                    data-testid={buildFieldTestId("food-recipe-draft", "summary")}
-                    value={recipeDraft.summary}
-                    onChange={(event) => setRecipeDraft((current) => current ? { ...current, summary: event.target.value } : current)}
-                  />
-                </div>
-                <div className="grid">
-                  <div className="field">
-                    <span>Yield</span>
-                    <input
-                      aria-label="Recipe yield"
-                      data-testid={buildFieldTestId("food-recipe-draft", "yield")}
-                      value={recipeDraft.yieldText}
-                      onChange={(event) => setRecipeDraft((current) => current ? { ...current, yieldText: event.target.value } : current)}
-                    />
-                  </div>
-                  <div className="field">
-                    <span>Tags</span>
-                    <input
-                      aria-label="Recipe tags"
-                      data-testid={buildFieldTestId("food-recipe-draft", "tags")}
-                      value={recipeDraft.tags}
-                      onChange={(event) => setRecipeDraft((current) => current ? { ...current, tags: event.target.value } : current)}
-                    />
-                  </div>
-                </div>
-                <div className="field">
-                  <span>Household notes</span>
-                  <input
-                    aria-label="Recipe household notes"
-                    data-testid={buildFieldTestId("food-recipe-draft", "notes")}
-                    value={recipeDraft.notes}
-                    onChange={(event) => setRecipeDraft((current) => current ? { ...current, notes: event.target.value } : current)}
-                  />
-                </div>
-              </div>
-
-              <div className="stack-card" data-testid="food-recipe-draft-ingredients">
-                <div className="stack-card-header">
-                  <strong>Ingredients</strong>
-                  <button
-                    className="pill-button"
-                    type="button"
-                    data-testid="food-recipe-add-ingredient"
-                    onClick={() => setRecipeDraft((current) => current ? {
-                      ...current,
-                      ingredients: [...current.ingredients, emptyIngredient()]
-                    } : current)}
-                  >
-                    + Ingredient
-                  </button>
-                </div>
-                <div className="stack-list" style={{ marginTop: "10px" }}>
-                  {recipeDraft.ingredients.map((ingredient, index) => (
-                    <div className="stack-card" data-testid={`food-recipe-ingredient-${index}`} key={`draft-ingredient-${index}`}>
-                      <div className="grid">
-                        <div className="field">
-                          <span>Ingredient</span>
-                          <input
-                            aria-label={`Recipe ingredient ${index + 1}`}
-                            data-testid={`food-recipe-ingredient-name-${index}`}
-                            value={ingredient.ingredientName}
-                            onChange={(event) => setRecipeDraft((current) => {
-                              if (!current) return current;
-                              const ingredients = [...current.ingredients];
-                              ingredients[index] = { ...ingredients[index], ingredientName: event.target.value };
-                              return { ...current, ingredients };
-                            })}
-                          />
-                        </div>
-                        <div className="field">
-                          <span>Qty</span>
-                          <input
-                            aria-label={`Recipe ingredient quantity ${index + 1}`}
-                            data-testid={`food-recipe-ingredient-quantity-${index}`}
-                            type="number"
-                            step="0.25"
-                            value={ingredient.quantity ?? ""}
-                            onChange={(event) => setRecipeDraft((current) => {
-                              if (!current) return current;
-                              const ingredients = [...current.ingredients];
-                              ingredients[index] = {
-                                ...ingredients[index],
-                                quantity: event.target.value ? Number(event.target.value) : null
-                              };
-                              return { ...current, ingredients };
-                            })}
-                          />
-                        </div>
-                        <div className="field">
-                          <span>Unit</span>
-                          <input
-                            aria-label={`Recipe ingredient unit ${index + 1}`}
-                            data-testid={`food-recipe-ingredient-unit-${index}`}
-                            value={ingredient.unit ?? ""}
-                            onChange={(event) => setRecipeDraft((current) => {
-                              if (!current) return current;
-                              const ingredients = [...current.ingredients];
-                              ingredients[index] = { ...ingredients[index], unit: event.target.value || null };
-                              return { ...current, ingredients };
-                            })}
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="stack-card" data-testid="food-recipe-draft-steps">
-                <div className="stack-card-header">
-                  <strong>Steps</strong>
-                  <button
-                    className="pill-button"
-                    type="button"
-                    data-testid="food-recipe-add-step"
-                    onClick={() => setRecipeDraft((current) => current ? {
-                      ...current,
-                      steps: [...current.steps, emptyStep(current.steps.length + 1)]
-                    } : current)}
-                  >
-                    + Step
-                  </button>
-                </div>
-                <div className="stack-list" style={{ marginTop: "10px" }}>
-                  {recipeDraft.steps.map((step, index) => (
-                    <div className="stack-card" data-testid={`food-recipe-step-${index}`} key={`draft-step-${index}`}>
-                      <div className="field">
-                        <span>Step {index + 1}</span>
-                        <input
-                          aria-label={`Recipe step ${index + 1}`}
-                          data-testid={`food-recipe-step-instruction-${index}`}
-                          value={step.instruction}
-                          onChange={(event) => setRecipeDraft((current) => {
-                            if (!current) return current;
-                            const steps = [...current.steps];
-                            steps[index] = { position: index + 1, instruction: event.target.value };
-                            return { ...current, steps };
-                          })}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="action-row">
-                <button
-                  className="action-button"
-                  data-testid="food-recipe-save"
-                  disabled={isPending}
-                  onClick={() => {
-                    setError(null);
-                    startTransition(() => {
-                      handleSaveRecipeDraft().catch((err: unknown) => {
-                        setError(err instanceof Error ? err.message : "Unable to save recipe.");
-                      });
-                    });
-                  }}
-                >
-                  {recipeDraft.mode === "edit" ? "Save household default" : "Save recipe"}
-                </button>
-                <button
-                  className="action-button-secondary"
-                  data-testid="food-recipe-cancel"
-                  disabled={isPending}
-                  onClick={() => {
-                    setRecipeDraft(null);
-                    setImportReview(null);
-                  }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          ) : null}
-        </article>
-
-        <article className="panel" data-testid="food-recipe-library">
-          <div className="eyebrow">Recipe library</div>
-          <div className="stack-card-header">
-            <h2 style={{ margin: 0 }}>Shared household recipes</h2>
-            <span className="pill">{recipeLibrary.length} shown</span>
-          </div>
-          <div className="field" style={{ marginTop: "12px" }}>
-            <span>Search</span>
-            <input
-              aria-label="Recipe search"
-              data-testid={buildFieldTestId("food-recipe-library", "search")}
-              value={recipeQuery}
-              onChange={(event) => setRecipeQuery(event.target.value)}
-              placeholder="weeknight, chicken, lunch"
-            />
-          </div>
-          <div className="stack-list" style={{ marginTop: "14px" }}>
-            {recipeLibrary.map((recipe) => (
-              <div className="stack-card" data-testid={`food-recipe-library-item-${recipe.id}`} key={recipe.id}>
-                <div className="stack-card-header">
-                  <div style={{ flex: 1 }}>
-                    <strong>{recipe.title}</strong>
-                    <div className="muted">
-                      {recipe.ingredientCount} ingredients • {recipe.stepCount} steps • updated {formatTimestamp(recipe.updatedAtUtc)}
-                    </div>
-                  </div>
-                  <button
-                    className="pill-button"
-                    data-testid={`food-recipe-library-view-${recipe.id}`}
-                    onClick={() => setSelectedRecipeId(recipe.id)}
-                  >
-                    View
-                  </button>
-                </div>
-                <div className="pill-row">
-                  {recipe.tags ? <span className="pill">{recipe.tags}</span> : null}
-                  {recipe.yieldText ? <span className="pill">{recipe.yieldText}</span> : null}
-                  {recipe.sourceLabel ? <span className="pill">{recipe.sourceLabel}</span> : null}
-                </div>
-              </div>
-            ))}
-          </div>
-        </article>
-      </section>
+      {activeModuleTab === "recipes" ? <RecipesWorkspace /> : null}
 
       <div className="section-spacer" />
 
-      <section className="grid food-section-grid">
-        <article className="panel" data-testid="food-meal-planning">
-          <div className="eyebrow">Meal planning</div>
-          <h2>Build a real meal, not just a single recipe slot</h2>
-          <div className="grid" style={{ marginTop: "12px" }}>
-            <div className="field">
-              <span>Date</span>
-              <input
-                aria-label="Meal date"
-                data-testid={buildFieldTestId("food-meal", "date")}
-                type="date"
-                value={mealDate}
-                onChange={(event) => setMealDate(event.target.value)}
-              />
-            </div>
-            <div className="field">
-              <span>Slot</span>
-              <input
-                aria-label="Meal slot"
-                data-testid={buildFieldTestId("food-meal", "slot")}
-                value={mealSlotName}
-                onChange={(event) => setMealSlotName(event.target.value)}
-              />
-            </div>
-            <div className="field">
-              <span>Meal title</span>
-              <input
-                aria-label="Meal title"
-                data-testid={buildFieldTestId("food-meal", "title")}
-                value={mealTitle}
-                onChange={(event) => setMealTitle(event.target.value)}
-                placeholder="Taco night"
-              />
-            </div>
-          </div>
-          <div className="field">
-            <span>Notes</span>
-            <input
-              aria-label="Meal notes"
-              data-testid={buildFieldTestId("food-meal", "notes")}
-              value={mealNotes}
-              onChange={(event) => setMealNotes(event.target.value)}
-            />
-          </div>
-          <div className="stack-list" style={{ marginTop: "12px" }}>
-            {mealRows.map((row, index) => (
-              <div className="stack-card" data-testid={`food-meal-row-${index}`} key={`meal-row-${index}`}>
-                <div className="grid">
-                  <div className="field">
-                    <span>Recipe</span>
-                    <select
-                      aria-label={`Meal recipe ${index + 1}`}
-                      data-testid={`food-meal-recipe-${index}`}
-                      value={row.recipeId}
-                      onChange={(event) => setMealRows((current) => current.map((item, rowIndex) =>
-                        rowIndex === index ? { ...item, recipeId: event.target.value } : item))}
-                    >
-                      <option value="">Choose a recipe</option>
-                      {recipeLibrary.map((recipe) => (
-                        <option key={recipe.id} value={recipe.id}>{recipe.title}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="field">
-                    <span>Role</span>
-                    <select
-                      aria-label={`Meal role ${index + 1}`}
-                      data-testid={`food-meal-role-${index}`}
-                      value={row.role}
-                      onChange={(event) => setMealRows((current) => current.map((item, rowIndex) =>
-                        rowIndex === index ? { ...item, role: event.target.value } : item))}
-                    >
-                      <option value="Main">Main</option>
-                      <option value="Side">Side</option>
-                      <option value="Sauce">Sauce</option>
-                      <option value="Dessert">Dessert</option>
-                      <option value="Drink">Drink</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="action-row">
-            <button
-              className="pill-button"
-              type="button"
-              data-testid="food-meal-add-recipe"
-              onClick={() => setMealRows((current) => [...current, {
-                recipeId: recipeLibrary[0]?.id ?? "",
-                role: "Side"
-              }])}
-            >
-              + Add recipe to meal
-            </button>
-            <label className="checkbox-field">
-              <input
-                aria-label="Draft missing shopping items"
-                data-testid={buildFieldTestId("food-meal", "generate-shopping")}
-                type="checkbox"
-                checked={generateShopping}
-                onChange={(event) => setGenerateShopping(event.target.checked)}
-              />
-              Draft missing shopping items
-            </label>
-          </div>
-          <div className="action-row">
-            <button
-              className="action-button"
-              data-testid="food-meal-save"
-              disabled={isPending || !mealDate || mealRows.every((row) => !row.recipeId)}
-              onClick={() => {
-                setError(null);
-                startTransition(() => {
-                  handlePlanMeal().catch((err: unknown) => {
-                    setError(err instanceof Error ? err.message : "Unable to plan meal.");
-                  });
-                });
-              }}
-            >
-              Save meal
-            </button>
-          </div>
-
-          {data.upcomingMeals.length > 0 ? (
-            <div className="stack-list" style={{ marginTop: "16px" }}>
-              {data.upcomingMeals.map((slot) => (
-                <div className="stack-card" data-testid={`food-meal-slot-${slot.id}`} key={slot.id}>
-                  <div className="stack-card-header">
-                    <div style={{ flex: 1 }}>
-                      <strong>{slot.title}</strong>
-                      <div className="muted">{formatDate(slot.date)} • {slot.slotName}</div>
-                    </div>
-                    <button
-                      className="pill-button"
-                      data-testid={`food-meal-slot-cook-${slot.id}`}
-                      onClick={() => {
-                        setError(null);
-                        startTransition(() => {
-                          handleStartCooking({ mealPlanSlotId: slot.id }).catch((err: unknown) => {
-                            setError(err instanceof Error ? err.message : "Unable to start meal cooking.");
-                          });
-                        });
-                      }}
-                    >
-                      Cook meal
-                    </button>
-                  </div>
-                  <div className="pill-row">
-                    {slot.recipes.map((recipe) => (
-                      <span className="pill" key={recipe.id}>{recipe.role}: {recipe.title}</span>
-                    ))}
-                  </div>
-                  {slot.notes ? <div className="muted">{slot.notes}</div> : null}
-                </div>
-              ))}
-            </div>
-          ) : null}
-        </article>
-
-        <article className="panel" data-testid="food-recipe-detail">
-          <div className="eyebrow">Recipe detail</div>
-          <h2>{selectedRecipe?.title ?? "Pick a recipe"}</h2>
-          {selectedRecipe ? (
-            <>
-              <p className="muted" style={{ marginTop: "8px" }}>
-                {selectedRecipe.summary ?? "This household-owned recipe keeps imported source and default household edits separate."}
-              </p>
-              <div className="pill-row" style={{ marginTop: "12px" }}>
-                <span className="pill">Default rev {selectedRecipe.householdDefaultRevision.revisionNumber}</span>
-                <span className="pill">Imported rev {selectedRecipe.importedSourceRevision.revisionNumber}</span>
-                <span className="pill">{selectedRecipe.revisionCount} total revisions</span>
-                {selectedRecipe.householdDefaultRevision.yieldText ? <span className="pill">{selectedRecipe.householdDefaultRevision.yieldText}</span> : null}
-              </div>
-              {selectedRecipe.source?.sourceUrl ? (
-                <p className="muted" style={{ marginTop: "12px" }}>
-                  Imported from{" "}
-                  <a className="pill-link pill" href={selectedRecipe.source.sourceUrl} target="_blank" rel="noreferrer">
-                    {selectedRecipe.source.sourceSiteName ?? selectedRecipe.source.sourceUrl}
-                  </a>
-                </p>
-              ) : (
-                <p className="muted" style={{ marginTop: "12px" }}>
-                  Manual household recipe. Imported lineage and household default are intentionally separate.
-                </p>
-              )}
-
-              <div className="grid" style={{ marginTop: "14px" }}>
-                <div className="stack-card">
-                  <div className="eyebrow">Household default ingredients</div>
-                  <div className="stack-list" style={{ marginTop: "10px" }}>
-                    {selectedRecipe.householdDefaultRevision.ingredients.map((ingredient, index) => (
-                      <div className="stack-card" key={`${ingredient.ingredientName}-${index}`}>
-                        <strong>{ingredient.ingredientName}</strong>
-                        <div className="muted">{formatQuantity(ingredient.quantity, ingredient.unit)}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="stack-card">
-                  <div className="eyebrow">Steps</div>
-                  <div className="stack-list" style={{ marginTop: "10px" }}>
-                    {selectedRecipe.householdDefaultRevision.steps.map((step) => (
-                      <div className="stack-card" key={step.position}>
-                        <strong>Step {step.position}</strong>
-                        <div className="muted">{step.instruction}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              <div className="action-row">
-                <button
-                  className="action-button"
-                  data-testid="food-recipe-start-cooking"
-                  disabled={isPending}
-                  onClick={() => {
-                    setError(null);
-                    startTransition(() => {
-                      handleStartCooking({ recipeId: selectedRecipe.id }).catch((err: unknown) => {
-                        setError(err instanceof Error ? err.message : "Unable to start cooking.");
-                      });
-                    });
-                  }}
-                >
-                  Start cooking
-                </button>
-                <button
-                  className="action-button-secondary"
-                  data-testid="food-recipe-edit-default"
-                  disabled={isPending}
-                  onClick={startEditingSelectedRecipe}
-                >
-                  Edit household default
-                </button>
-                <button
-                  className="action-button-secondary"
-                  data-testid="food-recipe-add-to-meal"
-                  disabled={isPending}
-                  onClick={() => {
-                    setMealDate(mealDate || new Date().toISOString().slice(0, 10));
-                    setMealRows([{ recipeId: selectedRecipe.id, role: "Main" }]);
-                    if (!mealTitle) setMealTitle(selectedRecipe.title);
-                  }}
-                >
-                  Add to meal
-                </button>
-              </div>
-            </>
-          ) : (
-            <p className="muted" style={{ marginTop: "12px" }}>
-              Choose a recipe from the shared library to inspect or edit the household default.
-            </p>
-          )}
-        </article>
-      </section>
+      {activeModuleTab === "planning" ? <MealPlanningWorkspace /> : null}
 
       <div className="section-spacer" />
 
-      <section className="grid food-section-grid">
-        <article className="panel" data-testid="food-pantry-panel">
-          <div className="eyebrow">Pantry</div>
-          <h2>Low-friction inventory with real adjustment history</h2>
-          <div className="grid" style={{ marginTop: "12px" }}>
-            <div className="field">
-              <span>Item</span>
-              <input
-                aria-label="Pantry item name"
-                data-testid={buildFieldTestId("food-pantry-add", "item")}
-                value={pantryName}
-                onChange={(event) => setPantryName(event.target.value)}
-              />
-            </div>
-            <div className="field">
-              <span>Location</span>
-              <select
-                aria-label="Pantry location"
-                data-testid={buildFieldTestId("food-pantry-add", "location")}
-                value={pantryLocationId}
-                onChange={(event) => setPantryLocationId(event.target.value)}
-              >
-                {data.pantryLocations.map((location) => (
-                  <option key={location.id} value={location.id}>{location.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="field">
-              <span>Qty</span>
-              <input
-                aria-label="Pantry quantity"
-                data-testid={buildFieldTestId("food-pantry-add", "quantity")}
-                type="number"
-                step="0.25"
-                value={pantryQuantity}
-                onChange={(event) => setPantryQuantity(event.target.value)}
-              />
-            </div>
-            <div className="field">
-              <span>Unit</span>
-              <input
-                aria-label="Pantry unit"
-                data-testid={buildFieldTestId("food-pantry-add", "unit")}
-                value={pantryUnit}
-                onChange={(event) => setPantryUnit(event.target.value)}
-              />
-            </div>
-          </div>
-          <div className="grid">
-            <div className="field">
-              <span>Low threshold</span>
-              <input
-                aria-label="Pantry low threshold"
-                data-testid={buildFieldTestId("food-pantry-add", "low-threshold")}
-                type="number"
-                step="0.25"
-                value={pantryLowThreshold}
-                onChange={(event) => setPantryLowThreshold(event.target.value)}
-              />
-            </div>
-            <div className="field">
-              <span>Expires</span>
-              <input
-                aria-label="Pantry expires"
-                data-testid={buildFieldTestId("food-pantry-add", "expires")}
-                type="date"
-                value={pantryExpiresAt}
-                onChange={(event) => setPantryExpiresAt(event.target.value)}
-              />
-            </div>
-          </div>
-          <div className="action-row">
-            <button
-              className="action-button"
-              data-testid="food-pantry-add-submit"
-              disabled={isPending || !pantryName.trim()}
-              onClick={() => {
-                setError(null);
-                startTransition(() => {
-                  handleAddPantryItem().catch((err: unknown) => {
-                    setError(err instanceof Error ? err.message : "Unable to add pantry item.");
-                  });
-                });
-              }}
-            >
-              Add pantry item
-            </button>
-          </div>
+      {activeModuleTab === "pantry" ? <PantryWorkspace /> : null}
 
-          {lowStockItems.length > 0 ? (
-            <div className="stack-list" style={{ marginTop: "16px" }}>
-              {lowStockItems.map((item) => (
-                <button
-                  className="stack-card home-attention-card"
-                  data-testid={`food-pantry-item-${item.id}`}
-                  key={item.id}
-                  type="button"
-                  onClick={() => setSelectedPantryItemId(item.id)}
-                >
-                  <div className="stack-card-header">
-                    <strong>{item.ingredientName}</strong>
-                    <span className="pill">{item.status}</span>
-                  </div>
-                  <div className="muted">{formatQuantity(item.quantity, item.unit)} • {item.locationName ?? "Unassigned"}</div>
-                </button>
-              ))}
-            </div>
-          ) : null}
+      {activeModuleTab === "shopping" ? <ShoppingWorkspace /> : null}
 
-          <div className="stack-list" style={{ marginTop: "16px" }}>
-            {data.pantryItems.map((item) => (
-              <button
-                className="stack-card"
-                data-testid={`food-pantry-item-${item.id}`}
-                key={item.id}
-                type="button"
-                onClick={() => setSelectedPantryItemId(item.id)}
-              >
-                <div className="stack-card-header">
-                  <strong>{item.ingredientName}</strong>
-                  <span className="pill">{item.status}</span>
-                </div>
-                <div className="muted">
-                  {formatQuantity(item.quantity, item.unit)} • {item.locationName ?? "Unassigned"}
-                </div>
-              </button>
-            ))}
-          </div>
-        </article>
+      {activeModuleTab === "cooking" ? <CookingTab /> : null}
 
-        <article className="panel" data-testid="food-pantry-detail">
-          <div className="eyebrow">Pantry detail</div>
-          <h2>{selectedPantryItem?.ingredientName ?? "Choose a pantry item"}</h2>
-          {selectedPantryItem ? (
-            <>
-              <div className="grid" style={{ marginTop: "12px" }}>
-                <div className="field">
-                  <span>Location</span>
-                  <select
-                    aria-label="Pantry detail location"
-                    data-testid={buildFieldTestId("food-pantry-detail", "location")}
-                    value={pantryEditLocationId}
-                    onChange={(event) => setPantryEditLocationId(event.target.value)}
-                  >
-                    {data.pantryLocations.map((location) => (
-                      <option key={location.id} value={location.id}>{location.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="field">
-                  <span>Status</span>
-                  <select
-                    aria-label="Pantry detail status"
-                    data-testid={buildFieldTestId("food-pantry-detail", "status")}
-                    value={pantryEditStatus}
-                    onChange={(event) => setPantryEditStatus(event.target.value)}
-                  >
-                    <option value="InStock">In stock</option>
-                    <option value="Low">Low</option>
-                    <option value="Out">Out</option>
-                  </select>
-                </div>
-              </div>
-              <div className="grid">
-                <div className="field">
-                  <span>Quantity</span>
-                  <input
-                    aria-label="Pantry detail quantity"
-                    data-testid={buildFieldTestId("food-pantry-detail", "quantity")}
-                    type="number"
-                    step="0.25"
-                    value={pantryEditQuantity}
-                    onChange={(event) => setPantryEditQuantity(event.target.value)}
-                  />
-                </div>
-                <div className="field">
-                  <span>Unit</span>
-                  <input
-                    aria-label="Pantry detail unit"
-                    data-testid={buildFieldTestId("food-pantry-detail", "unit")}
-                    value={pantryEditUnit}
-                    onChange={(event) => setPantryEditUnit(event.target.value)}
-                  />
-                </div>
-                <div className="field">
-                  <span>Low threshold</span>
-                  <input
-                    aria-label="Pantry detail low threshold"
-                    data-testid={buildFieldTestId("food-pantry-detail", "low-threshold")}
-                    type="number"
-                    step="0.25"
-                    value={pantryEditLowThreshold}
-                    onChange={(event) => setPantryEditLowThreshold(event.target.value)}
-                  />
-                </div>
-              </div>
-              <div className="grid">
-                <div className="field">
-                  <span>Purchased</span>
-                  <input
-                    aria-label="Pantry detail purchased"
-                    data-testid={buildFieldTestId("food-pantry-detail", "purchased")}
-                    type="date"
-                    value={pantryEditPurchasedAt}
-                    onChange={(event) => setPantryEditPurchasedAt(event.target.value)}
-                  />
-                </div>
-                <div className="field">
-                  <span>Expires</span>
-                  <input
-                    aria-label="Pantry detail expires"
-                    data-testid={buildFieldTestId("food-pantry-detail", "expires")}
-                    type="date"
-                    value={pantryEditExpiresAt}
-                    onChange={(event) => setPantryEditExpiresAt(event.target.value)}
-                  />
-                </div>
-              </div>
-              <div className="field">
-                <span>Adjustment note</span>
-                <input
-                  aria-label="Pantry detail note"
-                  data-testid={buildFieldTestId("food-pantry-detail", "note")}
-                  value={pantryEditNote}
-                  onChange={(event) => setPantryEditNote(event.target.value)}
-                  placeholder="Why did this change?"
-                />
-              </div>
-              <div className="action-row">
-                <button
-                  className="action-button"
-                  data-testid="food-pantry-save"
-                  disabled={isPending}
-                  onClick={() => {
-                    setError(null);
-                    startTransition(() => {
-                      handleUpdatePantryItem().catch((err: unknown) => {
-                        setError(err instanceof Error ? err.message : "Unable to update pantry item.");
-                      });
-                    });
-                  }}
-                >
-                  Save pantry change
-                </button>
-              </div>
-
-              <div className="stack-list" style={{ marginTop: "16px" }}>
-                {pantryHistory.map((entry) => (
-                  <div className="stack-card" data-testid={`food-pantry-history-${entry.id}`} key={entry.id}>
-                    <div className="stack-card-header">
-                      <strong>{entry.kind}</strong>
-                      <span className="pill">{formatTimestamp(entry.occurredAtUtc)}</span>
-                    </div>
-                    <div className="muted">
-                      {entry.quantityDelta != null ? `${entry.quantityDelta > 0 ? "+" : ""}${formatQuantity(entry.quantityDelta, entry.unit)}` : "No quantity change"} • after {formatQuantity(entry.quantityAfter, entry.unit)}
-                    </div>
-                    {entry.sourceLabel ? <div className="muted">Source: {entry.sourceLabel}</div> : null}
-                    {entry.note ? <div className="muted">{entry.note}</div> : null}
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : (
-            <p className="muted" style={{ marginTop: "12px" }}>
-              Select a pantry item to edit quantities, update status, and review its recent activity.
-            </p>
-          )}
-        </article>
-      </section>
-
-      <div className="section-spacer" />
-
-      <section className="grid food-section-grid">
-        <article className="panel" data-testid="food-shopping-panel">
-          <div className="eyebrow">Shopping</div>
-          <div className="stack-card-header">
-            <h2 style={{ margin: 0 }}>{data.shoppingList.name}</h2>
-            <span className="pill">{data.shoppingList.items.filter((item) => !item.isCompleted).length} open</span>
-          </div>
-          <div className="grid" style={{ marginTop: "12px" }}>
-            <div className="field">
-              <span>Item</span>
-              <input
-                aria-label="Shopping item name"
-                data-testid={buildFieldTestId("food-shopping-add", "item")}
-                value={shoppingName}
-                onChange={(event) => setShoppingName(event.target.value)}
-              />
-            </div>
-            <div className="field">
-              <span>Qty</span>
-              <input
-                aria-label="Shopping quantity"
-                data-testid={buildFieldTestId("food-shopping-add", "quantity")}
-                type="number"
-                step="0.25"
-                value={shoppingQuantity}
-                onChange={(event) => setShoppingQuantity(event.target.value)}
-              />
-            </div>
-            <div className="field">
-              <span>Unit</span>
-              <input
-                aria-label="Shopping unit"
-                data-testid={buildFieldTestId("food-shopping-add", "unit")}
-                value={shoppingUnit}
-                onChange={(event) => setShoppingUnit(event.target.value)}
-              />
-            </div>
-          </div>
-          <div className="field">
-            <span>Notes</span>
-            <input
-              aria-label="Shopping notes"
-              data-testid={buildFieldTestId("food-shopping-add", "notes")}
-              value={shoppingNotes}
-              onChange={(event) => setShoppingNotes(event.target.value)}
-            />
-          </div>
-          <div className="action-row">
-            <button
-              className="action-button"
-              data-testid="food-shopping-add-submit"
-              disabled={isPending || !shoppingName.trim()}
-              onClick={() => {
-                setError(null);
-                startTransition(() => {
-                  handleAddShoppingItem().catch((err: unknown) => {
-                    setError(err instanceof Error ? err.message : "Unable to add shopping item.");
-                  });
-                });
-              }}
-            >
-              Add to list
-            </button>
-          </div>
-
-          <div className="stack-list" style={{ marginTop: "14px" }}>
-            {data.shoppingList.items.map((item) => (
-              <div className="stack-card" data-testid={`food-shopping-item-${item.id}`} key={item.id}>
-                <div className="stack-card-header">
-                  <div style={{ flex: 1 }}>
-                    <strong style={{ textDecoration: item.isCompleted ? "line-through" : "none" }}>
-                      {item.ingredientName}
-                    </strong>
-                    <div className="muted">
-                      {formatQuantity(item.quantity, item.unit)}
-                      {item.sourceMealTitle ? ` • for ${item.sourceMealTitle}` : item.sourceRecipeTitle ? ` • from ${item.sourceRecipeTitle}` : ""}
-                    </div>
-                  </div>
-                  <input
-                    aria-label={`Shopping item completed ${item.ingredientName}`}
-                    data-testid={`food-shopping-item-toggle-${item.id}`}
-                    type="checkbox"
-                    checked={item.isCompleted}
-                    onChange={(event) => {
-                      setError(null);
-                      startTransition(() => {
-                        handleToggleShoppingItem(item, event.target.checked).catch((err: unknown) => {
-                          setError(err instanceof Error ? err.message : "Unable to update shopping item.");
-                        });
-                      });
-                    }}
-                  />
-                </div>
-                {item.notes ? <div className="muted">{item.notes}</div> : null}
-              </div>
-            ))}
-          </div>
-        </article>
-
-        <article className="panel" data-testid="food-cooking-panel">
-          <div className="eyebrow">Cooking</div>
-          <h2>Active sessions</h2>
-          {data.activeCookingSessions.length === 0 ? (
-            <p className="muted" style={{ marginTop: "12px" }}>
-              Start cooking from a recipe or meal plan to get total ingredients, recipe switching, pantry-aware deductions, and TV mode.
-            </p>
-          ) : (
-            <div className="stack-list" style={{ marginTop: "12px" }}>
-              {data.activeCookingSessions.map((session) => (
-                <div className="stack-card" data-testid={`food-active-session-${session.id}`} key={session.id}>
-                  <div className="stack-card-header">
-                    <div style={{ flex: 1 }}>
-                      <strong>{session.title}</strong>
-                      <div className="muted">
-                        {session.focusedRecipeTitle ? `${session.focusedRecipeTitle} • ` : ""}
-                        Step {session.currentStepIndex + 1} of {session.totalStepCount} • {session.checkedIngredientCount}/{session.totalIngredientCount} ingredients resolved
-                      </div>
-                    </div>
-                    <span className="pill">{session.recipeCount} recipes</span>
-                  </div>
-                  <div className="action-row">
-                    <Link
-                      className="action-button"
-                      data-testid={`food-active-session-open-mobile-${session.id}`}
-                      href={`/app/food/cooking/${session.id}`}
-                    >
-                      Open mobile mode
-                    </Link>
-                    <Link
-                      className="action-button-secondary"
-                      data-testid={`food-active-session-open-tv-${session.id}`}
-                      href={`/app/food/cooking/${session.id}/tv`}
-                    >
-                      Open TV mode
-                    </Link>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </article>
-      </section>
     </>
+    </FoodHubProvider>
   );
 }

@@ -61,6 +61,22 @@ public static class PantryItemActivityKinds
     public const string CookingReversal = "CookingReversal";
 }
 
+public static class ShoppingListStatuses
+{
+    public const string Active = "Active";
+    public const string Completed = "Completed";
+    public const string Archived = "Archived";
+}
+
+public static class ShoppingListItemStates
+{
+    public const string Draft = "Draft";
+    public const string Needed = "Needed";
+    public const string NeedsReview = "NeedsReview";
+    public const string Purchased = "Purchased";
+    public const string Skipped = "Skipped";
+}
+
 public sealed class FoodIngredient
 {
     public Guid Id { get; set; }
@@ -214,7 +230,12 @@ public sealed class ShoppingList
     public required string Name { get; set; }
     public string? StoreName { get; set; }
     public bool IsDefault { get; set; }
+    public string Status { get; set; } = ShoppingListStatuses.Active;
     public DateTimeOffset CreatedAtUtc { get; set; }
+    public DateTimeOffset? CompletedAtUtc { get; set; }
+    public DateTimeOffset? ArchivedAtUtc { get; set; }
+    public Guid? CompletedByUserId { get; set; }
+    public int ItemsPurchasedCount { get; set; }
 }
 
 public sealed class ShoppingListItem
@@ -226,11 +247,24 @@ public sealed class ShoppingListItem
     public Guid? PantryLocationId { get; set; }
     public required string IngredientName { get; set; }
     public required string NormalizedIngredientName { get; set; }
+    public required string CoreIngredientName { get; set; }
+    public string? Preparation { get; set; }
     public decimal? Quantity { get; set; }
+    public decimal? QuantityNeeded { get; set; }
+    public decimal? QuantityPurchased { get; set; }
     public string? Unit { get; set; }
+    public string? UnitCanonical { get; set; }
     public string? Notes { get; set; }
     public string? SourceRecipeTitle { get; set; }
     public string? SourceMealTitle { get; set; }
+    public string? SourceRecipeIds { get; set; }
+    public string? SourceMealTitles { get; set; }
+    public Guid? SourceMealPlanSlotId { get; set; }
+    public string State { get; set; } = ShoppingListItemStates.Needed;
+    public int SortOrder { get; set; }
+    public string? AisleCategory { get; set; }
+    public Guid? ClaimedByUserId { get; set; }
+    public DateTimeOffset? ClaimedAtUtc { get; set; }
     public bool IsCompleted { get; set; }
     public DateTimeOffset CreatedAtUtc { get; set; }
     public DateTimeOffset? CompletedAtUtc { get; set; }

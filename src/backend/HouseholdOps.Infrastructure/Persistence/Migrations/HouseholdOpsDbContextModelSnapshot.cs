@@ -984,6 +984,15 @@ namespace HouseholdOps.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<DateTimeOffset?>("ArchivedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CompletedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("CompletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
@@ -993,10 +1002,18 @@ namespace HouseholdOps.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsDefault")
                         .HasColumnType("boolean");
 
+                    b.Property<int>("ItemsPurchasedCount")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
 
                     b.Property<string>("StoreName")
                         .HasMaxLength(100)
@@ -1005,6 +1022,14 @@ namespace HouseholdOps.Infrastructure.Persistence.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("HouseholdId");
+
+                    b.HasIndex("HouseholdId")
+                        .HasDatabaseName("IX_shopping_lists_household_active_default")
+                        .IsUnique()
+                        .HasFilter("\"Status\" = 'Active' AND \"IsDefault\" = TRUE");
+
+                    b.HasIndex("HouseholdId", "Status", "CompletedAtUtc")
+                        .HasDatabaseName("IX_shopping_lists_household_status_completed");
 
                     b.ToTable("shopping_lists", "core");
                 });
@@ -1020,6 +1045,21 @@ namespace HouseholdOps.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTimeOffset>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("AisleCategory")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<DateTimeOffset?>("ClaimedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("ClaimedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CoreIngredientName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
 
                     b.Property<Guid>("HouseholdId")
                         .HasColumnType("uuid");
@@ -1046,22 +1086,57 @@ namespace HouseholdOps.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("PantryLocationId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("Preparation")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<decimal?>("Quantity")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal?>("QuantityNeeded")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
+                    b.Property<decimal?>("QuantityPurchased")
                         .HasPrecision(18, 2)
                         .HasColumnType("numeric(18,2)");
 
                     b.Property<Guid>("ShoppingListId")
                         .HasColumnType("uuid");
 
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("SourceMealPlanSlotId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("SourceMealTitle")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
+
+                    b.Property<string>("SourceMealTitles")
+                        .HasMaxLength(400)
+                        .HasColumnType("character varying(400)");
+
+                    b.Property<string>("SourceRecipeIds")
+                        .HasMaxLength(400)
+                        .HasColumnType("character varying(400)");
 
                     b.Property<string>("SourceRecipeTitle")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
                     b.Property<string>("Unit")
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<string>("UnitCanonical")
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
@@ -1069,9 +1144,21 @@ namespace HouseholdOps.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("HouseholdId");
 
+                    b.HasIndex("HouseholdId", "ClaimedByUserId")
+                        .HasDatabaseName("IX_shopping_list_items_household_claimed")
+                        .HasFilter("\"ClaimedByUserId\" IS NOT NULL");
+
+                    b.HasIndex("HouseholdId", "CoreIngredientName")
+                        .HasDatabaseName("IX_shopping_list_items_household_core");
+
                     b.HasIndex("IngredientId");
 
                     b.HasIndex("ShoppingListId");
+
+                    b.HasIndex("ShoppingListId", "State")
+                        .HasDatabaseName("IX_shopping_list_items_list_state");
+
+                    b.HasIndex("SourceMealPlanSlotId");
 
                     b.ToTable("shopping_list_items", "core");
                 });
@@ -1758,6 +1845,11 @@ namespace HouseholdOps.Infrastructure.Persistence.Migrations
                     b.HasOne("HouseholdOps.Modules.Food.FoodIngredient", null)
                         .WithMany()
                         .HasForeignKey("IngredientId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("HouseholdOps.Modules.Food.MealPlanSlot", null)
+                        .WithMany()
+                        .HasForeignKey("SourceMealPlanSlotId")
                         .OnDelete(DeleteBehavior.SetNull);
 
                     b.HasOne("HouseholdOps.Modules.Food.ShoppingList", null)

@@ -16,6 +16,7 @@ public sealed class FoodService(
         CancellationToken cancellationToken)
     {
         await EnsureDefaultFoodSetupAsync(householdId, cancellationToken);
+        await AutoArchiveCompletedShoppingListsAsync(householdId, DateTimeOffset.UtcNow, cancellationToken);
 
         var pantryLocations = await dbContext.PantryLocations
             .Where(location => location.HouseholdId == householdId)
@@ -38,6 +39,16 @@ public sealed class FoodService(
             })
             .ToListAsync(cancellationToken);
 
+        var defaultShoppingList = await GetOrCreateDefaultShoppingListAsync(householdId, cancellationToken);
+        var shoppingItems = await dbContext.ShoppingListItems
+            .Where(item => item.HouseholdId == householdId && item.ShoppingListId == defaultShoppingList.Id)
+            .OrderBy(item => item.State == ShoppingListItemStates.Purchased || item.State == ShoppingListItemStates.Skipped)
+            .ThenBy(item => item.State == ShoppingListItemStates.NeedsReview ? 0 : 1)
+            .ThenBy(item => item.SortOrder)
+            .ThenBy(item => item.IngredientName)
+            .Take(64)
+            .ToListAsync(cancellationToken);
+
         var recipeResponses = await BuildRecipeSummariesAsync(householdId, null, 24, cancellationToken);
 
         var upcomingSlots = await dbContext.MealPlanSlots
@@ -46,15 +57,13 @@ public sealed class FoodService(
             .ThenBy(slot => slot.SlotName)
             .Take(8)
             .ToListAsync(cancellationToken);
-        var mealResponses = await BuildMealPlanSlotResponsesAsync(householdId, upcomingSlots, cancellationToken);
+        var mealResponses = await BuildMealPlanSlotResponsesAsync(householdId, upcomingSlots, shoppingItems, cancellationToken);
 
-        var defaultShoppingList = await GetOrCreateDefaultShoppingListAsync(householdId, cancellationToken);
-        var shoppingItems = await dbContext.ShoppingListItems
-            .Where(item => item.HouseholdId == householdId && item.ShoppingListId == defaultShoppingList.Id)
-            .OrderBy(item => item.IsCompleted)
-            .ThenBy(item => item.IngredientName)
-            .Take(32)
-            .ToListAsync(cancellationToken);
+        var shoppingHistory = await BuildShoppingListSummariesAsync(
+            householdId,
+            new[] { ShoppingListStatuses.Completed, ShoppingListStatuses.Archived },
+            10,
+            cancellationToken);
 
         var activeSessions = await dbContext.CookingSessions
             .Where(session => session.HouseholdId == householdId && session.Status == CookingSessionStatuses.Active)
@@ -71,6 +80,12 @@ public sealed class FoodService(
             defaultShoppingList.Id,
             defaultShoppingList.Name,
             defaultShoppingList.StoreName,
+            defaultShoppingList.Status,
+            defaultShoppingList.CreatedAtUtc,
+            defaultShoppingList.CompletedAtUtc,
+            defaultShoppingList.ArchivedAtUtc,
+            defaultShoppingList.CompletedByUserId,
+            defaultShoppingList.ItemsPurchasedCount,
             shoppingItems.Select(ToShoppingListItemResponse).ToList());
 
         var expiringSoonCount = pantryResponses.Count(item =>
@@ -88,7 +103,7 @@ public sealed class FoodService(
                 lowStockCount,
                 expiringSoonCount,
                 mealResponses.Count,
-                shoppingResponse.Items.Count(item => !item.IsCompleted),
+                shoppingResponse.Items.Count(item => item.State != ShoppingListItemStates.Purchased && item.State != ShoppingListItemStates.Skipped),
                 activeSessionResponses.Count),
             tonightCookView,
             recipeResponses,
@@ -96,6 +111,7 @@ public sealed class FoodService(
             pantryLocations,
             mealResponses,
             shoppingResponse,
+            shoppingHistory,
             activeSessionResponses);
     }
 
@@ -361,6 +377,35 @@ public sealed class FoodService(
         return await BuildRecipeDetailAsync(recipe, cancellationToken);
     }
 
+    public async Task<bool> DeleteRecipeAsync(
+        Guid householdId,
+        Guid recipeId,
+        CancellationToken cancellationToken)
+    {
+        var recipe = await dbContext.Recipes
+            .FirstOrDefaultAsync(item => item.HouseholdId == householdId && item.Id == recipeId, cancellationToken);
+        if (recipe is null)
+        {
+            return false;
+        }
+
+        RecipeSource? source = null;
+        if (recipe.SourceId is Guid sourceId)
+        {
+            source = await dbContext.RecipeSources
+                .FirstOrDefaultAsync(item => item.HouseholdId == householdId && item.Id == sourceId, cancellationToken);
+        }
+
+        dbContext.Recipes.Remove(recipe);
+        if (source is not null)
+        {
+            dbContext.RecipeSources.Remove(source);
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
     public async Task<PantryItemResponse> CreatePantryItemAsync(
         Guid householdId,
         CreatePantryItemRequest request,
@@ -483,6 +528,23 @@ public sealed class FoodService(
         return ToPantryItemResponse(pantryItem, location?.Name);
     }
 
+    public async Task<bool> DeletePantryItemAsync(
+        Guid householdId,
+        Guid pantryItemId,
+        CancellationToken cancellationToken)
+    {
+        var pantryItem = await dbContext.PantryItems
+            .FirstOrDefaultAsync(item => item.HouseholdId == householdId && item.Id == pantryItemId, cancellationToken);
+        if (pantryItem is null)
+        {
+            return false;
+        }
+
+        dbContext.PantryItems.Remove(pantryItem);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
     public async Task<IReadOnlyList<PantryItemActivityResponse>> GetPantryItemHistoryAsync(
         Guid householdId,
         Guid pantryItemId,
@@ -564,10 +626,32 @@ public sealed class FoodService(
 
         if (request.GenerateShoppingList)
         {
-            await AddMissingIngredientsToDefaultShoppingListAsync(householdId, slot.Id, nowUtc, cancellationToken);
+            await AddMissingIngredientsToDefaultShoppingListAsync(householdId, slot.Id, true, nowUtc, cancellationToken);
         }
 
-        return ToMealPlanSlotResponse(slot, mealPlanRecipes);
+        var recipeRevisionIds = mealPlanRecipes
+            .Select(item => item.RecipeRevisionId)
+            .Distinct()
+            .ToList();
+        var recipeIngredients = recipeRevisionIds.Count == 0
+            ? []
+            : await dbContext.RecipeIngredients
+                .AsNoTracking()
+                .Where(item => recipeRevisionIds.Contains(item.RecipeRevisionId))
+                .OrderBy(item => item.RecipeRevisionId)
+                .ThenBy(item => item.Position)
+                .ToListAsync(cancellationToken);
+        var activeShoppingList = await dbContext.ShoppingLists
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                item => item.HouseholdId == householdId && item.IsDefault && item.Status == ShoppingListStatuses.Active,
+                cancellationToken);
+        var activeShoppingItems = await dbContext.ShoppingListItems
+            .AsNoTracking()
+            .Where(item => item.HouseholdId == householdId && activeShoppingList != null && item.ShoppingListId == activeShoppingList.Id)
+            .ToListAsync(cancellationToken);
+
+        return ToMealPlanSlotResponse(slot, mealPlanRecipes, recipeIngredients, activeShoppingItems);
     }
 
     public async Task<ShoppingListItemResponse> CreateShoppingListItemAsync(
@@ -577,39 +661,69 @@ public sealed class FoodService(
         CancellationToken cancellationToken)
     {
         await EnsureDefaultFoodSetupAsync(householdId, cancellationToken);
-        var shoppingList = await GetOrCreateDefaultShoppingListAsync(householdId, cancellationToken);
-
         var ingredientName = request.IngredientName?.Trim();
         if (string.IsNullOrWhiteSpace(ingredientName))
         {
             throw new InvalidOperationException("Shopping item name is required.");
         }
 
-        var ingredient = await FindOrCreateIngredientAsync(householdId, ingredientName, request.Unit, nowUtc, cancellationToken);
-        var item = new ShoppingListItem
-        {
-            Id = Guid.NewGuid(),
-            HouseholdId = householdId,
-            ShoppingListId = shoppingList.Id,
-            IngredientId = ingredient.Id,
-            IngredientName = ingredientName,
-            NormalizedIngredientName = NormalizeName(ingredientName),
-            Quantity = request.Quantity,
-            Unit = CleanUnit(request.Unit),
-            Notes = request.Notes?.Trim(),
-            CreatedAtUtc = nowUtc
-        };
+        var parsed = IngredientNormalizer.ParseIngredient(ingredientName);
+        var item = await UpsertShoppingItemAsync(
+            householdId,
+            new ShoppingDraft(
+                null,
+                ingredientName,
+                request.Quantity,
+                request.Unit,
+                request.Notes?.Trim(),
+                "Manual item",
+                null,
+                null,
+                parsed.NormalizedName,
+                parsed.CoreName,
+                parsed.Preparation,
+                parsed.Form),
+            pantryAware: false,
+            forceSeparate: request.ForceSeparate,
+            nowUtc,
+            cancellationToken);
 
-        dbContext.ShoppingListItems.Add(item);
         await dbContext.SaveChangesAsync(cancellationToken);
-
         return ToShoppingListItemResponse(item);
     }
 
-    public async Task<ShoppingListItemResponse?> ToggleShoppingListItemAsync(
+    public async Task<bool> DeleteShoppingListItemAsync(
         Guid householdId,
         Guid itemId,
-        ToggleShoppingListItemRequest request,
+        CancellationToken cancellationToken)
+    {
+        var item = await dbContext.ShoppingListItems
+            .FirstOrDefaultAsync(listItem => listItem.HouseholdId == householdId && listItem.Id == itemId, cancellationToken);
+        if (item is null)
+        {
+            return false;
+        }
+
+        var shoppingList = await dbContext.ShoppingLists
+            .FirstOrDefaultAsync(list => list.HouseholdId == householdId && list.Id == item.ShoppingListId, cancellationToken);
+
+        dbContext.ShoppingListItems.Remove(item);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        if (shoppingList is not null)
+        {
+            await RefreshShoppingListCountsAsync(shoppingList, cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        return true;
+    }
+
+    public async Task<ShoppingListItemResponse?> UpdateShoppingListItemAsync(
+        Guid householdId,
+        Guid itemId,
+        Guid? userId,
+        UpdateShoppingListItemRequest request,
         DateTimeOffset nowUtc,
         CancellationToken cancellationToken)
     {
@@ -620,70 +734,294 @@ public sealed class FoodService(
             return null;
         }
 
-        item.IsCompleted = request.IsCompleted;
-        item.CompletedAtUtc = request.IsCompleted ? nowUtc : null;
-
-        if (request.IsCompleted && request.MoveToPantry)
+        var nextState = request.State;
+        if (request.IsCompleted is not null)
         {
-            await EnsureDefaultFoodSetupAsync(householdId, cancellationToken);
-            var pantryLocation = await dbContext.PantryLocations
-                .Where(location => location.HouseholdId == householdId)
-                .OrderBy(location => location.SortOrder)
-                .FirstAsync(cancellationToken);
-            var ingredient = await FindOrCreateIngredientAsync(
-                householdId,
-                item.IngredientName,
-                item.Unit,
-                nowUtc,
-                cancellationToken);
+            nextState = request.IsCompleted.Value ? ShoppingListItemStates.Purchased : ShoppingListItemStates.Needed;
+        }
 
-            var pantryItemCandidates = await dbContext.PantryItems
-                .Where(existing =>
-                    existing.HouseholdId == householdId
-                    && existing.NormalizedIngredientName == item.NormalizedIngredientName
-                    && existing.PantryLocationId == pantryLocation.Id)
-                .ToListAsync(cancellationToken);
-            var pantryItem = pantryItemCandidates.FirstOrDefault(existing => UnitsCompatible(existing.Unit, item.Unit));
+        if (!string.IsNullOrWhiteSpace(request.Notes))
+        {
+            item.Notes = request.Notes.Trim();
+        }
 
-            if (pantryItem is null)
-            {
-                pantryItem = new PantryItem
-                {
-                    Id = Guid.NewGuid(),
-                    HouseholdId = householdId,
-                    IngredientId = ingredient.Id,
-                    PantryLocationId = pantryLocation.Id,
-                    IngredientName = item.IngredientName,
-                    NormalizedIngredientName = item.NormalizedIngredientName,
-                    Quantity = item.Quantity,
-                    Unit = item.Unit,
-                    UpdatedAtUtc = nowUtc,
-                    Status = ComputePantryStatus(item.Quantity, null)
-                };
+        if (request.ClearNeedsReview == true && item.State == ShoppingListItemStates.NeedsReview && string.IsNullOrWhiteSpace(nextState))
+        {
+            nextState = ShoppingListItemStates.Needed;
+        }
 
-                dbContext.PantryItems.Add(pantryItem);
-            }
-            else if (item.Quantity is not null)
-            {
-                pantryItem.Quantity = (pantryItem.Quantity ?? 0m) + item.Quantity.Value;
-                pantryItem.UpdatedAtUtc = nowUtc;
-                pantryItem.Status = ComputePantryStatus(pantryItem.Quantity, pantryItem.LowThreshold);
-            }
+        if (request.QuantityPurchased is not null)
+        {
+            item.QuantityPurchased = request.QuantityPurchased;
+        }
 
-            RecordPantryItemActivity(
-                householdId,
-                pantryItem,
-                PantryItemActivityKinds.ShoppingPurchase,
-                item.Quantity,
-                pantryItem.Quantity,
-                pantryItem.Unit,
-                item.Notes,
-                item.IngredientName,
-                nowUtc);
+        if (request.ClearClaim == true)
+        {
+            item.ClaimedByUserId = null;
+            item.ClaimedAtUtc = null;
+        }
+        else if (request.ClaimForCurrentUser == true && userId is not null)
+        {
+            item.ClaimedByUserId = userId;
+            item.ClaimedAtUtc = nowUtc;
+        }
+
+        if (!string.IsNullOrWhiteSpace(nextState))
+        {
+            ApplyShoppingItemState(item, nextState, nowUtc);
+        }
+
+        if ((item.State == ShoppingListItemStates.Purchased || request.MoveToPantry == true)
+            && request.MoveToPantry == true)
+        {
+            await TransferItemToPantryAsync(householdId, item, nowUtc, cancellationToken);
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
         return ToShoppingListItemResponse(item);
+    }
+
+    public async Task<IReadOnlyList<ShoppingListSummaryResponse>> ListShoppingListsAsync(
+        Guid householdId,
+        string? status,
+        CancellationToken cancellationToken)
+    {
+        await AutoArchiveCompletedShoppingListsAsync(householdId, DateTimeOffset.UtcNow, cancellationToken);
+
+        var statuses = string.IsNullOrWhiteSpace(status)
+            ? new[] { ShoppingListStatuses.Active, ShoppingListStatuses.Completed, ShoppingListStatuses.Archived }
+            : new[] { status.Trim() };
+
+        return await BuildShoppingListSummariesAsync(householdId, statuses, 20, cancellationToken);
+    }
+
+    public async Task<ShoppingListResponse?> GetShoppingListAsync(
+        Guid householdId,
+        Guid shoppingListId,
+        CancellationToken cancellationToken)
+    {
+        await AutoArchiveCompletedShoppingListsAsync(householdId, DateTimeOffset.UtcNow, cancellationToken);
+        var list = await dbContext.ShoppingLists
+            .FirstOrDefaultAsync(item => item.HouseholdId == householdId && item.Id == shoppingListId, cancellationToken);
+        if (list is null)
+        {
+            return null;
+        }
+
+        var items = await dbContext.ShoppingListItems
+            .Where(item => item.HouseholdId == householdId && item.ShoppingListId == shoppingListId)
+            .OrderBy(item => item.SortOrder)
+            .ThenBy(item => item.IngredientName)
+            .ToListAsync(cancellationToken);
+
+        return new ShoppingListResponse(
+            list.Id,
+            list.Name,
+            list.StoreName,
+            list.Status,
+            list.CreatedAtUtc,
+            list.CompletedAtUtc,
+            list.ArchivedAtUtc,
+            list.CompletedByUserId,
+            list.ItemsPurchasedCount,
+            items.Select(ToShoppingListItemResponse).ToList());
+    }
+
+    public async Task<IReadOnlyList<ShoppingListItemResponse>> AddItemsFromRecipeAsync(
+        Guid householdId,
+        AddItemsFromRecipeRequest request,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken)
+    {
+        var recipe = await dbContext.Recipes
+            .FirstOrDefaultAsync(item => item.HouseholdId == householdId && item.Id == request.RecipeId, cancellationToken)
+            ?? throw new InvalidOperationException("Recipe could not be found.");
+        if (recipe.CurrentRevisionId is null)
+        {
+            throw new InvalidOperationException("Recipe is missing a household-default revision.");
+        }
+
+        var ingredients = await dbContext.RecipeIngredients
+            .Where(item => item.RecipeRevisionId == recipe.CurrentRevisionId.Value)
+            .OrderBy(item => item.Position)
+            .ToListAsync(cancellationToken);
+
+        var createdItems = new List<ShoppingListItemResponse>();
+        foreach (var ingredient in ingredients)
+        {
+            var parsed = IngredientNormalizer.ParseIngredient(ingredient.IngredientName);
+            var item = await UpsertShoppingItemAsync(
+                householdId,
+                new ShoppingDraft(
+                    ingredient.IngredientId,
+                    ingredient.IngredientName,
+                    ingredient.Quantity,
+                    ingredient.Unit,
+                    null,
+                    recipe.Title,
+                    null,
+                    null,
+                    parsed.NormalizedName,
+                    parsed.CoreName,
+                    parsed.Preparation,
+                    parsed.Form),
+                request.PantryAware,
+                forceSeparate: false,
+                nowUtc,
+                cancellationToken);
+
+            createdItems.Add(ToShoppingListItemResponse(item));
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return createdItems;
+    }
+
+    public async Task<IReadOnlyList<ShoppingListItemResponse>> AddItemsFromMealPlanSlotAsync(
+        Guid householdId,
+        AddItemsFromMealPlanSlotRequest request,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken)
+    {
+        var items = await AddMissingIngredientsToDefaultShoppingListAsync(
+            householdId,
+            request.MealPlanSlotId,
+            request.PantryAware,
+            nowUtc,
+            cancellationToken);
+
+        return items.Select(ToShoppingListItemResponse).ToList();
+    }
+
+    public async Task<IReadOnlyList<ShoppingListItemResponse>> BulkUpdateShoppingItemsAsync(
+        Guid householdId,
+        BulkUpdateShoppingItemsRequest request,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken)
+    {
+        var items = await dbContext.ShoppingListItems
+            .Where(item => item.HouseholdId == householdId && request.ItemIds.Contains(item.Id))
+            .ToListAsync(cancellationToken);
+
+        foreach (var item in items)
+        {
+            ApplyShoppingItemState(item, request.State, nowUtc);
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return items.Select(ToShoppingListItemResponse).ToList();
+    }
+
+    public async Task<ShoppingListResponse?> TransferShoppingListItemsToPantryAsync(
+        Guid householdId,
+        Guid shoppingListId,
+        Guid? userId,
+        TransferToPantryRequest request,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken)
+    {
+        var list = await dbContext.ShoppingLists
+            .FirstOrDefaultAsync(item => item.HouseholdId == householdId && item.Id == shoppingListId, cancellationToken);
+        if (list is null)
+        {
+            return null;
+        }
+
+        var items = await dbContext.ShoppingListItems
+            .Where(item => item.HouseholdId == householdId && item.ShoppingListId == shoppingListId && request.ItemIds.Contains(item.Id))
+            .ToListAsync(cancellationToken);
+
+        foreach (var item in items)
+        {
+            ApplyShoppingItemState(item, ShoppingListItemStates.Purchased, nowUtc);
+            await TransferItemToPantryAsync(householdId, item, nowUtc, cancellationToken);
+        }
+
+        await RefreshShoppingListCountsAsync(list, cancellationToken);
+
+        if (request.CompleteList)
+        {
+            await CompleteShoppingListInternalAsync(householdId, list, userId, movePurchasedToPantry: false, nowUtc, cancellationToken);
+        }
+        else
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        return await GetShoppingListAsync(householdId, list.Id, cancellationToken);
+    }
+
+    public async Task<ShoppingListResponse?> CompleteShoppingListAsync(
+        Guid householdId,
+        Guid shoppingListId,
+        Guid? userId,
+        CompleteShoppingListRequest request,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken)
+    {
+        var list = await dbContext.ShoppingLists
+            .FirstOrDefaultAsync(item => item.HouseholdId == householdId && item.Id == shoppingListId, cancellationToken);
+        if (list is null)
+        {
+            return null;
+        }
+
+        await CompleteShoppingListInternalAsync(
+            householdId,
+            list,
+            userId,
+            request.MoveCheckedToPantry,
+            nowUtc,
+            cancellationToken);
+
+        return await GetShoppingListAsync(householdId, list.Id, cancellationToken);
+    }
+
+    public async Task<MergePreviewResponse> GetShoppingMergePreviewAsync(
+        Guid householdId,
+        MergePreviewItemRequest request,
+        CancellationToken cancellationToken)
+    {
+        var ingredientName = request.IngredientName?.Trim();
+        if (string.IsNullOrWhiteSpace(ingredientName))
+        {
+            return new MergePreviewResponse(false, null, null, null, null, null, null, ShoppingListItemStates.Needed, null);
+        }
+
+        var list = await GetOrCreateDefaultShoppingListAsync(householdId, cancellationToken);
+        var parsed = IngredientNormalizer.ParseIngredient(ingredientName);
+        var unitCanonical = IngredientNormalizer.CanonicalUnit(request.Unit);
+        var existing = await dbContext.ShoppingListItems
+            .Where(item =>
+                item.HouseholdId == householdId
+                && item.ShoppingListId == list.Id
+                && item.CoreIngredientName == parsed.CoreName
+                && item.State != ShoppingListItemStates.Purchased
+                && item.State != ShoppingListItemStates.Skipped)
+            .OrderBy(item => item.SortOrder)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (existing is null || !IngredientNormalizer.AreUnitsCompatible(existing.UnitCanonical, unitCanonical))
+        {
+            return new MergePreviewResponse(false, null, null, null, request.Quantity, request.Quantity, request.Unit, ShoppingListItemStates.Needed, parsed.Preparation);
+        }
+
+        var mergedQuantity = existing.QuantityNeeded;
+        if (request.Quantity is not null)
+        {
+            mergedQuantity = (mergedQuantity ?? 0m) + request.Quantity.Value;
+        }
+
+        return new MergePreviewResponse(
+            true,
+            existing.Id,
+            existing.IngredientName,
+            existing.QuantityNeeded,
+            request.Quantity,
+            mergedQuantity,
+            existing.Unit ?? request.Unit,
+            existing.State,
+            MergeCommaSeparated(existing.Preparation, parsed.Preparation));
     }
 
     public async Task<CookingSessionResponse> StartCookingSessionAsync(
@@ -1605,6 +1943,7 @@ public sealed class FoodService(
     private async Task<IReadOnlyList<MealPlanSlotResponse>> BuildMealPlanSlotResponsesAsync(
         Guid householdId,
         IReadOnlyList<MealPlanSlot> slots,
+        IReadOnlyList<ShoppingListItem> activeShoppingItems,
         CancellationToken cancellationToken)
     {
         if (slots.Count == 0)
@@ -1630,6 +1969,17 @@ public sealed class FoodService(
         var recipeGroups = mealPlanRecipes
             .GroupBy(item => item.MealPlanSlotId)
             .ToDictionary(group => group.Key, group => group.ToList());
+        var revisionIds = mealPlanRecipes
+            .Select(item => item.RecipeRevisionId)
+            .Concat(legacyRecipeMap.Values.Where(item => item.CurrentRevisionId is not null).Select(item => item.CurrentRevisionId!.Value))
+            .Distinct()
+            .ToList();
+        var recipeIngredients = revisionIds.Count == 0
+            ? []
+            : await dbContext.RecipeIngredients
+                .Where(item => revisionIds.Contains(item.RecipeRevisionId))
+                .OrderBy(item => item.Position)
+                .ToListAsync(cancellationToken);
 
         return slots
             .Select(slot =>
@@ -1656,14 +2006,16 @@ public sealed class FoodService(
                     ];
                 }
 
-                return ToMealPlanSlotResponse(slot, slotRecipes ?? []);
+                return ToMealPlanSlotResponse(slot, slotRecipes ?? [], recipeIngredients, activeShoppingItems);
             })
             .ToList();
     }
 
     private static MealPlanSlotResponse ToMealPlanSlotResponse(
         MealPlanSlot slot,
-        IReadOnlyList<MealPlanRecipe> mealPlanRecipes)
+        IReadOnlyList<MealPlanRecipe> mealPlanRecipes,
+        IReadOnlyList<RecipeIngredient> recipeIngredients,
+        IReadOnlyList<ShoppingListItem> activeShoppingItems)
     {
         var recipeResponses = mealPlanRecipes
             .OrderBy(item => item.Position)
@@ -1681,17 +2033,38 @@ public sealed class FoodService(
                 ? BuildMealTitle(recipeResponses.Select(item => item.Title).ToList())
                 : slot.RecipeTitleSnapshot ?? slot.SlotName;
 
-        return new MealPlanSlotResponse(slot.Id, slot.Date, slot.SlotName, title, slot.Notes, recipeResponses);
+        var matchingShoppingItems = activeShoppingItems
+            .Where(item =>
+                item.State != ShoppingListItemStates.Purchased
+                && item.State != ShoppingListItemStates.Skipped
+                && (item.SourceMealPlanSlotId == slot.Id
+                    || (!string.IsNullOrWhiteSpace(slot.Title)
+                        && string.Equals(item.SourceMealTitle, slot.Title, StringComparison.OrdinalIgnoreCase))
+                    || (!string.IsNullOrWhiteSpace(title)
+                        && !string.IsNullOrWhiteSpace(item.SourceMealTitles)
+                        && item.SourceMealTitles.Contains(title, StringComparison.OrdinalIgnoreCase))))
+            .ToList();
+        var shoppingDraftCount = BuildShoppingDrafts(slot, mealPlanRecipes, recipeIngredients).Count;
+
+        return new MealPlanSlotResponse(
+            slot.Id,
+            slot.Date,
+            slot.SlotName,
+            title,
+            slot.Notes,
+            matchingShoppingItems.Count,
+            shoppingDraftCount,
+            recipeResponses);
     }
 
-    private async Task AddMissingIngredientsToDefaultShoppingListAsync(
+    private async Task<List<ShoppingListItem>> AddMissingIngredientsToDefaultShoppingListAsync(
         Guid householdId,
         Guid mealPlanSlotId,
+        bool pantryAware,
         DateTimeOffset nowUtc,
         CancellationToken cancellationToken)
     {
         await EnsureDefaultFoodSetupAsync(householdId, cancellationToken);
-        var defaultShoppingList = await GetOrCreateDefaultShoppingListAsync(householdId, cancellationToken);
         var slot = await dbContext.MealPlanSlots
             .FirstOrDefaultAsync(item => item.HouseholdId == householdId && item.Id == mealPlanSlotId, cancellationToken)
             ?? throw new InvalidOperationException("Meal plan slot could not be found.");
@@ -1729,80 +2102,19 @@ public sealed class FoodService(
             .Where(item => revisionIds.Contains(item.RecipeRevisionId))
             .OrderBy(item => item.Position)
             .ToListAsync(cancellationToken);
-        var pantryItems = await dbContext.PantryItems
-            .Where(item => item.HouseholdId == householdId)
-            .ToListAsync(cancellationToken);
-
         var shoppingDrafts = BuildShoppingDrafts(slot, mealPlanRecipes, ingredients);
+        var createdOrUpdated = new List<ShoppingListItem>();
         foreach (var draft in shoppingDrafts)
         {
-            var pantryMatches = pantryItems
-                .Where(item =>
-                    item.NormalizedIngredientName == draft.NormalizedIngredientName
-                    && UnitsCompatible(item.Unit, draft.Unit))
-                .ToList();
-
-            var available = pantryMatches.Sum(item => item.Quantity ?? 0m);
-            decimal? missingQuantity = null;
-            var needsReview = draft.Quantity is null;
-
-            if (draft.Quantity is not null)
+            var item = await UpsertShoppingItemAsync(householdId, draft, pantryAware, forceSeparate: false, nowUtc, cancellationToken);
+            if (!createdOrUpdated.Contains(item))
             {
-                missingQuantity = Math.Max(draft.Quantity.Value - available, 0m);
-                if (missingQuantity <= 0)
-                {
-                    continue;
-                }
+                createdOrUpdated.Add(item);
             }
-            else if (pantryMatches.Count > 0)
-            {
-                continue;
-            }
-
-            var existingItem = await dbContext.ShoppingListItems
-                .FirstOrDefaultAsync(item =>
-                    item.HouseholdId == householdId
-                    && item.ShoppingListId == defaultShoppingList.Id
-                    && !item.IsCompleted
-                    && item.NormalizedIngredientName == draft.NormalizedIngredientName
-                    && item.Unit == draft.Unit,
-                    cancellationToken);
-
-            if (existingItem is not null)
-            {
-                if (missingQuantity is not null)
-                {
-                    existingItem.Quantity = (existingItem.Quantity ?? 0m) + missingQuantity.Value;
-                }
-
-                existingItem.SourceMealTitle = draft.MealTitle;
-                existingItem.SourceRecipeTitle = draft.RecipeTitle;
-                if (needsReview && string.IsNullOrWhiteSpace(existingItem.Notes))
-                {
-                    existingItem.Notes = "Pantry match needs review.";
-                }
-
-                continue;
-            }
-
-            dbContext.ShoppingListItems.Add(new ShoppingListItem
-            {
-                Id = Guid.NewGuid(),
-                HouseholdId = householdId,
-                ShoppingListId = defaultShoppingList.Id,
-                IngredientId = draft.IngredientId,
-                IngredientName = draft.IngredientName,
-                NormalizedIngredientName = draft.NormalizedIngredientName,
-                Quantity = missingQuantity,
-                Unit = draft.Unit,
-                SourceRecipeTitle = draft.RecipeTitle,
-                SourceMealTitle = draft.MealTitle,
-                CreatedAtUtc = nowUtc,
-                Notes = needsReview ? "Pantry match needs review." : null
-            });
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
+        return createdOrUpdated;
     }
 
     private async Task<TonightCookViewResponse?> BuildTonightCookViewAsync(
@@ -2077,10 +2389,28 @@ public sealed class FoodService(
 
     private async Task<ShoppingList> GetOrCreateDefaultShoppingListAsync(Guid householdId, CancellationToken cancellationToken)
     {
+        var activeShoppingLists = await dbContext.ShoppingLists
+            .Where(item =>
+                item.HouseholdId == householdId
+                && item.IsDefault
+                && item.Status == ShoppingListStatuses.Active)
+            .OrderBy(item => item.CreatedAtUtc)
+            .ToListAsync(cancellationToken);
+
+        if (activeShoppingLists.Count > 0)
+        {
+            return activeShoppingLists[0];
+        }
+
         var shoppingList = await dbContext.ShoppingLists
             .FirstOrDefaultAsync(item => item.HouseholdId == householdId && item.IsDefault, cancellationToken);
         if (shoppingList is not null)
         {
+            shoppingList.Status = ShoppingListStatuses.Active;
+            shoppingList.CompletedAtUtc = null;
+            shoppingList.ArchivedAtUtc = null;
+            shoppingList.CompletedByUserId = null;
+            await dbContext.SaveChangesAsync(cancellationToken);
             return shoppingList;
         }
 
@@ -2090,6 +2420,7 @@ public sealed class FoodService(
             HouseholdId = householdId,
             Name = "Main grocery list",
             IsDefault = true,
+            Status = ShoppingListStatuses.Active,
             CreatedAtUtc = DateTimeOffset.UtcNow
         };
 
@@ -2105,7 +2436,7 @@ public sealed class FoodService(
         DateTimeOffset nowUtc,
         CancellationToken cancellationToken)
     {
-        var normalizedName = NormalizeName(ingredientName);
+        var normalizedName = IngredientNormalizer.NormalizeName(ingredientName);
         var trackedIngredient = dbContext.FoodIngredients.Local
             .FirstOrDefault(item =>
                 item.HouseholdId == householdId
@@ -2132,7 +2463,7 @@ public sealed class FoodService(
             HouseholdId = householdId,
             Name = ingredientName.Trim(),
             NormalizedName = normalizedName,
-            DefaultUnit = CleanUnit(unit),
+            DefaultUnit = IngredientNormalizer.CanonicalUnit(unit),
             CreatedAtUtc = nowUtc
         };
 
@@ -2159,12 +2490,24 @@ public sealed class FoodService(
         new(
             item.Id,
             item.IngredientName,
-            item.Quantity,
+            item.CoreIngredientName,
+            item.Preparation,
+            item.QuantityNeeded,
+            item.QuantityPurchased,
             item.Unit,
+            item.UnitCanonical,
             item.Notes,
             item.SourceRecipeTitle,
             item.SourceMealTitle,
+            item.SourceRecipeIds,
+            item.SourceMealTitles,
+            item.SourceMealPlanSlotId,
+            item.State,
             item.IsCompleted,
+            item.SortOrder,
+            item.AisleCategory,
+            item.ClaimedByUserId,
+            item.ClaimedAtUtc,
             item.CreatedAtUtc,
             item.CompletedAtUtc);
 
@@ -2383,28 +2726,39 @@ public sealed class FoodService(
 
             foreach (var ingredient in recipeIngredients)
             {
+                var parse = IngredientNormalizer.ParseIngredient(ingredient.IngredientName);
                 rawDrafts.Add(new ShoppingDraft(
                     ingredient.IngredientId,
                     ingredient.IngredientName,
-                    ingredient.NormalizedIngredientName,
                     ingredient.Quantity,
                     ingredient.Unit,
+                    null,
                     mealPlanRecipe.RecipeTitleSnapshot,
-                    slot.Title));
+                    slot.Title,
+                    slot.Id,
+                    parse.NormalizedName,
+                    parse.CoreName,
+                    parse.Preparation,
+                    parse.Form));
             }
         }
 
         var combinable = rawDrafts
             .Where(item => item.Quantity is not null && !string.IsNullOrWhiteSpace(item.Unit))
-            .GroupBy(item => BuildIngredientGroupKey(item.NormalizedIngredientName, item.Unit))
+            .GroupBy(item => BuildIngredientGroupKey(item.CoreIngredientName, item.UnitCanonical))
             .Select(group => new ShoppingDraft(
                 group.First().IngredientId,
                 group.First().IngredientName,
-                group.First().NormalizedIngredientName,
                 group.Sum(item => item.Quantity ?? 0m),
                 group.First().Unit,
+                null,
                 string.Join(", ", group.Select(item => item.RecipeTitle).Distinct(StringComparer.OrdinalIgnoreCase)),
-                group.First().MealTitle))
+                group.First().MealTitle,
+                group.First().SourceMealPlanSlotId,
+                group.First().NormalizedIngredientName,
+                group.First().CoreIngredientName,
+                string.Join(", ", group.Select(item => item.Preparation).Where(item => !string.IsNullOrWhiteSpace(item)).Distinct(StringComparer.OrdinalIgnoreCase)),
+                group.First().Form))
             .ToList();
 
         var nonCombinable = rawDrafts
@@ -2414,6 +2768,444 @@ public sealed class FoodService(
         return combinable
             .Concat(nonCombinable)
             .ToList();
+    }
+
+    private async Task<List<ShoppingListSummaryResponse>> BuildShoppingListSummariesAsync(
+        Guid householdId,
+        IReadOnlyCollection<string> statuses,
+        int limit,
+        CancellationToken cancellationToken)
+    {
+        var lists = await dbContext.ShoppingLists
+            .Where(item => item.HouseholdId == householdId && statuses.Contains(item.Status))
+            .OrderByDescending(item => item.CompletedAtUtc ?? item.CreatedAtUtc)
+            .Take(limit)
+            .ToListAsync(cancellationToken);
+
+        var listIds = lists.Select(item => item.Id).ToList();
+        var items = await dbContext.ShoppingListItems
+            .Where(item => item.HouseholdId == householdId && listIds.Contains(item.ShoppingListId))
+            .ToListAsync(cancellationToken);
+
+        return lists
+            .Select(list =>
+            {
+                var listItems = items.Where(item => item.ShoppingListId == list.Id).ToList();
+                return new ShoppingListSummaryResponse(
+                    list.Id,
+                    list.Name,
+                    list.Status,
+                    list.CreatedAtUtc,
+                    list.CompletedAtUtc,
+                    listItems.Count(item => item.State == ShoppingListItemStates.Purchased),
+                    listItems.Count,
+                    string.Join(", ", listItems
+                        .Select(item => item.SourceMealTitles)
+                        .Where(item => !string.IsNullOrWhiteSpace(item))
+                        .Distinct(StringComparer.OrdinalIgnoreCase)));
+            })
+            .ToList();
+    }
+
+    private async Task AutoArchiveCompletedShoppingListsAsync(
+        Guid householdId,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken)
+    {
+        var cutoff = nowUtc.AddDays(-90);
+        var completedLists = await dbContext.ShoppingLists
+            .Where(item =>
+                item.HouseholdId == householdId
+                && item.Status == ShoppingListStatuses.Completed
+                && item.CompletedAtUtc < cutoff)
+            .ToListAsync(cancellationToken);
+
+        if (completedLists.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var list in completedLists)
+        {
+            list.Status = ShoppingListStatuses.Archived;
+            list.ArchivedAtUtc = nowUtc;
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<ShoppingListItem> UpsertShoppingItemAsync(
+        Guid householdId,
+        ShoppingDraft draft,
+        bool pantryAware,
+        bool forceSeparate,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken)
+    {
+        await EnsureDefaultFoodSetupAsync(householdId, cancellationToken);
+        var shoppingList = await GetOrCreateDefaultShoppingListAsync(householdId, cancellationToken);
+
+        var quantityNeeded = draft.Quantity;
+        var state = string.IsNullOrWhiteSpace(draft.CoreIngredientName)
+            ? ShoppingListItemStates.NeedsReview
+            : ShoppingListItemStates.Needed;
+
+        if (pantryAware)
+        {
+            var pantryItems = await dbContext.PantryItems
+                .Where(item => item.HouseholdId == householdId && item.NormalizedIngredientName == draft.NormalizedIngredientName)
+                .ToListAsync(cancellationToken);
+            var compatiblePantryItems = pantryItems
+                .Where(item => IngredientNormalizer.AreUnitsCompatible(item.Unit, draft.UnitCanonical))
+                .ToList();
+
+            if (draft.Quantity is null)
+            {
+                if (compatiblePantryItems.Count > 0)
+                {
+                    return compatiblePantryItems.Count > 0
+                        ? await UpsertNeedsReviewPlaceholderAsync(householdId, shoppingList.Id, draft, nowUtc, cancellationToken)
+                        : await UpsertNeedsReviewPlaceholderAsync(householdId, shoppingList.Id, draft, nowUtc, cancellationToken);
+                }
+            }
+            else
+            {
+                var available = compatiblePantryItems.Sum(item => item.Quantity ?? 0m);
+                quantityNeeded = Math.Max(draft.Quantity.Value - available, 0m);
+                if (quantityNeeded <= 0m)
+                {
+                    return await UpsertNeedsReviewPlaceholderAsync(householdId, shoppingList.Id, draft with { Quantity = 0m }, nowUtc, cancellationToken);
+                }
+            }
+        }
+
+        if (!forceSeparate)
+        {
+            var existing = await dbContext.ShoppingListItems
+                .Where(item =>
+                    item.HouseholdId == householdId
+                    && item.ShoppingListId == shoppingList.Id
+                    && item.CoreIngredientName == draft.CoreIngredientName
+                    && item.State != ShoppingListItemStates.Purchased
+                    && item.State != ShoppingListItemStates.Skipped)
+                .OrderBy(item => item.SortOrder)
+                .ToListAsync(cancellationToken);
+
+            var mergeTarget = existing.FirstOrDefault(item =>
+                IngredientNormalizer.AreUnitsCompatible(item.UnitCanonical, draft.UnitCanonical));
+
+            if (mergeTarget is not null)
+            {
+                if ((mergeTarget.QuantityNeeded is null) != (quantityNeeded is null)
+                    || IngredientNormalizer.NeedsReviewForForms(mergeTarget.Notes, draft.Form))
+                {
+                    mergeTarget.State = ShoppingListItemStates.NeedsReview;
+                }
+
+                if (quantityNeeded is not null)
+                {
+                    mergeTarget.QuantityNeeded = (mergeTarget.QuantityNeeded ?? 0m) + quantityNeeded.Value;
+                    mergeTarget.Quantity = mergeTarget.QuantityNeeded;
+                }
+
+                mergeTarget.Preparation = MergeCommaSeparated(mergeTarget.Preparation, draft.Preparation);
+                mergeTarget.SourceRecipeTitle = MergeCommaSeparated(mergeTarget.SourceRecipeTitle, draft.RecipeTitle);
+                mergeTarget.SourceMealTitle = MergeCommaSeparated(mergeTarget.SourceMealTitle, draft.MealTitle);
+                mergeTarget.SourceMealTitles = MergeCommaSeparated(mergeTarget.SourceMealTitles, draft.MealTitle);
+                mergeTarget.Notes = MergeNotes(mergeTarget.Notes, draft.Notes);
+                mergeTarget.AisleCategory ??= ClassifyAisleCategory(draft.CoreIngredientName);
+                mergeTarget.SourceMealPlanSlotId ??= draft.SourceMealPlanSlotId;
+                return mergeTarget;
+            }
+        }
+
+        var ingredient = await FindOrCreateIngredientAsync(householdId, draft.IngredientName, draft.Unit, nowUtc, cancellationToken);
+        var nextSortOrder = await dbContext.ShoppingListItems
+            .Where(item => item.ShoppingListId == shoppingList.Id)
+            .Select(item => (int?)item.SortOrder)
+            .MaxAsync(cancellationToken) ?? 0;
+
+        var item = new ShoppingListItem
+        {
+            Id = Guid.NewGuid(),
+            HouseholdId = householdId,
+            ShoppingListId = shoppingList.Id,
+            IngredientId = ingredient.Id,
+            IngredientName = draft.IngredientName,
+            NormalizedIngredientName = draft.NormalizedIngredientName,
+            CoreIngredientName = draft.CoreIngredientName,
+            Preparation = draft.Preparation,
+            Quantity = quantityNeeded,
+            QuantityNeeded = quantityNeeded,
+            Unit = draft.Unit,
+            UnitCanonical = draft.UnitCanonical,
+            Notes = draft.Notes,
+            SourceRecipeTitle = draft.RecipeTitle,
+            SourceMealTitle = draft.MealTitle,
+            SourceMealTitles = draft.MealTitle,
+            SourceMealPlanSlotId = draft.SourceMealPlanSlotId,
+            State = state,
+            SortOrder = nextSortOrder + 1,
+            AisleCategory = ClassifyAisleCategory(draft.CoreIngredientName),
+            CreatedAtUtc = nowUtc
+        };
+
+        if (quantityNeeded is null)
+        {
+            item.State = ShoppingListItemStates.NeedsReview;
+        }
+
+        dbContext.ShoppingListItems.Add(item);
+        return item;
+    }
+
+    private async Task<ShoppingListItem> UpsertNeedsReviewPlaceholderAsync(
+        Guid householdId,
+        Guid shoppingListId,
+        ShoppingDraft draft,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken)
+    {
+        var existing = await dbContext.ShoppingListItems
+            .Where(item =>
+                item.HouseholdId == householdId
+                && item.ShoppingListId == shoppingListId
+                && item.CoreIngredientName == draft.CoreIngredientName
+                && item.State == ShoppingListItemStates.NeedsReview)
+            .OrderBy(item => item.SortOrder)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (existing is not null)
+        {
+            return existing;
+        }
+
+        var ingredient = await FindOrCreateIngredientAsync(householdId, draft.IngredientName, draft.Unit, nowUtc, cancellationToken);
+        var item = new ShoppingListItem
+        {
+            Id = Guid.NewGuid(),
+            HouseholdId = householdId,
+            ShoppingListId = shoppingListId,
+            IngredientId = ingredient.Id,
+            IngredientName = draft.IngredientName,
+            NormalizedIngredientName = draft.NormalizedIngredientName,
+            CoreIngredientName = draft.CoreIngredientName,
+            Preparation = draft.Preparation,
+            Quantity = draft.Quantity,
+            QuantityNeeded = draft.Quantity,
+            Unit = draft.Unit,
+            UnitCanonical = draft.UnitCanonical,
+            Notes = MergeNotes(draft.Notes, "Pantry match needs review."),
+            SourceRecipeTitle = draft.RecipeTitle,
+            SourceMealTitle = draft.MealTitle,
+            SourceMealTitles = draft.MealTitle,
+            SourceMealPlanSlotId = draft.SourceMealPlanSlotId,
+            State = ShoppingListItemStates.NeedsReview,
+            SortOrder = 0,
+            AisleCategory = ClassifyAisleCategory(draft.CoreIngredientName),
+            CreatedAtUtc = nowUtc
+        };
+
+        dbContext.ShoppingListItems.Add(item);
+        return item;
+    }
+
+    private async Task TransferItemToPantryAsync(
+        Guid householdId,
+        ShoppingListItem item,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken)
+    {
+        await EnsureDefaultFoodSetupAsync(householdId, cancellationToken);
+        var pantryLocation = item.PantryLocationId is not null
+            ? await dbContext.PantryLocations
+                .FirstOrDefaultAsync(location => location.HouseholdId == householdId && location.Id == item.PantryLocationId.Value, cancellationToken)
+            : await dbContext.PantryLocations
+                .Where(location => location.HouseholdId == householdId)
+                .OrderBy(location => location.SortOrder)
+                .FirstAsync(cancellationToken);
+
+        var ingredient = await FindOrCreateIngredientAsync(
+            householdId,
+            item.IngredientName,
+            item.UnitCanonical ?? item.Unit,
+            nowUtc,
+            cancellationToken);
+
+        var pantryItemCandidates = await dbContext.PantryItems
+            .Where(existing =>
+                existing.HouseholdId == householdId
+                && existing.NormalizedIngredientName == item.NormalizedIngredientName
+                && existing.PantryLocationId == pantryLocation!.Id)
+            .ToListAsync(cancellationToken);
+        var pantryItem = pantryItemCandidates.FirstOrDefault(existing => UnitsCompatible(existing.Unit, item.UnitCanonical ?? item.Unit));
+        var transferQuantity = item.QuantityPurchased ?? item.QuantityNeeded;
+        var transferUnit = item.UnitCanonical ?? item.Unit;
+
+        if (pantryItem is null)
+        {
+            pantryItem = new PantryItem
+            {
+                Id = Guid.NewGuid(),
+                HouseholdId = householdId,
+                IngredientId = ingredient.Id,
+                PantryLocationId = pantryLocation!.Id,
+                IngredientName = item.IngredientName,
+                NormalizedIngredientName = item.NormalizedIngredientName,
+                Quantity = transferQuantity,
+                Unit = transferUnit,
+                UpdatedAtUtc = nowUtc,
+                Status = ComputePantryStatus(transferQuantity, null)
+            };
+
+            dbContext.PantryItems.Add(pantryItem);
+        }
+        else if (transferQuantity is not null)
+        {
+            pantryItem.Quantity = (pantryItem.Quantity ?? 0m) + transferQuantity.Value;
+            pantryItem.Unit = transferUnit ?? pantryItem.Unit;
+            pantryItem.UpdatedAtUtc = nowUtc;
+            pantryItem.Status = ComputePantryStatus(pantryItem.Quantity, pantryItem.LowThreshold);
+        }
+
+        RecordPantryItemActivity(
+            householdId,
+            pantryItem,
+            PantryItemActivityKinds.ShoppingPurchase,
+            transferQuantity,
+            pantryItem.Quantity,
+            pantryItem.Unit,
+            item.Notes,
+            item.IngredientName,
+            nowUtc);
+    }
+
+    private static void ApplyShoppingItemState(ShoppingListItem item, string state, DateTimeOffset nowUtc)
+    {
+        item.State = state;
+        item.IsCompleted = state is ShoppingListItemStates.Purchased or ShoppingListItemStates.Skipped;
+        item.CompletedAtUtc = item.IsCompleted ? nowUtc : null;
+
+        if (item.IsCompleted && item.QuantityPurchased is null)
+        {
+            item.QuantityPurchased = item.QuantityNeeded;
+        }
+
+        if (!item.IsCompleted)
+        {
+            item.QuantityPurchased = null;
+        }
+    }
+
+    private async Task RefreshShoppingListCountsAsync(ShoppingList list, CancellationToken cancellationToken)
+    {
+        list.ItemsPurchasedCount = await dbContext.ShoppingListItems
+            .Where(item => item.ShoppingListId == list.Id && item.State == ShoppingListItemStates.Purchased)
+            .CountAsync(cancellationToken);
+    }
+
+    private async Task CompleteShoppingListInternalAsync(
+        Guid householdId,
+        ShoppingList list,
+        Guid? userId,
+        bool movePurchasedToPantry,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken)
+    {
+        var items = await dbContext.ShoppingListItems
+            .Where(item => item.HouseholdId == householdId && item.ShoppingListId == list.Id)
+            .ToListAsync(cancellationToken);
+
+        if (movePurchasedToPantry)
+        {
+            foreach (var item in items.Where(item => item.State == ShoppingListItemStates.Purchased))
+            {
+                await TransferItemToPantryAsync(householdId, item, nowUtc, cancellationToken);
+            }
+        }
+
+        list.Status = items.Count == 0 ? ShoppingListStatuses.Archived : ShoppingListStatuses.Completed;
+        list.CompletedAtUtc = nowUtc;
+        list.ArchivedAtUtc = list.Status == ShoppingListStatuses.Archived ? nowUtc : null;
+        list.CompletedByUserId = userId;
+        list.ItemsPurchasedCount = items.Count(item => item.State == ShoppingListItemStates.Purchased);
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        if (list.Status == ShoppingListStatuses.Completed)
+        {
+            dbContext.ShoppingLists.Add(new ShoppingList
+            {
+                Id = Guid.NewGuid(),
+                HouseholdId = householdId,
+                Name = list.Name,
+                StoreName = list.StoreName,
+                IsDefault = list.IsDefault,
+                Status = ShoppingListStatuses.Active,
+                CreatedAtUtc = nowUtc
+            });
+
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+    }
+
+    private static string? MergeCommaSeparated(string? left, string? right)
+    {
+        var values = (left ?? string.Empty)
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Concat((right ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return values.Count == 0 ? null : string.Join(", ", values);
+    }
+
+    private static string? MergeNotes(string? left, string? right)
+    {
+        if (string.IsNullOrWhiteSpace(left))
+        {
+            return string.IsNullOrWhiteSpace(right) ? null : right;
+        }
+
+        if (string.IsNullOrWhiteSpace(right))
+        {
+            return left;
+        }
+
+        return string.Equals(left, right, StringComparison.OrdinalIgnoreCase) ? left : $"{left} {right}";
+    }
+
+    private static string ClassifyAisleCategory(string coreIngredientName)
+    {
+        if (coreIngredientName.Contains("milk", StringComparison.OrdinalIgnoreCase)
+            || coreIngredientName.Contains("cheese", StringComparison.OrdinalIgnoreCase)
+            || coreIngredientName.Contains("yogurt", StringComparison.OrdinalIgnoreCase))
+        {
+            return "dairy";
+        }
+
+        if (coreIngredientName.Contains("chicken", StringComparison.OrdinalIgnoreCase)
+            || coreIngredientName.Contains("beef", StringComparison.OrdinalIgnoreCase)
+            || coreIngredientName.Contains("pork", StringComparison.OrdinalIgnoreCase))
+        {
+            return "meat";
+        }
+
+        if (coreIngredientName.Contains("ice cream", StringComparison.OrdinalIgnoreCase)
+            || coreIngredientName.Contains("frozen", StringComparison.OrdinalIgnoreCase))
+        {
+            return "frozen";
+        }
+
+        if (coreIngredientName.Contains("onion", StringComparison.OrdinalIgnoreCase)
+            || coreIngredientName.Contains("cilantro", StringComparison.OrdinalIgnoreCase)
+            || coreIngredientName.Contains("ginger", StringComparison.OrdinalIgnoreCase)
+            || coreIngredientName.Contains("pepper", StringComparison.OrdinalIgnoreCase))
+        {
+            return "produce";
+        }
+
+        return "pantry";
     }
 
     private void RecordPantryItemActivity(
@@ -2463,21 +3255,13 @@ public sealed class FoodService(
     }
 
     private static string BuildIngredientGroupKey(string normalizedIngredientName, string? unit) =>
-        $"{normalizedIngredientName}|{CleanUnit(unit) ?? "~"}";
+        $"{normalizedIngredientName}|{IngredientNormalizer.CanonicalUnit(unit) ?? "~"}";
 
-    private static string NormalizeName(string value) =>
-        string.Join(
-            ' ',
-            value.Trim().ToLowerInvariant()
-                .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+    private static string NormalizeName(string value) => IngredientNormalizer.NormalizeName(value);
 
-    private static string? CleanUnit(string? unit) =>
-        string.IsNullOrWhiteSpace(unit) ? null : unit.Trim().ToLowerInvariant();
+    private static string? CleanUnit(string? unit) => IngredientNormalizer.CanonicalUnit(unit);
 
-    private static bool UnitsCompatible(string? left, string? right) =>
-        string.Equals(CleanUnit(left), CleanUnit(right), StringComparison.OrdinalIgnoreCase)
-        || string.IsNullOrWhiteSpace(left)
-        || string.IsNullOrWhiteSpace(right);
+    private static bool UnitsCompatible(string? left, string? right) => IngredientNormalizer.AreUnitsCompatible(left, right);
 
     private static string ComputePantryStatus(decimal? quantity, decimal? lowThreshold)
     {
@@ -2519,9 +3303,17 @@ public sealed class FoodService(
     private sealed record ShoppingDraft(
         Guid? IngredientId,
         string IngredientName,
-        string NormalizedIngredientName,
         decimal? Quantity,
         string? Unit,
+        string? Notes,
         string RecipeTitle,
-        string? MealTitle);
+        string? MealTitle,
+        Guid? SourceMealPlanSlotId,
+        string NormalizedIngredientName,
+        string CoreIngredientName,
+        string? Preparation,
+        string? Form)
+    {
+        public string? UnitCanonical => IngredientNormalizer.CanonicalUnit(Unit);
+    }
 }
