@@ -57,23 +57,25 @@ export function TvCookingDisplay({ sessionId }: { sessionId: string }) {
 
   if (!data) {
     return (
-      <main className="food-tv-shell">
+      <main className="food-tv-shell" data-testid="food-tv-display-loading">
         <div className="food-tv-frame">
-          <p className="muted">{error ?? "Loading TV cooking mode..."}</p>
+          <p className="muted" role={error ? "alert" : undefined} data-testid="food-tv-loading-message">
+            {error ?? "Loading TV cooking mode..."}
+          </p>
         </div>
       </main>
     );
   }
 
   return (
-    <main className="food-tv-shell">
+    <main className="food-tv-shell" data-testid="food-tv-display">
       <div className="food-tv-frame">
         <div className="display-kicker">
           <span>Cooking mode</span>
           <span>{data.focusedRecipeTitle ?? data.title}</span>
           <span>Step {data.currentStepIndex + 1}/{data.totalStepCount}</span>
         </div>
-        <h1 className="food-tv-title">{data.title}</h1>
+        <h1 className="food-tv-title" data-testid="food-tv-title">{data.title}</h1>
 
         {data.recipeTitles.length > 1 ? (
           <div className="pill-row" style={{ marginBottom: "20px" }}>
@@ -84,7 +86,7 @@ export function TvCookingDisplay({ sessionId }: { sessionId: string }) {
         ) : null}
 
         <section className="food-tv-grid">
-          <article className="food-tv-card">
+          <article className="food-tv-card" data-testid="food-tv-current-step">
             <div className="eyebrow">Current step</div>
             <div className="food-tv-step">{data.currentStepInstruction ?? "Start the cook from mobile."}</div>
             {data.nextStepInstruction ? (
@@ -92,7 +94,7 @@ export function TvCookingDisplay({ sessionId }: { sessionId: string }) {
             ) : null}
           </article>
 
-          <article className="food-tv-card">
+          <article className="food-tv-card" data-testid="food-tv-remaining-ingredients">
             <div className="eyebrow">Ingredients left</div>
             <div className="food-tv-list">
               {data.remainingIngredients.length > 0 ? (
@@ -105,7 +107,7 @@ export function TvCookingDisplay({ sessionId }: { sessionId: string }) {
         </section>
 
         <section className="food-tv-grid">
-          <article className="food-tv-card">
+          <article className="food-tv-card" data-testid="food-tv-completed-ingredients">
             <div className="eyebrow">Done</div>
             <div className="food-tv-list">
               {data.completedIngredients.length > 0 ? (
@@ -116,7 +118,7 @@ export function TvCookingDisplay({ sessionId }: { sessionId: string }) {
             </div>
           </article>
 
-          <article className="food-tv-card">
+          <article className="food-tv-card" data-testid="food-tv-coming-up">
             <div className="eyebrow">Coming up</div>
             <div className="food-tv-list">
               {data.remainingSteps.slice(0, 4).map((item, index) => (

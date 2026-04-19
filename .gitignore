@@ -15,3 +15,6 @@ Thumbs.db
 .dotnet/
 ops/*.log
 .claude/
+src/frontend/web/playwright/.auth/
+src/frontend/web/playwright-report/
+src/frontend/web/test-results/

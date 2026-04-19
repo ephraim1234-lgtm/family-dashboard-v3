@@ -247,6 +247,10 @@ function emptyStep(position: number): RecipeStep {
   return { position, instruction: "" };
 }
 
+function buildFieldTestId(scope: string, field: string) {
+  return `${scope}-${field}`;
+}
+
 function createRecipeDraft(mode: RecipeDraft["mode"], recipeId: string | null = null): RecipeDraft {
   return {
     recipeId,
@@ -726,7 +730,7 @@ export function FoodHub() {
 
   if (loading) {
     return (
-      <section className="grid">
+      <section className="grid" data-testid="food-hub-loading">
         <article className="panel">
           <p className="muted">Loading the household food system...</p>
         </article>
@@ -738,7 +742,9 @@ export function FoodHub() {
     return (
       <section className="grid">
         <article className="panel">
-          <p className="error-text">{error ?? "Food could not be loaded."}</p>
+          <p className="error-text" role="alert" data-testid="food-alert-error">
+            {error ?? "Food could not be loaded."}
+          </p>
         </article>
       </section>
     );
@@ -749,7 +755,9 @@ export function FoodHub() {
       {error ? (
         <section className="grid">
           <article className="panel">
-            <p className="error-text">{error}</p>
+            <p className="error-text" role="alert" data-testid="food-alert-error">
+              {error}
+            </p>
           </article>
         </section>
       ) : null}
@@ -757,13 +765,15 @@ export function FoodHub() {
       {success ? (
         <section className="grid">
           <article className="panel">
-            <p className="success-text">{success}</p>
+            <p className="success-text" role="status" data-testid="food-alert-success">
+              {success}
+            </p>
           </article>
         </section>
       ) : null}
 
-      <section className="grid food-hero-grid">
-        <article className="panel">
+      <section className="grid food-hero-grid" data-testid="food-hub">
+        <article className="panel" data-testid="food-overview-panel">
           <div className="eyebrow">Food hub</div>
           <h2>Household food operating system</h2>
           <p className="muted">
@@ -834,12 +844,14 @@ export function FoodHub() {
       <div className="section-spacer" />
 
       <section className="grid food-section-grid">
-        <article className="panel">
+        <article className="panel" data-testid="food-recipe-capture-panel">
           <div className="eyebrow">Recipe capture</div>
           <h2>Bring in a recipe by link or create one from scratch</h2>
           <div className="field" style={{ marginTop: "12px" }}>
             <span>Recipe URL</span>
             <input
+              aria-label="Recipe URL"
+              data-testid={buildFieldTestId("food-import", "url")}
               value={importUrl}
               onChange={(event) => setImportUrl(event.target.value)}
               placeholder="https://example.com/recipe"
@@ -848,6 +860,7 @@ export function FoodHub() {
           <div className="action-row">
             <button
               className="action-button"
+              data-testid="food-import-submit"
               disabled={isPending || !importUrl.trim()}
               onClick={() => {
                 setError(null);
@@ -862,6 +875,7 @@ export function FoodHub() {
             </button>
             <button
               className="action-button-secondary"
+              data-testid="food-recipe-start-manual"
               disabled={isPending}
               onClick={startManualRecipe}
             >
@@ -870,7 +884,7 @@ export function FoodHub() {
           </div>
 
           {importReview ? (
-            <div className="stack-card" style={{ marginTop: "16px" }}>
+            <div className="stack-card" style={{ marginTop: "16px" }} data-testid="food-import-review">
               <div className="pill-row">
                 <span className="pill">Status {importReview.status}</span>
                 <span className="pill">Confidence {(importReview.parserConfidence * 100).toFixed(0)}%</span>
@@ -890,7 +904,7 @@ export function FoodHub() {
 
           {recipeDraft ? (
             <div className="stack-list" style={{ marginTop: "16px" }}>
-              <div className="stack-card">
+              <div className="stack-card" data-testid="food-recipe-draft">
                 <div className="stack-card-header">
                   <strong>
                     {recipeDraft.mode === "edit"
@@ -904,6 +918,8 @@ export function FoodHub() {
                 <div className="field">
                   <span>Title</span>
                   <input
+                    aria-label="Recipe title"
+                    data-testid={buildFieldTestId("food-recipe-draft", "title")}
                     value={recipeDraft.title}
                     onChange={(event) => setRecipeDraft((current) => current ? { ...current, title: event.target.value } : current)}
                   />
@@ -911,6 +927,8 @@ export function FoodHub() {
                 <div className="field">
                   <span>Summary</span>
                   <input
+                    aria-label="Recipe summary"
+                    data-testid={buildFieldTestId("food-recipe-draft", "summary")}
                     value={recipeDraft.summary}
                     onChange={(event) => setRecipeDraft((current) => current ? { ...current, summary: event.target.value } : current)}
                   />
@@ -919,6 +937,8 @@ export function FoodHub() {
                   <div className="field">
                     <span>Yield</span>
                     <input
+                      aria-label="Recipe yield"
+                      data-testid={buildFieldTestId("food-recipe-draft", "yield")}
                       value={recipeDraft.yieldText}
                       onChange={(event) => setRecipeDraft((current) => current ? { ...current, yieldText: event.target.value } : current)}
                     />
@@ -926,6 +946,8 @@ export function FoodHub() {
                   <div className="field">
                     <span>Tags</span>
                     <input
+                      aria-label="Recipe tags"
+                      data-testid={buildFieldTestId("food-recipe-draft", "tags")}
                       value={recipeDraft.tags}
                       onChange={(event) => setRecipeDraft((current) => current ? { ...current, tags: event.target.value } : current)}
                     />
@@ -934,18 +956,21 @@ export function FoodHub() {
                 <div className="field">
                   <span>Household notes</span>
                   <input
+                    aria-label="Recipe household notes"
+                    data-testid={buildFieldTestId("food-recipe-draft", "notes")}
                     value={recipeDraft.notes}
                     onChange={(event) => setRecipeDraft((current) => current ? { ...current, notes: event.target.value } : current)}
                   />
                 </div>
               </div>
 
-              <div className="stack-card">
+              <div className="stack-card" data-testid="food-recipe-draft-ingredients">
                 <div className="stack-card-header">
                   <strong>Ingredients</strong>
                   <button
                     className="pill-button"
                     type="button"
+                    data-testid="food-recipe-add-ingredient"
                     onClick={() => setRecipeDraft((current) => current ? {
                       ...current,
                       ingredients: [...current.ingredients, emptyIngredient()]
@@ -956,11 +981,13 @@ export function FoodHub() {
                 </div>
                 <div className="stack-list" style={{ marginTop: "10px" }}>
                   {recipeDraft.ingredients.map((ingredient, index) => (
-                    <div className="stack-card" key={`draft-ingredient-${index}`}>
+                    <div className="stack-card" data-testid={`food-recipe-ingredient-${index}`} key={`draft-ingredient-${index}`}>
                       <div className="grid">
                         <div className="field">
                           <span>Ingredient</span>
                           <input
+                            aria-label={`Recipe ingredient ${index + 1}`}
+                            data-testid={`food-recipe-ingredient-name-${index}`}
                             value={ingredient.ingredientName}
                             onChange={(event) => setRecipeDraft((current) => {
                               if (!current) return current;
@@ -973,6 +1000,8 @@ export function FoodHub() {
                         <div className="field">
                           <span>Qty</span>
                           <input
+                            aria-label={`Recipe ingredient quantity ${index + 1}`}
+                            data-testid={`food-recipe-ingredient-quantity-${index}`}
                             type="number"
                             step="0.25"
                             value={ingredient.quantity ?? ""}
@@ -990,6 +1019,8 @@ export function FoodHub() {
                         <div className="field">
                           <span>Unit</span>
                           <input
+                            aria-label={`Recipe ingredient unit ${index + 1}`}
+                            data-testid={`food-recipe-ingredient-unit-${index}`}
                             value={ingredient.unit ?? ""}
                             onChange={(event) => setRecipeDraft((current) => {
                               if (!current) return current;
@@ -1005,12 +1036,13 @@ export function FoodHub() {
                 </div>
               </div>
 
-              <div className="stack-card">
+              <div className="stack-card" data-testid="food-recipe-draft-steps">
                 <div className="stack-card-header">
                   <strong>Steps</strong>
                   <button
                     className="pill-button"
                     type="button"
+                    data-testid="food-recipe-add-step"
                     onClick={() => setRecipeDraft((current) => current ? {
                       ...current,
                       steps: [...current.steps, emptyStep(current.steps.length + 1)]
@@ -1021,10 +1053,12 @@ export function FoodHub() {
                 </div>
                 <div className="stack-list" style={{ marginTop: "10px" }}>
                   {recipeDraft.steps.map((step, index) => (
-                    <div className="stack-card" key={`draft-step-${index}`}>
+                    <div className="stack-card" data-testid={`food-recipe-step-${index}`} key={`draft-step-${index}`}>
                       <div className="field">
                         <span>Step {index + 1}</span>
                         <input
+                          aria-label={`Recipe step ${index + 1}`}
+                          data-testid={`food-recipe-step-instruction-${index}`}
                           value={step.instruction}
                           onChange={(event) => setRecipeDraft((current) => {
                             if (!current) return current;
@@ -1042,6 +1076,7 @@ export function FoodHub() {
               <div className="action-row">
                 <button
                   className="action-button"
+                  data-testid="food-recipe-save"
                   disabled={isPending}
                   onClick={() => {
                     setError(null);
@@ -1056,6 +1091,7 @@ export function FoodHub() {
                 </button>
                 <button
                   className="action-button-secondary"
+                  data-testid="food-recipe-cancel"
                   disabled={isPending}
                   onClick={() => {
                     setRecipeDraft(null);
@@ -1069,7 +1105,7 @@ export function FoodHub() {
           ) : null}
         </article>
 
-        <article className="panel">
+        <article className="panel" data-testid="food-recipe-library">
           <div className="eyebrow">Recipe library</div>
           <div className="stack-card-header">
             <h2 style={{ margin: 0 }}>Shared household recipes</h2>
@@ -1078,6 +1114,8 @@ export function FoodHub() {
           <div className="field" style={{ marginTop: "12px" }}>
             <span>Search</span>
             <input
+              aria-label="Recipe search"
+              data-testid={buildFieldTestId("food-recipe-library", "search")}
               value={recipeQuery}
               onChange={(event) => setRecipeQuery(event.target.value)}
               placeholder="weeknight, chicken, lunch"
@@ -1085,7 +1123,7 @@ export function FoodHub() {
           </div>
           <div className="stack-list" style={{ marginTop: "14px" }}>
             {recipeLibrary.map((recipe) => (
-              <div className="stack-card" key={recipe.id}>
+              <div className="stack-card" data-testid={`food-recipe-library-item-${recipe.id}`} key={recipe.id}>
                 <div className="stack-card-header">
                   <div style={{ flex: 1 }}>
                     <strong>{recipe.title}</strong>
@@ -1095,6 +1133,7 @@ export function FoodHub() {
                   </div>
                   <button
                     className="pill-button"
+                    data-testid={`food-recipe-library-view-${recipe.id}`}
                     onClick={() => setSelectedRecipeId(recipe.id)}
                   >
                     View
@@ -1114,34 +1153,58 @@ export function FoodHub() {
       <div className="section-spacer" />
 
       <section className="grid food-section-grid">
-        <article className="panel">
+        <article className="panel" data-testid="food-meal-planning">
           <div className="eyebrow">Meal planning</div>
           <h2>Build a real meal, not just a single recipe slot</h2>
           <div className="grid" style={{ marginTop: "12px" }}>
             <div className="field">
               <span>Date</span>
-              <input type="date" value={mealDate} onChange={(event) => setMealDate(event.target.value)} />
+              <input
+                aria-label="Meal date"
+                data-testid={buildFieldTestId("food-meal", "date")}
+                type="date"
+                value={mealDate}
+                onChange={(event) => setMealDate(event.target.value)}
+              />
             </div>
             <div className="field">
               <span>Slot</span>
-              <input value={mealSlotName} onChange={(event) => setMealSlotName(event.target.value)} />
+              <input
+                aria-label="Meal slot"
+                data-testid={buildFieldTestId("food-meal", "slot")}
+                value={mealSlotName}
+                onChange={(event) => setMealSlotName(event.target.value)}
+              />
             </div>
             <div className="field">
               <span>Meal title</span>
-              <input value={mealTitle} onChange={(event) => setMealTitle(event.target.value)} placeholder="Taco night" />
+              <input
+                aria-label="Meal title"
+                data-testid={buildFieldTestId("food-meal", "title")}
+                value={mealTitle}
+                onChange={(event) => setMealTitle(event.target.value)}
+                placeholder="Taco night"
+              />
             </div>
           </div>
           <div className="field">
             <span>Notes</span>
-            <input value={mealNotes} onChange={(event) => setMealNotes(event.target.value)} />
+            <input
+              aria-label="Meal notes"
+              data-testid={buildFieldTestId("food-meal", "notes")}
+              value={mealNotes}
+              onChange={(event) => setMealNotes(event.target.value)}
+            />
           </div>
           <div className="stack-list" style={{ marginTop: "12px" }}>
             {mealRows.map((row, index) => (
-              <div className="stack-card" key={`meal-row-${index}`}>
+              <div className="stack-card" data-testid={`food-meal-row-${index}`} key={`meal-row-${index}`}>
                 <div className="grid">
                   <div className="field">
                     <span>Recipe</span>
                     <select
+                      aria-label={`Meal recipe ${index + 1}`}
+                      data-testid={`food-meal-recipe-${index}`}
                       value={row.recipeId}
                       onChange={(event) => setMealRows((current) => current.map((item, rowIndex) =>
                         rowIndex === index ? { ...item, recipeId: event.target.value } : item))}
@@ -1155,6 +1218,8 @@ export function FoodHub() {
                   <div className="field">
                     <span>Role</span>
                     <select
+                      aria-label={`Meal role ${index + 1}`}
+                      data-testid={`food-meal-role-${index}`}
                       value={row.role}
                       onChange={(event) => setMealRows((current) => current.map((item, rowIndex) =>
                         rowIndex === index ? { ...item, role: event.target.value } : item))}
@@ -1175,6 +1240,7 @@ export function FoodHub() {
             <button
               className="pill-button"
               type="button"
+              data-testid="food-meal-add-recipe"
               onClick={() => setMealRows((current) => [...current, {
                 recipeId: recipeLibrary[0]?.id ?? "",
                 role: "Side"
@@ -1184,6 +1250,8 @@ export function FoodHub() {
             </button>
             <label className="checkbox-field">
               <input
+                aria-label="Draft missing shopping items"
+                data-testid={buildFieldTestId("food-meal", "generate-shopping")}
                 type="checkbox"
                 checked={generateShopping}
                 onChange={(event) => setGenerateShopping(event.target.checked)}
@@ -1194,6 +1262,7 @@ export function FoodHub() {
           <div className="action-row">
             <button
               className="action-button"
+              data-testid="food-meal-save"
               disabled={isPending || !mealDate || mealRows.every((row) => !row.recipeId)}
               onClick={() => {
                 setError(null);
@@ -1211,7 +1280,7 @@ export function FoodHub() {
           {data.upcomingMeals.length > 0 ? (
             <div className="stack-list" style={{ marginTop: "16px" }}>
               {data.upcomingMeals.map((slot) => (
-                <div className="stack-card" key={slot.id}>
+                <div className="stack-card" data-testid={`food-meal-slot-${slot.id}`} key={slot.id}>
                   <div className="stack-card-header">
                     <div style={{ flex: 1 }}>
                       <strong>{slot.title}</strong>
@@ -1219,6 +1288,7 @@ export function FoodHub() {
                     </div>
                     <button
                       className="pill-button"
+                      data-testid={`food-meal-slot-cook-${slot.id}`}
                       onClick={() => {
                         setError(null);
                         startTransition(() => {
@@ -1243,7 +1313,7 @@ export function FoodHub() {
           ) : null}
         </article>
 
-        <article className="panel">
+        <article className="panel" data-testid="food-recipe-detail">
           <div className="eyebrow">Recipe detail</div>
           <h2>{selectedRecipe?.title ?? "Pick a recipe"}</h2>
           {selectedRecipe ? (
@@ -1299,6 +1369,7 @@ export function FoodHub() {
               <div className="action-row">
                 <button
                   className="action-button"
+                  data-testid="food-recipe-start-cooking"
                   disabled={isPending}
                   onClick={() => {
                     setError(null);
@@ -1313,6 +1384,7 @@ export function FoodHub() {
                 </button>
                 <button
                   className="action-button-secondary"
+                  data-testid="food-recipe-edit-default"
                   disabled={isPending}
                   onClick={startEditingSelectedRecipe}
                 >
@@ -1320,6 +1392,7 @@ export function FoodHub() {
                 </button>
                 <button
                   className="action-button-secondary"
+                  data-testid="food-recipe-add-to-meal"
                   disabled={isPending}
                   onClick={() => {
                     setMealDate(mealDate || new Date().toISOString().slice(0, 10));
@@ -1342,17 +1415,27 @@ export function FoodHub() {
       <div className="section-spacer" />
 
       <section className="grid food-section-grid">
-        <article className="panel">
+        <article className="panel" data-testid="food-pantry-panel">
           <div className="eyebrow">Pantry</div>
           <h2>Low-friction inventory with real adjustment history</h2>
           <div className="grid" style={{ marginTop: "12px" }}>
             <div className="field">
               <span>Item</span>
-              <input value={pantryName} onChange={(event) => setPantryName(event.target.value)} />
+              <input
+                aria-label="Pantry item name"
+                data-testid={buildFieldTestId("food-pantry-add", "item")}
+                value={pantryName}
+                onChange={(event) => setPantryName(event.target.value)}
+              />
             </div>
             <div className="field">
               <span>Location</span>
-              <select value={pantryLocationId} onChange={(event) => setPantryLocationId(event.target.value)}>
+              <select
+                aria-label="Pantry location"
+                data-testid={buildFieldTestId("food-pantry-add", "location")}
+                value={pantryLocationId}
+                onChange={(event) => setPantryLocationId(event.target.value)}
+              >
                 {data.pantryLocations.map((location) => (
                   <option key={location.id} value={location.id}>{location.name}</option>
                 ))}
@@ -1360,26 +1443,52 @@ export function FoodHub() {
             </div>
             <div className="field">
               <span>Qty</span>
-              <input type="number" step="0.25" value={pantryQuantity} onChange={(event) => setPantryQuantity(event.target.value)} />
+              <input
+                aria-label="Pantry quantity"
+                data-testid={buildFieldTestId("food-pantry-add", "quantity")}
+                type="number"
+                step="0.25"
+                value={pantryQuantity}
+                onChange={(event) => setPantryQuantity(event.target.value)}
+              />
             </div>
             <div className="field">
               <span>Unit</span>
-              <input value={pantryUnit} onChange={(event) => setPantryUnit(event.target.value)} />
+              <input
+                aria-label="Pantry unit"
+                data-testid={buildFieldTestId("food-pantry-add", "unit")}
+                value={pantryUnit}
+                onChange={(event) => setPantryUnit(event.target.value)}
+              />
             </div>
           </div>
           <div className="grid">
             <div className="field">
               <span>Low threshold</span>
-              <input type="number" step="0.25" value={pantryLowThreshold} onChange={(event) => setPantryLowThreshold(event.target.value)} />
+              <input
+                aria-label="Pantry low threshold"
+                data-testid={buildFieldTestId("food-pantry-add", "low-threshold")}
+                type="number"
+                step="0.25"
+                value={pantryLowThreshold}
+                onChange={(event) => setPantryLowThreshold(event.target.value)}
+              />
             </div>
             <div className="field">
               <span>Expires</span>
-              <input type="date" value={pantryExpiresAt} onChange={(event) => setPantryExpiresAt(event.target.value)} />
+              <input
+                aria-label="Pantry expires"
+                data-testid={buildFieldTestId("food-pantry-add", "expires")}
+                type="date"
+                value={pantryExpiresAt}
+                onChange={(event) => setPantryExpiresAt(event.target.value)}
+              />
             </div>
           </div>
           <div className="action-row">
             <button
               className="action-button"
+              data-testid="food-pantry-add-submit"
               disabled={isPending || !pantryName.trim()}
               onClick={() => {
                 setError(null);
@@ -1399,6 +1508,7 @@ export function FoodHub() {
               {lowStockItems.map((item) => (
                 <button
                   className="stack-card home-attention-card"
+                  data-testid={`food-pantry-item-${item.id}`}
                   key={item.id}
                   type="button"
                   onClick={() => setSelectedPantryItemId(item.id)}
@@ -1417,6 +1527,7 @@ export function FoodHub() {
             {data.pantryItems.map((item) => (
               <button
                 className="stack-card"
+                data-testid={`food-pantry-item-${item.id}`}
                 key={item.id}
                 type="button"
                 onClick={() => setSelectedPantryItemId(item.id)}
@@ -1433,7 +1544,7 @@ export function FoodHub() {
           </div>
         </article>
 
-        <article className="panel">
+        <article className="panel" data-testid="food-pantry-detail">
           <div className="eyebrow">Pantry detail</div>
           <h2>{selectedPantryItem?.ingredientName ?? "Choose a pantry item"}</h2>
           {selectedPantryItem ? (
@@ -1441,7 +1552,12 @@ export function FoodHub() {
               <div className="grid" style={{ marginTop: "12px" }}>
                 <div className="field">
                   <span>Location</span>
-                  <select value={pantryEditLocationId} onChange={(event) => setPantryEditLocationId(event.target.value)}>
+                  <select
+                    aria-label="Pantry detail location"
+                    data-testid={buildFieldTestId("food-pantry-detail", "location")}
+                    value={pantryEditLocationId}
+                    onChange={(event) => setPantryEditLocationId(event.target.value)}
+                  >
                     {data.pantryLocations.map((location) => (
                       <option key={location.id} value={location.id}>{location.name}</option>
                     ))}
@@ -1449,7 +1565,12 @@ export function FoodHub() {
                 </div>
                 <div className="field">
                   <span>Status</span>
-                  <select value={pantryEditStatus} onChange={(event) => setPantryEditStatus(event.target.value)}>
+                  <select
+                    aria-label="Pantry detail status"
+                    data-testid={buildFieldTestId("food-pantry-detail", "status")}
+                    value={pantryEditStatus}
+                    onChange={(event) => setPantryEditStatus(event.target.value)}
+                  >
                     <option value="InStock">In stock</option>
                     <option value="Low">Low</option>
                     <option value="Out">Out</option>
@@ -1459,34 +1580,72 @@ export function FoodHub() {
               <div className="grid">
                 <div className="field">
                   <span>Quantity</span>
-                  <input type="number" step="0.25" value={pantryEditQuantity} onChange={(event) => setPantryEditQuantity(event.target.value)} />
+                  <input
+                    aria-label="Pantry detail quantity"
+                    data-testid={buildFieldTestId("food-pantry-detail", "quantity")}
+                    type="number"
+                    step="0.25"
+                    value={pantryEditQuantity}
+                    onChange={(event) => setPantryEditQuantity(event.target.value)}
+                  />
                 </div>
                 <div className="field">
                   <span>Unit</span>
-                  <input value={pantryEditUnit} onChange={(event) => setPantryEditUnit(event.target.value)} />
+                  <input
+                    aria-label="Pantry detail unit"
+                    data-testid={buildFieldTestId("food-pantry-detail", "unit")}
+                    value={pantryEditUnit}
+                    onChange={(event) => setPantryEditUnit(event.target.value)}
+                  />
                 </div>
                 <div className="field">
                   <span>Low threshold</span>
-                  <input type="number" step="0.25" value={pantryEditLowThreshold} onChange={(event) => setPantryEditLowThreshold(event.target.value)} />
+                  <input
+                    aria-label="Pantry detail low threshold"
+                    data-testid={buildFieldTestId("food-pantry-detail", "low-threshold")}
+                    type="number"
+                    step="0.25"
+                    value={pantryEditLowThreshold}
+                    onChange={(event) => setPantryEditLowThreshold(event.target.value)}
+                  />
                 </div>
               </div>
               <div className="grid">
                 <div className="field">
                   <span>Purchased</span>
-                  <input type="date" value={pantryEditPurchasedAt} onChange={(event) => setPantryEditPurchasedAt(event.target.value)} />
+                  <input
+                    aria-label="Pantry detail purchased"
+                    data-testid={buildFieldTestId("food-pantry-detail", "purchased")}
+                    type="date"
+                    value={pantryEditPurchasedAt}
+                    onChange={(event) => setPantryEditPurchasedAt(event.target.value)}
+                  />
                 </div>
                 <div className="field">
                   <span>Expires</span>
-                  <input type="date" value={pantryEditExpiresAt} onChange={(event) => setPantryEditExpiresAt(event.target.value)} />
+                  <input
+                    aria-label="Pantry detail expires"
+                    data-testid={buildFieldTestId("food-pantry-detail", "expires")}
+                    type="date"
+                    value={pantryEditExpiresAt}
+                    onChange={(event) => setPantryEditExpiresAt(event.target.value)}
+                  />
                 </div>
               </div>
               <div className="field">
                 <span>Adjustment note</span>
-                <input value={pantryEditNote} onChange={(event) => setPantryEditNote(event.target.value)} placeholder="Why did this change?" />
+                <input
+                  aria-label="Pantry detail note"
+                  data-testid={buildFieldTestId("food-pantry-detail", "note")}
+                  value={pantryEditNote}
+                  onChange={(event) => setPantryEditNote(event.target.value)}
+                  placeholder="Why did this change?"
+                />
               </div>
               <div className="action-row">
                 <button
                   className="action-button"
+                  data-testid="food-pantry-save"
                   disabled={isPending}
                   onClick={() => {
                     setError(null);
@@ -1503,7 +1662,7 @@ export function FoodHub() {
 
               <div className="stack-list" style={{ marginTop: "16px" }}>
                 {pantryHistory.map((entry) => (
-                  <div className="stack-card" key={entry.id}>
+                  <div className="stack-card" data-testid={`food-pantry-history-${entry.id}`} key={entry.id}>
                     <div className="stack-card-header">
                       <strong>{entry.kind}</strong>
                       <span className="pill">{formatTimestamp(entry.occurredAtUtc)}</span>
@@ -1528,7 +1687,7 @@ export function FoodHub() {
       <div className="section-spacer" />
 
       <section className="grid food-section-grid">
-        <article className="panel">
+        <article className="panel" data-testid="food-shopping-panel">
           <div className="eyebrow">Shopping</div>
           <div className="stack-card-header">
             <h2 style={{ margin: 0 }}>{data.shoppingList.name}</h2>
@@ -1537,24 +1696,47 @@ export function FoodHub() {
           <div className="grid" style={{ marginTop: "12px" }}>
             <div className="field">
               <span>Item</span>
-              <input value={shoppingName} onChange={(event) => setShoppingName(event.target.value)} />
+              <input
+                aria-label="Shopping item name"
+                data-testid={buildFieldTestId("food-shopping-add", "item")}
+                value={shoppingName}
+                onChange={(event) => setShoppingName(event.target.value)}
+              />
             </div>
             <div className="field">
               <span>Qty</span>
-              <input type="number" step="0.25" value={shoppingQuantity} onChange={(event) => setShoppingQuantity(event.target.value)} />
+              <input
+                aria-label="Shopping quantity"
+                data-testid={buildFieldTestId("food-shopping-add", "quantity")}
+                type="number"
+                step="0.25"
+                value={shoppingQuantity}
+                onChange={(event) => setShoppingQuantity(event.target.value)}
+              />
             </div>
             <div className="field">
               <span>Unit</span>
-              <input value={shoppingUnit} onChange={(event) => setShoppingUnit(event.target.value)} />
+              <input
+                aria-label="Shopping unit"
+                data-testid={buildFieldTestId("food-shopping-add", "unit")}
+                value={shoppingUnit}
+                onChange={(event) => setShoppingUnit(event.target.value)}
+              />
             </div>
           </div>
           <div className="field">
             <span>Notes</span>
-            <input value={shoppingNotes} onChange={(event) => setShoppingNotes(event.target.value)} />
+            <input
+              aria-label="Shopping notes"
+              data-testid={buildFieldTestId("food-shopping-add", "notes")}
+              value={shoppingNotes}
+              onChange={(event) => setShoppingNotes(event.target.value)}
+            />
           </div>
           <div className="action-row">
             <button
               className="action-button"
+              data-testid="food-shopping-add-submit"
               disabled={isPending || !shoppingName.trim()}
               onClick={() => {
                 setError(null);
@@ -1571,7 +1753,7 @@ export function FoodHub() {
 
           <div className="stack-list" style={{ marginTop: "14px" }}>
             {data.shoppingList.items.map((item) => (
-              <label className="stack-card" key={item.id}>
+              <div className="stack-card" data-testid={`food-shopping-item-${item.id}`} key={item.id}>
                 <div className="stack-card-header">
                   <div style={{ flex: 1 }}>
                     <strong style={{ textDecoration: item.isCompleted ? "line-through" : "none" }}>
@@ -1583,6 +1765,8 @@ export function FoodHub() {
                     </div>
                   </div>
                   <input
+                    aria-label={`Shopping item completed ${item.ingredientName}`}
+                    data-testid={`food-shopping-item-toggle-${item.id}`}
                     type="checkbox"
                     checked={item.isCompleted}
                     onChange={(event) => {
@@ -1596,12 +1780,12 @@ export function FoodHub() {
                   />
                 </div>
                 {item.notes ? <div className="muted">{item.notes}</div> : null}
-              </label>
+              </div>
             ))}
           </div>
         </article>
 
-        <article className="panel">
+        <article className="panel" data-testid="food-cooking-panel">
           <div className="eyebrow">Cooking</div>
           <h2>Active sessions</h2>
           {data.activeCookingSessions.length === 0 ? (
@@ -1611,7 +1795,7 @@ export function FoodHub() {
           ) : (
             <div className="stack-list" style={{ marginTop: "12px" }}>
               {data.activeCookingSessions.map((session) => (
-                <div className="stack-card" key={session.id}>
+                <div className="stack-card" data-testid={`food-active-session-${session.id}`} key={session.id}>
                   <div className="stack-card-header">
                     <div style={{ flex: 1 }}>
                       <strong>{session.title}</strong>
@@ -1623,10 +1807,18 @@ export function FoodHub() {
                     <span className="pill">{session.recipeCount} recipes</span>
                   </div>
                   <div className="action-row">
-                    <Link className="action-button" href={`/app/food/cooking/${session.id}`}>
+                    <Link
+                      className="action-button"
+                      data-testid={`food-active-session-open-mobile-${session.id}`}
+                      href={`/app/food/cooking/${session.id}`}
+                    >
                       Open mobile mode
                     </Link>
-                    <Link className="action-button-secondary" href={`/app/food/cooking/${session.id}/tv`}>
+                    <Link
+                      className="action-button-secondary"
+                      data-testid={`food-active-session-open-tv-${session.id}`}
+                      href={`/app/food/cooking/${session.id}/tv`}
+                    >
                       Open TV mode
                     </Link>
                   </div>

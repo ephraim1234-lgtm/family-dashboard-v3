@@ -637,13 +637,13 @@ public sealed class FoodService(
                 nowUtc,
                 cancellationToken);
 
-            var pantryItem = await dbContext.PantryItems
-                .FirstOrDefaultAsync(existing =>
+            var pantryItemCandidates = await dbContext.PantryItems
+                .Where(existing =>
                     existing.HouseholdId == householdId
                     && existing.NormalizedIngredientName == item.NormalizedIngredientName
-                    && UnitsCompatible(existing.Unit, item.Unit)
-                    && existing.PantryLocationId == pantryLocation.Id,
-                    cancellationToken);
+                    && existing.PantryLocationId == pantryLocation.Id)
+                .ToListAsync(cancellationToken);
+            var pantryItem = pantryItemCandidates.FirstOrDefault(existing => UnitsCompatible(existing.Unit, item.Unit));
 
             if (pantryItem is null)
             {
@@ -1922,14 +1922,15 @@ public sealed class FoodService(
         var session = await dbContext.CookingSessions
             .FirstAsync(item => item.Id == ingredient.CookingSessionId, cancellationToken);
 
-        var matchingPantryItems = await dbContext.PantryItems
+        var matchingPantryItems = (await dbContext.PantryItems
             .Where(item =>
                 item.HouseholdId == session.HouseholdId
-                && item.NormalizedIngredientName == ingredient.NormalizedIngredientName
-                && UnitsCompatible(item.Unit, desiredUnit))
+                && item.NormalizedIngredientName == ingredient.NormalizedIngredientName)
             .OrderBy(item => item.ExpiresAtUtc ?? DateTimeOffset.MaxValue)
             .ThenBy(item => item.UpdatedAtUtc)
-            .ToListAsync(cancellationToken);
+            .ToListAsync(cancellationToken))
+            .Where(item => UnitsCompatible(item.Unit, desiredUnit))
+            .ToList();
 
         decimal remaining = targetQuantity.Value;
         decimal applied = 0;
