@@ -141,6 +141,22 @@ public static class DependencyInjection
             return response is null ? Results.NotFound() : Results.Ok(response);
         });
 
+        group.MapDelete("/recipes/{recipeId:guid}", async (
+            Guid recipeId,
+            IIdentityAccessService identityAccessService,
+            IFoodService foodService,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var deleted = await foodService.DeleteRecipeAsync(householdId, recipeId, cancellationToken);
+            return deleted ? Results.NoContent() : Results.NotFound();
+        });
+
         group.MapPost("/pantry-items", async (
             CreatePantryItemRequest? request,
             IIdentityAccessService identityAccessService,
@@ -189,6 +205,22 @@ public static class DependencyInjection
             return response is null ? Results.NotFound() : Results.Ok(response);
         });
 
+        group.MapDelete("/pantry-items/{pantryItemId:guid}", async (
+            Guid pantryItemId,
+            IIdentityAccessService identityAccessService,
+            IFoodService foodService,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var deleted = await foodService.DeletePantryItemAsync(householdId, pantryItemId, cancellationToken);
+            return deleted ? Results.NoContent() : Results.NotFound();
+        });
+
         group.MapGet("/pantry-items/{pantryItemId:guid}/history", async (
             Guid pantryItemId,
             IIdentityAccessService identityAccessService,
@@ -232,6 +264,38 @@ public static class DependencyInjection
             return response is null ? Results.NotFound() : Results.Ok(response);
         });
 
+        group.MapGet("/shopping-lists", async (
+            string? status,
+            IIdentityAccessService identityAccessService,
+            IFoodService foodService,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var response = await foodService.ListShoppingListsAsync(householdId, status, cancellationToken);
+            return Results.Ok(response);
+        });
+
+        group.MapGet("/shopping-lists/{shoppingListId:guid}", async (
+            Guid shoppingListId,
+            IIdentityAccessService identityAccessService,
+            IFoodService foodService,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var response = await foodService.GetShoppingListAsync(householdId, shoppingListId, cancellationToken);
+            return response is null ? Results.NotFound() : Results.Ok(response);
+        });
+
         group.MapPost("/shopping-list/items", async (
             CreateShoppingListItemRequest? request,
             IIdentityAccessService identityAccessService,
@@ -255,9 +319,8 @@ public static class DependencyInjection
             return Results.Ok(response);
         });
 
-        group.MapPatch("/shopping-list/items/{itemId:guid}", async (
-            Guid itemId,
-            ToggleShoppingListItemRequest? request,
+        group.MapPost("/shopping-list/items/from-recipe", async (
+            AddItemsFromRecipeRequest? request,
             IIdentityAccessService identityAccessService,
             IFoodService foodService,
             IClock clock,
@@ -267,13 +330,171 @@ public static class DependencyInjection
             if (request is null
                 || !Guid.TryParse(session.ActiveHouseholdId, out var householdId))
             {
-                return Results.BadRequest("A valid shopping toggle payload is required.");
+                return Results.BadRequest("A valid recipe shopping payload is required.");
             }
 
-            var response = await foodService.ToggleShoppingListItemAsync(
+            var response = await foodService.AddItemsFromRecipeAsync(
+                householdId,
+                request,
+                clock.UtcNow,
+                cancellationToken);
+
+            return Results.Ok(response);
+        });
+
+        group.MapPost("/shopping-list/items/from-meal", async (
+            AddItemsFromMealPlanSlotRequest? request,
+            IIdentityAccessService identityAccessService,
+            IFoodService foodService,
+            IClock clock,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+            if (request is null
+                || !Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.BadRequest("A valid meal shopping payload is required.");
+            }
+
+            var response = await foodService.AddItemsFromMealPlanSlotAsync(
+                householdId,
+                request,
+                clock.UtcNow,
+                cancellationToken);
+
+            return Results.Ok(response);
+        });
+
+        group.MapPost("/shopping-list/items/bulk-state", async (
+            BulkUpdateShoppingItemsRequest? request,
+            IIdentityAccessService identityAccessService,
+            IFoodService foodService,
+            IClock clock,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+            if (request is null
+                || !Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.BadRequest("A valid shopping bulk payload is required.");
+            }
+
+            var response = await foodService.BulkUpdateShoppingItemsAsync(
+                householdId,
+                request,
+                clock.UtcNow,
+                cancellationToken);
+
+            return Results.Ok(response);
+        });
+
+        group.MapPost("/shopping-list/items/merge-preview", async (
+            MergePreviewItemRequest? request,
+            IIdentityAccessService identityAccessService,
+            IFoodService foodService,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+            if (request is null
+                || !Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.BadRequest("A valid merge preview payload is required.");
+            }
+
+            var response = await foodService.GetShoppingMergePreviewAsync(householdId, request, cancellationToken);
+            return Results.Ok(response);
+        });
+
+        group.MapPatch("/shopping-list/items/{itemId:guid}", async (
+            Guid itemId,
+            UpdateShoppingListItemRequest? request,
+            IIdentityAccessService identityAccessService,
+            IFoodService foodService,
+            IClock clock,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+            if (request is null
+                || !Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.BadRequest("A valid shopping update payload is required.");
+            }
+
+            Guid? userId = Guid.TryParse(session.UserId, out var parsedUserId) ? parsedUserId : null;
+            var response = await foodService.UpdateShoppingListItemAsync(
                 householdId,
                 itemId,
+                userId,
                 request,
+                clock.UtcNow,
+                cancellationToken);
+
+            return response is null ? Results.NotFound() : Results.Ok(response);
+        });
+
+        group.MapDelete("/shopping-list/items/{itemId:guid}", async (
+            Guid itemId,
+            IIdentityAccessService identityAccessService,
+            IFoodService foodService,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var deleted = await foodService.DeleteShoppingListItemAsync(householdId, itemId, cancellationToken);
+            return deleted ? Results.NoContent() : Results.NotFound();
+        });
+
+        group.MapPost("/shopping-lists/{shoppingListId:guid}/transfer-to-pantry", async (
+            Guid shoppingListId,
+            TransferToPantryRequest? request,
+            IIdentityAccessService identityAccessService,
+            IFoodService foodService,
+            IClock clock,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+            if (request is null
+                || !Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.BadRequest("A valid pantry transfer payload is required.");
+            }
+
+            Guid? userId = Guid.TryParse(session.UserId, out var parsedUserId) ? parsedUserId : null;
+            var response = await foodService.TransferShoppingListItemsToPantryAsync(
+                householdId,
+                shoppingListId,
+                userId,
+                request,
+                clock.UtcNow,
+                cancellationToken);
+
+            return response is null ? Results.NotFound() : Results.Ok(response);
+        });
+
+        group.MapPost("/shopping-lists/{shoppingListId:guid}/complete", async (
+            Guid shoppingListId,
+            CompleteShoppingListRequest? request,
+            IIdentityAccessService identityAccessService,
+            IFoodService foodService,
+            IClock clock,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.Unauthorized();
+            }
+
+            Guid? userId = Guid.TryParse(session.UserId, out var parsedUserId) ? parsedUserId : null;
+            var response = await foodService.CompleteShoppingListAsync(
+                householdId,
+                shoppingListId,
+                userId,
+                request ?? new CompleteShoppingListRequest(false),
                 clock.UtcNow,
                 cancellationToken);
 

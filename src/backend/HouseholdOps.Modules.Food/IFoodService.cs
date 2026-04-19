@@ -35,6 +35,11 @@ public interface IFoodService
         DateTimeOffset nowUtc,
         CancellationToken cancellationToken);
 
+    Task<bool> DeleteRecipeAsync(
+        Guid householdId,
+        Guid recipeId,
+        CancellationToken cancellationToken);
+
     Task<PantryItemResponse> CreatePantryItemAsync(
         Guid householdId,
         CreatePantryItemRequest request,
@@ -46,6 +51,11 @@ public interface IFoodService
         Guid pantryItemId,
         UpdatePantryItemRequest request,
         DateTimeOffset nowUtc,
+        CancellationToken cancellationToken);
+
+    Task<bool> DeletePantryItemAsync(
+        Guid householdId,
+        Guid pantryItemId,
         CancellationToken cancellationToken);
 
     Task<IReadOnlyList<PantryItemActivityResponse>> GetPantryItemHistoryAsync(
@@ -65,11 +75,66 @@ public interface IFoodService
         DateTimeOffset nowUtc,
         CancellationToken cancellationToken);
 
-    Task<ShoppingListItemResponse?> ToggleShoppingListItemAsync(
+    Task<ShoppingListItemResponse?> UpdateShoppingListItemAsync(
         Guid householdId,
         Guid itemId,
-        ToggleShoppingListItemRequest request,
+        Guid? userId,
+        UpdateShoppingListItemRequest request,
         DateTimeOffset nowUtc,
+        CancellationToken cancellationToken);
+
+    Task<bool> DeleteShoppingListItemAsync(
+        Guid householdId,
+        Guid itemId,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<ShoppingListSummaryResponse>> ListShoppingListsAsync(
+        Guid householdId,
+        string? status,
+        CancellationToken cancellationToken);
+
+    Task<ShoppingListResponse?> GetShoppingListAsync(
+        Guid householdId,
+        Guid shoppingListId,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<ShoppingListItemResponse>> AddItemsFromRecipeAsync(
+        Guid householdId,
+        AddItemsFromRecipeRequest request,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<ShoppingListItemResponse>> AddItemsFromMealPlanSlotAsync(
+        Guid householdId,
+        AddItemsFromMealPlanSlotRequest request,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<ShoppingListItemResponse>> BulkUpdateShoppingItemsAsync(
+        Guid householdId,
+        BulkUpdateShoppingItemsRequest request,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken);
+
+    Task<ShoppingListResponse?> TransferShoppingListItemsToPantryAsync(
+        Guid householdId,
+        Guid shoppingListId,
+        Guid? userId,
+        TransferToPantryRequest request,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken);
+
+    Task<ShoppingListResponse?> CompleteShoppingListAsync(
+        Guid householdId,
+        Guid shoppingListId,
+        Guid? userId,
+        CompleteShoppingListRequest request,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken);
+
+    Task<MergePreviewResponse> GetShoppingMergePreviewAsync(
+        Guid householdId,
+        MergePreviewItemRequest request,
         CancellationToken cancellationToken);
 
     Task<CookingSessionResponse> StartCookingSessionAsync(

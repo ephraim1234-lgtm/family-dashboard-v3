@@ -8,6 +8,7 @@ public sealed record FoodDashboardResponse(
     IReadOnlyList<PantryLocationResponse> PantryLocations,
     IReadOnlyList<MealPlanSlotResponse> UpcomingMeals,
     ShoppingListResponse ShoppingList,
+    IReadOnlyList<ShoppingListSummaryResponse> ShoppingHistory,
     IReadOnlyList<CookingSessionSummaryResponse> ActiveCookingSessions);
 
 public sealed record FoodSummaryResponse(
@@ -78,25 +79,66 @@ public sealed record MealPlanSlotResponse(
     string SlotName,
     string Title,
     string? Notes,
+    int ShoppingOpenIngredientCount,
+    int ShoppingTotalIngredientCount,
     IReadOnlyList<MealPlanRecipeResponse> Recipes);
 
 public sealed record ShoppingListResponse(
     Guid Id,
     string Name,
     string? StoreName,
+    string Status,
+    DateTimeOffset CreatedAtUtc,
+    DateTimeOffset? CompletedAtUtc,
+    DateTimeOffset? ArchivedAtUtc,
+    Guid? CompletedByUserId,
+    int ItemsPurchasedCount,
     IReadOnlyList<ShoppingListItemResponse> Items);
 
 public sealed record ShoppingListItemResponse(
     Guid Id,
     string IngredientName,
-    decimal? Quantity,
+    string CoreIngredientName,
+    string? Preparation,
+    decimal? QuantityNeeded,
+    decimal? QuantityPurchased,
     string? Unit,
+    string? UnitCanonical,
     string? Notes,
     string? SourceRecipeTitle,
     string? SourceMealTitle,
+    string? SourceRecipeIds,
+    string? SourceMealTitles,
+    Guid? SourceMealPlanSlotId,
+    string State,
     bool IsCompleted,
+    int SortOrder,
+    string? AisleCategory,
+    Guid? ClaimedByUserId,
+    DateTimeOffset? ClaimedAtUtc,
     DateTimeOffset CreatedAtUtc,
     DateTimeOffset? CompletedAtUtc);
+
+public sealed record ShoppingListSummaryResponse(
+    Guid Id,
+    string Name,
+    string Status,
+    DateTimeOffset CreatedAtUtc,
+    DateTimeOffset? CompletedAtUtc,
+    int ItemsPurchasedCount,
+    int TotalItemCount,
+    string? SourceMealTitles);
+
+public sealed record MergePreviewResponse(
+    bool WillMerge,
+    Guid? ExistingItemId,
+    string? ExistingItemName,
+    decimal? ExistingQuantityNeeded,
+    decimal? IncomingQuantityNeeded,
+    decimal? MergedQuantityNeeded,
+    string? Unit,
+    string ResultingState,
+    string? Preparation);
 
 public sealed record CookingSessionSummaryResponse(
     Guid Id,

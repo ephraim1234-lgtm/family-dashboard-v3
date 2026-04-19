@@ -304,16 +304,18 @@ public class FoodServiceTests
 
         var chicken = Assert.Single(shoppingItems.Where(item =>
             item.NormalizedIngredientName == "chicken" && item.Unit == "lb"));
-        Assert.Equal(3, chicken.Quantity);
+        Assert.Equal(3, chicken.QuantityNeeded);
         Assert.Contains("Chicken Tacos", chicken.SourceRecipeTitle ?? string.Empty, StringComparison.Ordinal);
         Assert.Contains("Fresh Salsa", chicken.SourceRecipeTitle ?? string.Empty, StringComparison.Ordinal);
+        Assert.Equal(ShoppingListItemStates.Needed, chicken.State);
 
         var cilantroItems = shoppingItems
             .Where(item => item.NormalizedIngredientName == "cilantro")
             .ToList();
-        Assert.Equal(2, cilantroItems.Count);
-        Assert.Contains(cilantroItems, item => item.Unit == "bunch" && item.Quantity == 1);
-        Assert.Contains(cilantroItems, item => item.Unit is null && item.Quantity is null);
+        var cilantro = Assert.Single(cilantroItems);
+        Assert.Equal(1, cilantro.QuantityNeeded);
+        Assert.Equal("bunch", cilantro.Unit);
+        Assert.Equal(ShoppingListItemStates.NeedsReview, cilantro.State);
     }
 
     [Fact]

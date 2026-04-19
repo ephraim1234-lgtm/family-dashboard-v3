@@ -558,8 +558,19 @@ public sealed class HouseholdOpsDbContext(DbContextOptions<HouseholdOpsDbContext
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Name).HasMaxLength(100);
             entity.Property(x => x.StoreName).HasMaxLength(100);
+            entity.Property(x => x.Status).HasMaxLength(32);
             entity.Property(x => x.CreatedAtUtc);
+            entity.Property(x => x.CompletedAtUtc);
+            entity.Property(x => x.ArchivedAtUtc);
+            entity.Property(x => x.CompletedByUserId);
+            entity.Property(x => x.ItemsPurchasedCount);
             entity.HasIndex(x => x.HouseholdId);
+            entity.HasIndex(x => new { x.HouseholdId, x.Status, x.CompletedAtUtc })
+                .HasDatabaseName("IX_shopping_lists_household_status_completed");
+            entity.HasIndex(x => x.HouseholdId)
+                .HasDatabaseName("IX_shopping_lists_household_active_default")
+                .IsUnique()
+                .HasFilter("\"Status\" = 'Active' AND \"IsDefault\" = TRUE");
             entity.HasOne<Household>()
                 .WithMany()
                 .HasForeignKey(x => x.HouseholdId)
@@ -572,15 +583,35 @@ public sealed class HouseholdOpsDbContext(DbContextOptions<HouseholdOpsDbContext
             entity.HasKey(x => x.Id);
             entity.Property(x => x.IngredientName).HasMaxLength(200);
             entity.Property(x => x.NormalizedIngredientName).HasMaxLength(200);
+            entity.Property(x => x.CoreIngredientName).HasMaxLength(200);
+            entity.Property(x => x.Preparation).HasMaxLength(64);
             entity.Property(x => x.Quantity).HasPrecision(18, 2);
+            entity.Property(x => x.QuantityNeeded).HasPrecision(18, 2);
+            entity.Property(x => x.QuantityPurchased).HasPrecision(18, 2);
             entity.Property(x => x.Unit).HasMaxLength(32);
+            entity.Property(x => x.UnitCanonical).HasMaxLength(32);
             entity.Property(x => x.Notes);
             entity.Property(x => x.SourceRecipeTitle).HasMaxLength(200);
             entity.Property(x => x.SourceMealTitle).HasMaxLength(200);
+            entity.Property(x => x.SourceRecipeIds).HasMaxLength(400);
+            entity.Property(x => x.SourceMealTitles).HasMaxLength(400);
+            entity.Property(x => x.SourceMealPlanSlotId);
+            entity.Property(x => x.State).HasMaxLength(32);
+            entity.Property(x => x.SortOrder);
+            entity.Property(x => x.AisleCategory).HasMaxLength(32);
+            entity.Property(x => x.ClaimedByUserId);
+            entity.Property(x => x.ClaimedAtUtc);
             entity.Property(x => x.CreatedAtUtc);
             entity.Property(x => x.CompletedAtUtc);
             entity.HasIndex(x => x.HouseholdId);
             entity.HasIndex(x => x.ShoppingListId);
+            entity.HasIndex(x => new { x.ShoppingListId, x.State })
+                .HasDatabaseName("IX_shopping_list_items_list_state");
+            entity.HasIndex(x => new { x.HouseholdId, x.CoreIngredientName })
+                .HasDatabaseName("IX_shopping_list_items_household_core");
+            entity.HasIndex(x => new { x.HouseholdId, x.ClaimedByUserId })
+                .HasDatabaseName("IX_shopping_list_items_household_claimed")
+                .HasFilter("\"ClaimedByUserId\" IS NOT NULL");
             entity.HasOne<Household>()
                 .WithMany()
                 .HasForeignKey(x => x.HouseholdId)
@@ -592,6 +623,10 @@ public sealed class HouseholdOpsDbContext(DbContextOptions<HouseholdOpsDbContext
             entity.HasOne<FoodIngredient>()
                 .WithMany()
                 .HasForeignKey(x => x.IngredientId)
+                .OnDelete(DeleteBehavior.SetNull);
+            entity.HasOne<MealPlanSlot>()
+                .WithMany()
+                .HasForeignKey(x => x.SourceMealPlanSlotId)
                 .OnDelete(DeleteBehavior.SetNull);
         });
 
