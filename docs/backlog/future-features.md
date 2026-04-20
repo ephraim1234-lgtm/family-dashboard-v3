@@ -25,6 +25,7 @@ The following areas are now active expansion tracks elsewhere in the repo docs:
 - reminders / notifications
 - external calendar sync
 - chores / routines
+- food operations
 
 Keep only deferred sub-ideas or future enhancements for those areas here.
 
@@ -83,17 +84,17 @@ Avoid designing reward systems or gamification until the basic task/routine mode
 
 ---
 
-## Food operations ideas
+## Food follow-ons
 
-- recipe management
-- meal planning calendar
-- pantry inventory
-- shopping list generation
-- cooking mode
-- ingredient-to-shopping workflows
+- food-specific display projections beyond the current cooking TV route
+- meal-plan automation suggestions that stay reversible
+- richer pantry-history review and purchase-transfer ergonomics
+- shopping conflict-resolution polish and household coordination aids
+- multi-day meal readiness and missing-ingredient forecasting
+- easier recipe sharing/export without widening into a public recipe platform
 
 Notes:
-Keep these grouped as a future Food domain rather than scattering them into unrelated modules early.
+Keep these as deferred follow-ons for the active Food domain rather than scattering them into unrelated modules or turning Food into a generalized commerce platform.
 
 ---
 

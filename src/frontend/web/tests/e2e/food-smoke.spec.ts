@@ -3,10 +3,13 @@ import { test, expect, gotoFood, uniqueName } from "./fixtures";
 test("loads the food module with the main sections for an authenticated household", async ({ page }) => {
   await gotoFood(page);
 
-  await page.getByRole("tab", { name: "Recipes" }).click();
-  await expect(page.getByTestId("food-recipe-capture-panel")).toBeVisible();
+  await expect(page.getByTestId("food-tab-bar")).toBeVisible();
+  await expect(page.getByTestId("food-action-bar")).toBeHidden();
 
-  await page.getByRole("tab", { name: "Library" }).click();
+  await page.getByRole("tab", { name: "Home" }).click();
+  await expect(page.getByTestId("food-home-workspace")).toBeVisible();
+
+  await page.getByRole("tab", { name: "Recipes" }).click();
   await expect(page.getByTestId("food-recipe-library")).toBeVisible();
 
   await page.getByRole("tab", { name: "Planning" }).click();
@@ -17,26 +20,23 @@ test("loads the food module with the main sections for an authenticated househol
 
   await page.getByRole("tab", { name: "Shopping" }).click();
   await expect(page.getByTestId("food-shopping-panel")).toBeVisible();
-
-  await page.getByRole("tab", { name: "Cooking" }).click();
-  await expect(page.getByTestId("food-cooking-panel")).toBeVisible();
 });
 
 test("renders mobile and TV cooking routes for a valid session", async ({ page, foodApi }) => {
   const recipeOne = await foodApi.createRecipe({
-    title: uniqueName("Smoke Recipe Main"),
+    title: uniqueName("Lemon Herb Chicken"),
     ingredients: [{ ingredientName: "Chicken", quantity: 1, unit: "lb" }],
     steps: [{ instruction: "Cook the chicken." }]
   });
   const recipeTwo = await foodApi.createRecipe({
-    title: uniqueName("Smoke Recipe Side"),
+    title: uniqueName("Garlic Rice Pilaf"),
     ingredients: [{ ingredientName: "Rice", quantity: 2, unit: "cups" }],
     steps: [{ instruction: "Cook the rice." }]
   });
 
   const slot = await foodApi.createMealSlot({
     date: new Date().toISOString().slice(0, 10),
-    title: uniqueName("Smoke Meal"),
+    title: uniqueName("Weeknight Chicken Dinner"),
     recipes: [
       { recipeId: recipeOne.id, role: "Main" },
       { recipeId: recipeTwo.id, role: "Side" }

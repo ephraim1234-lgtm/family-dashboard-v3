@@ -10,12 +10,14 @@ public sealed record UpdateCookingSessionRequest(Guid? FocusedCookingSessionReci
 public sealed record UpdateCookingIngredientRequest(
     bool? IsChecked,
     bool? IsSkipped,
+    string? IngredientName,
     decimal? ActualQuantity,
     string? ActualUnit,
     string? Notes);
 
 public sealed record UpdateCookingStepRequest(
     bool? IsCompleted,
+    string? Instruction,
     string? Notes,
     bool? MakeCurrent);
 

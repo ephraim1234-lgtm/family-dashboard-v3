@@ -38,7 +38,7 @@ Scheduling and display are the strongest foundation because they:
 - create immediate household value
 - work well across mobile, desktop, and TV/shared screens
 - establish core household context and permissions
-- create a stable base for later domains like reminders, chores, and food operations
+- create a stable base for adjacent domains like reminders, chores, and food operations
 
 ## Product progression principle
 
@@ -68,6 +68,7 @@ These are the most likely and most appropriate adjacent expansions after the ini
 - reminders / notifications
 - external calendar integrations
 - chores / routines
+- food operations
 
 Calendar integrations are now actively underway with a narrow first slice focused on disciplined one-way import rather than broad sync.
 
@@ -77,7 +78,7 @@ Notes also exists as a lightweight support surface, but it should remain intenti
 
 They should still be built in narrow, disciplined slices.
 
-Food operations is now being activated as the next deliberate product phase through a broad but still disciplined Food module that keeps pantry, recipes, shopping, meal planning, and cooking sessions together.
+Food operations is now an active expansion area through a broad but still disciplined Food module that keeps pantry, recipes, shopping, meal planning, shopping coordination, and cooking sessions together.
 
 ## Current maturity posture
 
@@ -87,6 +88,7 @@ Several adjacent domains are now implemented enough to use, but not mature enoug
 - Calendar integrations is implemented as a disciplined one-way Google import slice with OAuth linking, managed links, and worker sync, not as a broad integration platform.
 - Reminders is implemented as an event-reminder slice with worker processing and household visibility, not as a broad notification system.
 - Chores is implemented as a focused recurring-operations slice with assignment and completion tracking, not as a generalized task-management platform.
+- Food is implemented as a cohesive household recipe, planning, pantry, shopping, and cooking system, not as a grocery-commerce or nutrition-management platform.
 
 The next stage is not to widen these into abstract platforms. It is to deepen each one until the current active product boundary feels coherent for real household use.
 
@@ -98,23 +100,12 @@ When deciding what to "finish" next inside the active product boundary, bias tow
 2. Reminder triage and review flows, so the current reminder slice becomes operationally useful.
 3. Calendar-integration hardening and import refinement, so one-way sync stays trustworthy.
 4. Chore workflow depth, so chores feel like a dependable household-ops tool instead of a thin list.
-5. Notes ergonomics only as a supporting household surface, without promoting it into a broader documents domain.
+5. Food workflow coherence, so pantry, planning, shopping, and cooking feel like one dependable household loop.
+6. Notes ergonomics only as a supporting household surface, without promoting it into a broader documents domain.
 
 ## Future domains under consideration
 
 These are meaningful future product areas that may become real modules later:
-
-### Food operations
-- recipes
-- meal planning
-- pantry
-- shopping
-- cooking workflows
-
-Current activation bias:
-- keep these together as one Food domain, not three separate tools
-- optimize for family coordination and cooking flow rather than pantry-perfect inventory science
-- treat cooking as the operational moment where pantry, planning, shopping, and recipes meet
 
 ### Household tasking
 - chores

@@ -69,6 +69,17 @@ public interface IFoodService
         DateTimeOffset nowUtc,
         CancellationToken cancellationToken);
 
+    Task<bool> DeleteMealPlanSlotAsync(
+        Guid householdId,
+        Guid slotId,
+        CancellationToken cancellationToken);
+
+    Task<bool> RemoveRecipeFromMealPlanSlotAsync(
+        Guid householdId,
+        Guid slotId,
+        Guid recipeId,
+        CancellationToken cancellationToken);
+
     Task<ShoppingListItemResponse> CreateShoppingListItemAsync(
         Guid householdId,
         CreateShoppingListItemRequest request,

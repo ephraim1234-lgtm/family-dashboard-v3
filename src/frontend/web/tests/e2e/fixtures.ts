@@ -19,10 +19,35 @@ export async function gotoFood(page: Page) {
 }
 
 export async function fillAndBlur(locator: Locator, value: string) {
+  await locator.scrollIntoViewIfNeeded();
   await locator.fill(value);
   await locator.blur();
 }
 
+export async function useMobileViewport(page: Page) {
+  await page.setViewportSize({ width: 393, height: 852 });
+}
+
+const FRIENDLY_SUFFIXES = [
+  "Maple",
+  "Harbor",
+  "Meadow",
+  "Willow",
+  "Cedar",
+  "Orchard",
+  "River",
+  "Juniper",
+  "Sparrow",
+  "Sunrise",
+  "Hearth",
+  "Clover"
+];
+
+let uniqueCounter = 0;
+
 export function uniqueName(prefix: string) {
-  return `${prefix} ${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  uniqueCounter += 1;
+  const suffix = FRIENDLY_SUFFIXES[uniqueCounter % FRIENDLY_SUFFIXES.length];
+  const token = (Date.now() + uniqueCounter).toString(36).slice(-4).toUpperCase();
+  return `${prefix} ${suffix} ${token}`;
 }

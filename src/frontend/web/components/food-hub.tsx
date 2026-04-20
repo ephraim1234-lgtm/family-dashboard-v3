@@ -1,12 +1,10 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { foodClient } from "../lib/food-client";
-import { CookingTab } from "./food/cooking/cooking-tab";
-import { DashboardTab } from "./food/dashboard/dashboard-tab";
 import { FoodHubProvider } from "./food/food-hub-context";
+import { HomeWorkspace } from "./food/home/home-workspace";
 import { useFoodDashboard } from "./food/hooks/use-food-dashboard";
 import { usePantryHistory } from "./food/hooks/use-pantry-history";
 import { useFoodRecipeDetail, useFoodRecipeLibrary } from "./food/hooks/use-food-recipes";
@@ -14,8 +12,14 @@ import { useShoppingListDetail } from "./food/hooks/use-shopping-list-detail";
 import { MealPlanningWorkspace } from "./food/meal-plan/meal-planning-workspace";
 import { PantryWorkspace } from "./food/pantry/pantry-workspace";
 import { RecipesWorkspace } from "./food/recipes/recipes-workspace";
+import { AddToListDrawer } from "./food/shell/add-to-list-drawer";
+import { AddToPantryDrawer } from "./food/shell/add-to-pantry-drawer";
+import { AlertsPanel } from "./food/shell/alerts-panel";
+import { FoodActionBar } from "./food/shell/food-action-bar";
+import { FoodTabBar } from "./food/shell/food-tab-bar";
 import { ShoppingWorkspace } from "./food/shopping/shopping-workspace";
-import { SubTabs } from "@/components/ui";
+import { PostPurchaseConfirm } from "./food/shopping/post-purchase-confirm";
+import { ConfirmDeleteModal, UndoToast, useUndoToast } from "@/components/ui";
 
 type FoodSummary = {
   recipeCount: number;
@@ -102,6 +106,7 @@ type MealPlanSlot = {
 
 type ShoppingListItem = {
   id: string;
+  pantryLocationId: string | null;
   ingredientName: string;
   coreIngredientName: string;
   preparation: string | null;
@@ -257,18 +262,9 @@ type ShoppingTab = "active" | "history";
 
 type ShoppingGroupMode = "flat" | "aisle";
 
-type FoodModuleTab = "dashboard" | "recipes" | "planning" | "pantry" | "shopping" | "cooking";
+type FoodModuleTab = "home" | "recipes" | "planning" | "pantry" | "shopping";
 
 type RecipeWorkspaceTab = "capture" | "library" | "detail";
-
-const FOOD_TABS = [
-  { id: "dashboard", label: "Dashboard" },
-  { id: "recipes", label: "Recipes" },
-  { id: "planning", label: "Planning" },
-  { id: "pantry", label: "Pantry" },
-  { id: "shopping", label: "Shopping" },
-  { id: "cooking", label: "Cooking" }
-] as const;
 
 function formatDate(date: string) {
   const d = new Date(`${date}T00:00:00`);
@@ -386,9 +382,23 @@ export function FoodHub() {
   const [shoppingNotes, setShoppingNotes] = useState("");
   const [shoppingTab, setShoppingTab] = useState<ShoppingTab>("active");
   const [shoppingGroupMode, setShoppingGroupMode] = useState<ShoppingGroupMode>("flat");
-  const [activeModuleTab, setActiveModuleTab] = useState<FoodModuleTab>("dashboard");
-  const [recipeWorkspaceTab, setRecipeWorkspaceTab] = useState<RecipeWorkspaceTab>("capture");
+  const [activeModuleTab, setActiveModuleTab] = useState<FoodModuleTab>("home");
+  const [recipeWorkspaceTab, setRecipeWorkspaceTab] = useState<RecipeWorkspaceTab>("library");
   const [shoppingMealFilterId, setShoppingMealFilterId] = useState<string | null>(null);
+  const [pantrySearch, setPantrySearch] = useState("");
+  const [pantryLocationFilter, setPantryLocationFilter] = useState("all");
+  const [pantryLowStockOnly, setPantryLowStockOnly] = useState(false);
+  const [alertsOpen, setAlertsOpen] = useState(false);
+  const [addToListOpen, setAddToListOpen] = useState(false);
+  const [addToPantryOpen, setAddToPantryOpen] = useState(false);
+  const [quickPantryLocationId, setQuickPantryLocationId] = useState("pantry");
+  const [deleteTarget, setDeleteTarget] = useState<{
+    kind: "recipe" | "meal-slot";
+    id: string;
+    title: string;
+  } | null>(null);
+  const [postPurchaseOpen, setPostPurchaseOpen] = useState(false);
+  const [postPurchaseLocations, setPostPurchaseLocations] = useState<Record<string, string>>({});
   const [mergePreview, setMergePreview] = useState<{
     willMerge: boolean;
     existingItemId: string | null;
@@ -406,6 +416,7 @@ export function FoodHub() {
   const [mealNotes, setMealNotes] = useState("");
   const [generateShopping, setGenerateShopping] = useState(true);
   const [mealRows, setMealRows] = useState<MealComposerRow[]>([{ recipeId: "", role: "Main" }]);
+  const { toast, setToast, showUndoToast } = useUndoToast();
 
   const dashboardQuery = useFoodDashboard();
   const recipeLibraryQuery = useFoodRecipeLibrary(recipeQuery);
@@ -422,6 +433,23 @@ export function FoodHub() {
     () => data?.pantryItems.filter((item) => item.status !== "InStock") ?? [],
     [data]
   );
+
+  const filteredPantryItems = useMemo(() => {
+    if (!data) return [];
+
+    return data.pantryItems.filter((item) => {
+      const locationMatches =
+        pantryLocationFilter === "all"
+          ? true
+          : (item.locationName ?? "").toLowerCase() === pantryLocationFilter.toLowerCase();
+      const searchMatches = pantrySearch.trim()
+        ? item.ingredientName.toLowerCase().includes(pantrySearch.trim().toLowerCase())
+        : true;
+      const stockMatches = pantryLowStockOnly ? item.status !== "InStock" : true;
+
+      return locationMatches && searchMatches && stockMatches;
+    });
+  }, [data, pantryLocationFilter, pantrySearch, pantryLowStockOnly]);
 
   const needsReviewItems = useMemo(
     () => data?.shoppingList.items.filter((item) => item.state === "NeedsReview") ?? [],
@@ -457,6 +485,85 @@ export function FoodHub() {
 
   const purchasedCount = useMemo(
     () => data?.shoppingList.items.filter((item) => item.state === "Purchased").length ?? 0,
+    [data]
+  );
+
+  const quickPantryLocationOptions = useMemo(() => {
+    const findLocation = (fallback: string) =>
+      data?.pantryLocations.find((location) => location.name.toLowerCase() === fallback.toLowerCase())?.id ?? fallback;
+
+    return [
+      { label: "Pantry", value: findLocation("Pantry") },
+      { label: "Fridge", value: findLocation("Fridge") },
+      { label: "Freezer", value: findLocation("Freezer") }
+    ];
+  }, [data]);
+
+  const lowStockAlertItems = useMemo(
+    () => lowStockItems.slice(0, 8).map((item) => ({
+      id: item.id,
+      label: item.ingredientName,
+      actionLabel: "Add to list",
+      onAction: () => {
+        setAlertsOpen(false);
+        startTransition(() => {
+          handleAddLowStockToShopping(item).catch((err: unknown) => {
+            setError(err instanceof Error ? err.message : "Unable to add low-stock item.");
+          });
+        });
+      }
+    })),
+    [lowStockItems]
+  );
+
+  const expiringAlertItems = useMemo(
+    () => (data?.pantryItems ?? [])
+      .filter((item) => {
+        if (!item.expiresAtUtc) return false;
+        const expiresAt = new Date(item.expiresAtUtc).getTime();
+        const threeDaysFromNow = Date.now() + (3 * 24 * 60 * 60 * 1000);
+        return expiresAt <= threeDaysFromNow;
+      })
+      .slice(0, 8)
+      .map((item) => ({
+        id: item.id,
+        label: item.ingredientName,
+        actionLabel: "View pantry",
+        onAction: () => {
+          setAlertsOpen(false);
+          setActiveModuleTab("pantry");
+          setPantrySearch(item.ingredientName);
+        }
+      })),
+    [data]
+  );
+
+  const needsReviewAlertItems = useMemo(
+    () => needsReviewItems.map((item) => ({
+      id: item.id,
+      label: item.ingredientName,
+      actionLabel: "View shopping",
+      onAction: () => {
+        setAlertsOpen(false);
+        setActiveModuleTab("shopping");
+      }
+    })),
+    [needsReviewItems]
+  );
+
+  const missingMealAlertItems = useMemo(
+    () => (data?.upcomingMeals ?? [])
+      .filter((slot) => slot.shoppingOpenIngredientCount > 0)
+      .slice(0, 8)
+      .map((slot) => ({
+        id: slot.id,
+        label: `${slot.title} (${slot.shoppingOpenIngredientCount} missing)`,
+        actionLabel: "View meal",
+        onAction: () => {
+          setAlertsOpen(false);
+          setActiveModuleTab("planning");
+        }
+      })),
     [data]
   );
 
@@ -557,6 +664,27 @@ export function FoodHub() {
       setPantryHistory(pantryHistoryQuery.data);
     }
   }, [pantryHistoryQuery.data]);
+
+  useEffect(() => {
+    if (!data) {
+      return;
+    }
+
+    const defaultLocationId = quickPantryLocationOptions[0]?.value ?? data.pantryLocations[0]?.id ?? "";
+    setQuickPantryLocationId((current) => current || defaultLocationId);
+
+    const purchasedItems = data.shoppingList.items.filter((item) => item.state === "Purchased");
+    setPostPurchaseLocations((current) => {
+      const next = { ...current };
+      for (const item of purchasedItems) {
+        if (!next[item.id]) {
+          next[item.id] = item.pantryLocationId ?? defaultLocationId;
+        }
+      }
+
+      return next;
+    });
+  }, [data, quickPantryLocationOptions]);
 
   useEffect(() => {
     const queryError =
@@ -672,6 +800,16 @@ export function FoodHub() {
     setRecipeDraft(recipeToDraft(selectedRecipe));
   }
 
+  async function startEditingRecipeById(recipeId: string) {
+    const recipe = await foodClient.getRecipe(recipeId);
+    setSelectedRecipeId(recipe.id);
+    setSelectedRecipe(recipe);
+    setActiveModuleTab("recipes");
+    setRecipeWorkspaceTab("capture");
+    setImportReview(null);
+    setRecipeDraft(recipeToDraft(recipe));
+  }
+
   async function handleImportRecipe() {
     const response = await fetch("/api/food/recipe-imports", {
       method: "POST",
@@ -776,6 +914,35 @@ export function FoodHub() {
     showSuccess("Pantry item added.");
   }
 
+  async function handleQuickAddPantryItem() {
+    const selectedLocationId = quickPantryLocationOptions.find((option) => option.value === quickPantryLocationId)?.value
+      ?? data?.pantryLocations[0]?.id
+      ?? null;
+
+    const response = await fetch("/api/food/pantry-items", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ingredientName: pantryName.trim(),
+        pantryLocationId: selectedLocationId,
+        quantity: null,
+        unit: null,
+        lowThreshold: null,
+        expiresAtUtc: null
+      })
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || `Pantry add failed with ${response.status}.`);
+    }
+
+    setPantryName("");
+    await refreshAll();
+    showSuccess("Pantry item added.");
+  }
+
   async function handleUpdatePantryItem() {
     if (!selectedPantryItemId) return;
 
@@ -829,17 +996,62 @@ export function FoodHub() {
     await foodClient.updateShoppingItem(item.id, {
       isCompleted: nextCompleted,
       moveToPantry: nextCompleted,
-      state: nextCompleted ? "Purchased" : item.state === "NeedsReview" ? "NeedsReview" : "Needed"
+      state: nextCompleted
+        ? "Purchased"
+        : item.state === "Skipped"
+          ? "Skipped"
+          : item.state === "NeedsReview"
+            ? "NeedsReview"
+            : "Needed"
     });
 
     await refreshAll();
     showSuccess(nextCompleted ? "Marked purchased and moved into pantry." : "Returned item to the shopping list.");
   }
 
+  async function handleSkipShoppingItem(item: ShoppingListItem) {
+    await foodClient.updateShoppingItem(item.id, {
+      isCompleted: false,
+      state: "Skipped"
+    });
+
+    await refreshAll();
+    showSuccess("Marked item as not purchased.");
+  }
+
+  async function handleMarkAllShoppingItemsPurchased(items: ShoppingListItem[]) {
+    if (items.length === 0) {
+      return;
+    }
+
+    await foodClient.bulkUpdateShoppingItems({
+      itemIds: items.map((item) => item.id),
+      state: "Purchased"
+    });
+
+    await refreshAll();
+    showSuccess("Marked all shopping items as purchased.");
+  }
+
   async function handleDeleteShoppingItem(item: ShoppingListItem) {
     await foodClient.deleteShoppingItem(item.id);
     await refreshAll();
     showSuccess("Shopping item deleted.");
+  }
+
+  async function handleUndoableDeleteShoppingItem(item: ShoppingListItem) {
+    await foodClient.deleteShoppingItem(item.id);
+    await refreshAll();
+    showUndoToast(`Removed ${item.ingredientName}.`, async () => {
+      await foodClient.createShoppingItem({
+        ingredientName: item.ingredientName,
+        quantity: item.quantityNeeded,
+        unit: item.unit,
+        notes: item.notes,
+        forceSeparate: true
+      });
+      await refreshAll();
+    });
   }
 
   async function handleRecipeAddToShoppingList(recipeId: string) {
@@ -885,6 +1097,21 @@ export function FoodHub() {
     showSuccess("Trip completed and a fresh active list is ready.");
   }
 
+  async function handleTransferPurchasedItemsToPantry() {
+    if (!data) return;
+
+    const purchasedItems = data.shoppingList.items.filter((item) => item.state === "Purchased");
+    await foodClient.transferShoppingListItemsToPantry(data.shoppingList.id, {
+      itemIds: purchasedItems.map((item) => item.id),
+      completeList: true,
+      itemLocationOverrides: postPurchaseLocations
+    });
+
+    setPostPurchaseOpen(false);
+    await refreshAll();
+    showSuccess("Purchased items moved to pantry and the trip was completed.");
+  }
+
   async function handleClaimShoppingItem(item: ShoppingListItem) {
     await foodClient.updateShoppingItem(item.id, {
       claimForCurrentUser: true
@@ -918,6 +1145,32 @@ export function FoodHub() {
     setPantryHistory([]);
     await refreshAll();
     showSuccess("Pantry item deleted.");
+  }
+
+  async function handleUndoableDeletePantryItem(item: PantryItem) {
+    await foodClient.deletePantryItem(item.id);
+    if (selectedPantryItemId === item.id) {
+      setSelectedPantryItemId(null);
+      setPantryHistory([]);
+    }
+    await refreshAll();
+    showUndoToast(`Removed ${item.ingredientName} from pantry.`, async () => {
+      await fetch("/api/food/pantry-items", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ingredientName: item.ingredientName,
+          pantryLocationId: item.pantryLocationId,
+          quantity: item.quantity,
+          unit: item.unit,
+          lowThreshold: item.lowThreshold,
+          purchasedAtUtc: item.purchasedAtUtc,
+          expiresAtUtc: item.expiresAtUtc
+        })
+      });
+      await refreshAll();
+    });
   }
 
   async function handleAddLowStockToShopping(item: PantryItem) {
@@ -965,6 +1218,45 @@ export function FoodHub() {
     showSuccess(generateShopping ? "Meal planned and shopping gaps drafted." : "Meal planned.");
   }
 
+  async function handlePlanMealFromRecipe(recipeId: string, date: string, slotName: string) {
+    const response = await fetch("/api/food/meal-plan", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        recipeId: null,
+        date,
+        slotName,
+        title: null,
+        notes: null,
+        generateShoppingList: true,
+        recipes: [{ recipeId, role: "Main" }]
+      })
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(text || `Meal planning failed with ${response.status}.`);
+    }
+
+    await refreshAll();
+    showSuccess("Recipe added to the meal plan.");
+  }
+
+  async function handleDeleteMealPlanSlot(slotId: string) {
+    await foodClient.deleteMealPlanSlot(slotId);
+    await refreshAll();
+    showSuccess("Meal removed.");
+  }
+
+  async function handleRemoveRecipeFromMealPlanSlot(slotId: string, recipeId: string, recipeTitle: string) {
+    await foodClient.removeRecipeFromSlot(slotId, recipeId);
+    await refreshAll();
+    showUndoToast(`Removed ${recipeTitle} from the meal.`, async () => {
+      await refreshAll();
+    });
+  }
+
   async function handleStartCooking(params: {
     recipeId?: string;
     mealPlanSlotId?: string;
@@ -989,14 +1281,36 @@ export function FoodHub() {
     window.location.href = `/app/food/cooking/${session.id}`;
   }
 
+  function handleQuickCook() {
+    const today = new Date().toISOString().slice(0, 10);
+    const todaysMeals = data?.upcomingMeals.filter((slot) => slot.date === today) ?? [];
+    if (todaysMeals.length === 1) {
+      startTransition(() => {
+        handleStartCooking({ mealPlanSlotId: todaysMeals[0].id }).catch((err: unknown) => {
+          setError(err instanceof Error ? err.message : "Unable to start cooking.");
+        });
+      });
+      return;
+    }
+
+    if (todaysMeals.length > 1) {
+      setActiveModuleTab("home");
+      return;
+    }
+
+    setActiveModuleTab("recipes");
+  }
+
   const foodHubContextValue = {
     data,
     isPending,
     startTransition,
     setError,
+    setSuccess,
     activeModuleTab,
     setActiveModuleTab,
     handleStartCooking,
+    handleQuickCook,
     buildFieldTestId,
     formatQuantity,
     formatTimestamp,
@@ -1017,10 +1331,14 @@ export function FoodHub() {
     emptyStep,
     startManualRecipe,
     startEditingSelectedRecipe,
+    startEditingRecipeById,
     handleImportRecipe,
     handleSaveRecipeDraft,
+    handlePlanMealFromRecipe,
     handleRecipeAddToShoppingList,
     handleDeleteRecipe,
+    deleteTarget,
+    setDeleteTarget,
     pantryName,
     setPantryName,
     pantryLocationId,
@@ -1034,7 +1352,18 @@ export function FoodHub() {
     pantryExpiresAt,
     setPantryExpiresAt,
     handleAddPantryItem,
+    handleQuickAddPantryItem,
     lowStockItems,
+    filteredPantryItems,
+    pantrySearch,
+    setPantrySearch,
+    pantryLocationFilter,
+    setPantryLocationFilter,
+    pantryLowStockOnly,
+    setPantryLowStockOnly,
+    quickPantryLocationId,
+    setQuickPantryLocationId,
+    quickPantryLocationOptions,
     setSelectedPantryItemId,
     handleAddLowStockToShopping,
     selectedPantryItem,
@@ -1056,6 +1385,7 @@ export function FoodHub() {
     setPantryEditNote,
     handleUpdatePantryItem,
     handleDeletePantryItem,
+    handleUndoableDeletePantryItem,
     pantryHistory,
     activeShoppingItems,
     needsReviewItems,
@@ -1073,6 +1403,16 @@ export function FoodHub() {
     setShoppingUnit,
     shoppingNotes,
     setShoppingNotes,
+    addToListOpen,
+    setAddToListOpen,
+    addToPantryOpen,
+    setAddToPantryOpen,
+    alertsOpen,
+    setAlertsOpen,
+    lowStockAlertItems,
+    expiringAlertItems,
+    needsReviewAlertItems,
+    missingMealAlertItems,
     mergePreview,
     handleAddShoppingItem,
     purchasedCount,
@@ -1081,10 +1421,13 @@ export function FoodHub() {
     moveCheckedToPantryOnComplete,
     setMoveCheckedToPantryOnComplete,
     handleCompleteTrip,
+    handleTransferPurchasedItemsToPantry,
     handleClearNeedsReview,
     handleSplitNeedsReview,
     handleToggleShoppingItem,
-    handleDeleteShoppingItem,
+    handleSkipShoppingItem,
+    handleMarkAllShoppingItemsPurchased,
+    handleDeleteShoppingItem: handleUndoableDeleteShoppingItem,
     handleClaimShoppingItem,
     handleReleaseShoppingItem,
     selectedHistoryTripId,
@@ -1092,6 +1435,10 @@ export function FoodHub() {
     historyTripQuery,
     shoppingItemsByAisle,
     purchasedShoppingItems,
+    postPurchaseOpen,
+    setPostPurchaseOpen,
+    postPurchaseLocations,
+    setPostPurchaseLocations,
     mealDate,
     setMealDate,
     mealSlotName,
@@ -1104,7 +1451,11 @@ export function FoodHub() {
     setMealRows,
     generateShopping,
     setGenerateShopping,
-    handlePlanMeal
+    handlePlanMeal,
+    handleDeleteMealPlanSlot,
+    handleRemoveRecipeFromMealPlanSlot,
+    toast,
+    showUndoToast
   };
 
   if (loading) {
@@ -1131,7 +1482,7 @@ export function FoodHub() {
 
   return (
     <FoodHubProvider value={foodHubContextValue}>
-      <div data-testid="food-hub">
+      <div className="pb-48 md:pb-10" data-testid="food-hub">
       {error ? (
         <section className="grid" aria-live="polite">
           <article className="panel">
@@ -1153,36 +1504,74 @@ export function FoodHub() {
       ) : null}
 
       <section className="grid">
-        <article className="panel">
-          <SubTabs
-            tabs={[...FOOD_TABS]}
-            activeTab={activeModuleTab}
-            onChange={setActiveModuleTab}
-            ariaLabel="Food tabs"
-          />
-        </article>
+        <FoodTabBar />
       </section>
 
       <div className="tab-content-enter">
-        {activeModuleTab === "dashboard" ? <DashboardTab /> : null}
-
-        <div className="section-spacer" />
+        {activeModuleTab === "home" ? <HomeWorkspace /> : null}
 
         {activeModuleTab === "recipes" ? <RecipesWorkspace /> : null}
 
-        <div className="section-spacer" />
-
         {activeModuleTab === "planning" ? <MealPlanningWorkspace /> : null}
-
-        <div className="section-spacer" />
 
         {activeModuleTab === "pantry" ? <PantryWorkspace /> : null}
 
         {activeModuleTab === "shopping" ? <ShoppingWorkspace /> : null}
-
-        {activeModuleTab === "cooking" ? <CookingTab /> : null}
       </div>
 
+      <FoodActionBar />
+      <AddToListDrawer />
+      <AddToPantryDrawer />
+      <AlertsPanel />
+      <UndoToast toast={toast} clearToast={() => setToast(null)} />
+      <ConfirmDeleteModal
+        open={deleteTarget !== null}
+        title={deleteTarget?.kind === "meal-slot" ? "Remove meal?" : "Delete recipe?"}
+        body={
+          deleteTarget?.kind === "meal-slot"
+            ? `Remove "${deleteTarget?.title}" from the meal plan?`
+            : `Delete "${deleteTarget?.title}" from the household recipe library?`
+        }
+        destructiveLabel={deleteTarget?.kind === "meal-slot" ? "Remove meal" : "Delete recipe"}
+        isPending={isPending}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          if (!deleteTarget) {
+            return;
+          }
+
+          startTransition(() => {
+            const action = deleteTarget.kind === "meal-slot"
+              ? handleDeleteMealPlanSlot(deleteTarget.id)
+              : handleDeleteRecipe(deleteTarget.id);
+
+            action
+              .catch((err: unknown) => setError(err instanceof Error ? err.message : "Unable to complete delete action."))
+              .finally(() => setDeleteTarget(null));
+          });
+        }}
+      />
+      <PostPurchaseConfirm
+        open={postPurchaseOpen}
+        items={purchasedShoppingItems.map((item) => ({
+          id: item.id,
+          ingredientName: item.ingredientName,
+          conflictLabel: item.state === "NeedsReview" ? "Needs review" : null
+        }))}
+        locationOptions={quickPantryLocationOptions}
+        selectedLocations={postPurchaseLocations}
+        onLocationChange={(itemId, locationId) =>
+          setPostPurchaseLocations((current) => ({ ...current, [itemId]: locationId }))}
+        onClose={() => setPostPurchaseOpen(false)}
+        onConfirm={() => {
+          startTransition(() => {
+            handleTransferPurchasedItemsToPantry().catch((err: unknown) => {
+              setError(err instanceof Error ? err.message : "Unable to transfer purchased items.");
+            });
+          });
+        }}
+        isPending={isPending}
+      />
     </div>
     </FoodHubProvider>
   );

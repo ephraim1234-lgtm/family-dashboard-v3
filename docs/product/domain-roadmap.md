@@ -348,7 +348,7 @@ Meal planning, pantry visibility, shopping coordination, recipe ownership, and c
 - Households
 - Identity
 - Scheduling
-- Display later
+- Display later for broader household projections
 - Worker later for automation
 
 **Current activation posture**
@@ -357,9 +357,11 @@ Active expansion.
 **Current first slice**
 - household-owned recipes with URL import review and save
 - pantry locations and pantry item tracking
-- meal-plan slots that can draft shopping gaps
-- shared shopping list
-- cooking sessions with mobile cooking mode, actual-usage edits, pantry-aware deduction, and a TV-safe cooking view
+- meal-plan slots that can draft shopping gaps and support direct per-slot/per-recipe removal
+- shared shopping list with purchased/skipped states and post-purchase transfer into pantry
+- a mobile-first Food workspace with Home, Recipes, Planning, Pantry, and Shopping tabs plus quick-action drawers
+- cooking sessions with mobile cooking mode, actual-usage edits, pantry-aware deduction, inline text edits, and a TV-safe cooking view
+- Food home summaries, alerts, and low-stock/expiring review paths that tie pantry, planning, and shopping together
 - recipe lineage that separates imported source, household default, and session-specific cooking changes
 
 **Implementation bias**
@@ -369,6 +371,7 @@ Active expansion.
 - make cooking mode operational, not just a recipe reader
 
 **Still deferred**
+- broader Food automation beyond the current planning/pantry/shopping loop
 - receipt-driven pantry automation
 - camera-based pantry capture
 - aggressive forecasting and predictive meal planning
@@ -384,12 +387,6 @@ Active expansion.
 ## Future candidate domains
 
 These remain intentionally deferred. They should influence naming and architectural discipline, but should not receive speculative code until explicitly promoted.
-
-### Food Operations
-
-Food has now been promoted into active expansion.
-
----
 
 ## Notes / shared information status
 

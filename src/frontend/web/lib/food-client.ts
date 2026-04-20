@@ -145,6 +145,7 @@ export type FoodCookingSessionSummary = {
 
 export type FoodShoppingItem = {
   id: string;
+  pantryLocationId: string | null;
   ingredientName: string;
   coreIngredientName: string;
   preparation: string | null;
@@ -264,6 +265,12 @@ export const foodClient = {
   deletePantryItem(pantryItemId: string) {
     return send(`/api/food/pantry-items/${pantryItemId}`, { method: "DELETE" });
   },
+  deleteMealPlanSlot(slotId: string) {
+    return send(`/api/food/meal-plan/${slotId}`, { method: "DELETE" });
+  },
+  removeRecipeFromSlot(slotId: string, recipeId: string) {
+    return send(`/api/food/meal-plan/${slotId}/recipes/${recipeId}`, { method: "DELETE" });
+  },
   getShoppingList(shoppingListId: string) {
     return readJson<FoodShoppingList>(`/api/food/shopping-lists/${shoppingListId}`, { cache: "no-store" });
   },
@@ -297,6 +304,12 @@ export const foodClient = {
       body: JSON.stringify(input)
     });
   },
+  bulkUpdateShoppingItems(input: { itemIds: string[]; state: string }) {
+    return readJson<FoodShoppingItem[]>("/api/food/shopping-list/items/bulk-state", {
+      method: "POST",
+      body: JSON.stringify(input)
+    });
+  },
   deleteShoppingItem(itemId: string) {
     return send(`/api/food/shopping-list/items/${itemId}`, { method: "DELETE" });
   },
@@ -319,6 +332,19 @@ export const foodClient = {
   },
   completeShoppingList(shoppingListId: string, input: { moveCheckedToPantry: boolean }) {
     return readJson<FoodShoppingList>(`/api/food/shopping-lists/${shoppingListId}/complete`, {
+      method: "POST",
+      body: JSON.stringify(input)
+    });
+  },
+  transferShoppingListItemsToPantry(
+    shoppingListId: string,
+    input: {
+      itemIds: string[];
+      completeList: boolean;
+      itemLocationOverrides?: Record<string, string>;
+    }
+  ) {
+    return readJson<FoodShoppingList>(`/api/food/shopping-lists/${shoppingListId}/transfer-to-pantry`, {
       method: "POST",
       body: JSON.stringify(input)
     });

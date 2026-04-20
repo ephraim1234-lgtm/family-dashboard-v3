@@ -29,7 +29,9 @@ export function MealPlanningWorkspace() {
     setActiveModuleTab,
     setShoppingTab,
     setShoppingMealFilterId,
-    handleStartCooking
+    handleStartCooking,
+    handleRemoveRecipeFromMealPlanSlot,
+    setDeleteTarget
   } = useFoodHubContext();
   const [planningTab, setPlanningTab] = useState<"composer" | "upcoming">("composer");
 
@@ -189,7 +191,16 @@ export function MealPlanningWorkspace() {
                   <div className="stack-card" data-testid={`food-meal-slot-${slot.id}`} key={slot.id}>
                     <div className="stack-card-header">
                       <div style={{ flex: 1 }}>
-                        <strong>{slot.title}</strong>
+                        <div className="flex items-center gap-2">
+                          <strong>{slot.title}</strong>
+                          <button
+                            className="btn btn-ghost btn-sm min-h-[44px] min-w-[44px]"
+                            type="button"
+                            onClick={() => setDeleteTarget({ kind: "meal-slot", id: slot.id, title: slot.title })}
+                          >
+                            Trash
+                          </button>
+                        </div>
                         <div className="muted">{formatDate(slot.date)} - {slot.slotName}</div>
                       </div>
                       <div className="action-row">
@@ -220,9 +231,25 @@ export function MealPlanningWorkspace() {
                         </button>
                       </div>
                     </div>
-                    <div className="pill-row">
+                    <div className="stack-list">
                       {slot.recipes.map((recipe: any) => (
-                        <span className="pill" key={recipe.id}>{recipe.role}: {recipe.title}</span>
+                        <div className="flex items-center justify-between gap-3 rounded-box border border-base-300 p-3" key={recipe.id}>
+                          <span>{recipe.role}: {recipe.title}</span>
+                          <button
+                            className="btn btn-ghost btn-sm min-h-[44px] min-w-[44px]"
+                            type="button"
+                            onClick={() => {
+                              setError(null);
+                              startTransition(() => {
+                                handleRemoveRecipeFromMealPlanSlot(slot.id, recipe.recipeId, recipe.title).catch((err: unknown) => {
+                                  setError(err instanceof Error ? err.message : "Unable to remove recipe.");
+                                });
+                              });
+                            }}
+                          >
+                            Trash
+                          </button>
+                        </div>
                       ))}
                     </div>
                     {slot.notes ? <div className="muted">{slot.notes}</div> : null}

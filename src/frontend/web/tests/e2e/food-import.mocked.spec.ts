@@ -1,7 +1,7 @@
 import { test, expect, gotoFood, uniqueName } from "./fixtures";
 
 test("imports a mocked recipe review into the editable draft workflow", async ({ page }) => {
-  const recipeTitle = uniqueName("Mock Imported Recipe");
+  const recipeTitle = uniqueName("Skillet Tomato Pasta");
 
   await page.route("**/api/food/recipe-imports", async (route) => {
     await route.fulfill({
@@ -14,7 +14,7 @@ test("imports a mocked recipe review into the editable draft workflow", async ({
         sourceUrl: "https://example.com/mock-import",
         sourceSiteName: "Example Recipes",
         title: recipeTitle,
-        summary: "Imported through a mocked Playwright route.",
+        summary: "Imported through a mocked family recipe page.",
         yieldText: "4 servings",
         ingredients: [
           {
@@ -38,6 +38,7 @@ test("imports a mocked recipe review into the editable draft workflow", async ({
 
   await gotoFood(page);
   await page.getByRole("tab", { name: "Recipes" }).click();
+  await page.getByRole("button", { name: "Import Recipe" }).click();
   await page.getByTestId("food-import-url").fill("https://example.com/mock-import");
   await page.getByTestId("food-import-submit").click();
 
@@ -59,6 +60,7 @@ test("shows stable error feedback when mocked import fails", async ({ page }) =>
 
   await gotoFood(page);
   await page.getByRole("tab", { name: "Recipes" }).click();
+  await page.getByRole("button", { name: "Import Recipe" }).click();
   await page.getByTestId("food-import-url").fill("https://example.com/bad-import");
   await page.getByTestId("food-import-submit").click();
 

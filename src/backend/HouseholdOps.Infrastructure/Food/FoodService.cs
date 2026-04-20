@@ -654,6 +654,77 @@ public sealed class FoodService(
         return ToMealPlanSlotResponse(slot, mealPlanRecipes, recipeIngredients, activeShoppingItems);
     }
 
+    public async Task<bool> DeleteMealPlanSlotAsync(
+        Guid householdId,
+        Guid slotId,
+        CancellationToken cancellationToken)
+    {
+        var slot = await dbContext.MealPlanSlots
+            .FirstOrDefaultAsync(item => item.HouseholdId == householdId && item.Id == slotId, cancellationToken);
+        if (slot is null)
+        {
+            return false;
+        }
+
+        var mealPlanRecipes = await dbContext.MealPlanRecipes
+            .Where(item => item.MealPlanSlotId == slotId)
+            .ToListAsync(cancellationToken);
+
+        if (mealPlanRecipes.Count > 0)
+        {
+            dbContext.MealPlanRecipes.RemoveRange(mealPlanRecipes);
+        }
+
+        dbContext.MealPlanSlots.Remove(slot);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
+    public async Task<bool> RemoveRecipeFromMealPlanSlotAsync(
+        Guid householdId,
+        Guid slotId,
+        Guid recipeId,
+        CancellationToken cancellationToken)
+    {
+        var slot = await dbContext.MealPlanSlots
+            .FirstOrDefaultAsync(item => item.HouseholdId == householdId && item.Id == slotId, cancellationToken);
+        if (slot is null)
+        {
+            return false;
+        }
+
+        var mealPlanRecipes = await dbContext.MealPlanRecipes
+            .Where(item => item.MealPlanSlotId == slotId)
+            .OrderBy(item => item.Position)
+            .ToListAsync(cancellationToken);
+
+        var recipeToRemove = mealPlanRecipes
+            .FirstOrDefault(item => item.RecipeId == recipeId);
+        if (recipeToRemove is null)
+        {
+            return false;
+        }
+
+        dbContext.MealPlanRecipes.Remove(recipeToRemove);
+
+        var remainingRecipes = mealPlanRecipes
+            .Where(item => item.Id != recipeToRemove.Id)
+            .OrderBy(item => item.Position)
+            .ToList();
+
+        for (var index = 0; index < remainingRecipes.Count; index++)
+        {
+            remainingRecipes[index].Position = index + 1;
+        }
+
+        var firstRemainingRecipe = remainingRecipes.FirstOrDefault();
+        slot.RecipeId = firstRemainingRecipe?.RecipeId;
+        slot.RecipeTitleSnapshot = firstRemainingRecipe?.RecipeTitleSnapshot;
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
     public async Task<ShoppingListItemResponse> CreateShoppingListItemAsync(
         Guid householdId,
         CreateShoppingListItemRequest request,
@@ -774,7 +845,7 @@ public sealed class FoodService(
         if ((item.State == ShoppingListItemStates.Purchased || request.MoveToPantry == true)
             && request.MoveToPantry == true)
         {
-            await TransferItemToPantryAsync(householdId, item, nowUtc, cancellationToken);
+            await TransferItemToPantryAsync(householdId, item, null, nowUtc, cancellationToken);
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -934,7 +1005,12 @@ public sealed class FoodService(
         foreach (var item in items)
         {
             ApplyShoppingItemState(item, ShoppingListItemStates.Purchased, nowUtc);
-            await TransferItemToPantryAsync(householdId, item, nowUtc, cancellationToken);
+            var locationOverride = request.ItemLocationOverrides is not null
+                && request.ItemLocationOverrides.TryGetValue(item.Id, out var overrideLocationId)
+                ? overrideLocationId
+                : (Guid?)null;
+
+            await TransferItemToPantryAsync(householdId, item, locationOverride, nowUtc, cancellationToken);
         }
 
         await RefreshShoppingListCountsAsync(list, cancellationToken);
@@ -1361,6 +1437,15 @@ public sealed class FoodService(
 
         ingredient.IsChecked = request.IsChecked ?? ingredient.IsChecked;
         ingredient.IsSkipped = request.IsSkipped ?? ingredient.IsSkipped;
+        if (request.IngredientName is not null)
+        {
+            var ingredientName = request.IngredientName.Trim();
+            if (!string.IsNullOrWhiteSpace(ingredientName))
+            {
+                ingredient.IngredientName = ingredientName;
+            }
+        }
+
         ingredient.ActualQuantity = request.ActualQuantity ?? ingredient.ActualQuantity;
         ingredient.ActualUnit = request.ActualUnit is null ? ingredient.ActualUnit : CleanUnit(request.ActualUnit);
         ingredient.Notes = request.Notes is null ? ingredient.Notes : request.Notes.Trim();
@@ -1419,6 +1504,15 @@ public sealed class FoodService(
         if (request.Notes is not null)
         {
             step.Notes = request.Notes.Trim();
+        }
+
+        if (request.Instruction is not null)
+        {
+            var instruction = request.Instruction.Trim();
+            if (!string.IsNullOrWhiteSpace(instruction))
+            {
+                step.Instruction = instruction;
+            }
         }
 
         if (sessionRecipe is not null)
@@ -3013,13 +3107,15 @@ public sealed class FoodService(
     private async Task TransferItemToPantryAsync(
         Guid householdId,
         ShoppingListItem item,
+        Guid? pantryLocationOverrideId,
         DateTimeOffset nowUtc,
         CancellationToken cancellationToken)
     {
         await EnsureDefaultFoodSetupAsync(householdId, cancellationToken);
-        var pantryLocation = item.PantryLocationId is not null
+        var targetPantryLocationId = pantryLocationOverrideId ?? item.PantryLocationId;
+        var pantryLocation = targetPantryLocationId is not null
             ? await dbContext.PantryLocations
-                .FirstOrDefaultAsync(location => location.HouseholdId == householdId && location.Id == item.PantryLocationId.Value, cancellationToken)
+                .FirstOrDefaultAsync(location => location.HouseholdId == householdId && location.Id == targetPantryLocationId.Value, cancellationToken)
             : await dbContext.PantryLocations
                 .Where(location => location.HouseholdId == householdId)
                 .OrderBy(location => location.SortOrder)
@@ -3120,7 +3216,7 @@ public sealed class FoodService(
         {
             foreach (var item in items.Where(item => item.State == ShoppingListItemStates.Purchased))
             {
-                await TransferItemToPantryAsync(householdId, item, nowUtc, cancellationToken);
+                await TransferItemToPantryAsync(householdId, item, null, nowUtc, cancellationToken);
             }
         }
 

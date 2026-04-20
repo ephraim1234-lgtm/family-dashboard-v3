@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 
 type RecipeChangeSuggestion = {
   hasMeaningfulChanges: boolean;
@@ -100,12 +101,20 @@ function formatQuantity(quantity: number | null, unit: string | null) {
 }
 
 export function CookingSessionPanel({ sessionId }: { sessionId: string }) {
+  const router = useRouter();
   const [session, setSession] = useState<CookingSession | null>(null);
   const [dismissedRecipeIds, setDismissedRecipeIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [isPending, startTransition] = useTransition();
+  const [viewMode, setViewMode] = useState<"step" | "scroll">("step");
+  const [ingredientsExpanded, setIngredientsExpanded] = useState(false);
+  const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
+  const [editingIngredientId, setEditingIngredientId] = useState<string | null>(null);
+  const [editingIngredientName, setEditingIngredientName] = useState("");
+  const [editingStepId, setEditingStepId] = useState<string | null>(null);
+  const [editingStepInstruction, setEditingStepInstruction] = useState("");
 
   const focusedRecipe = useMemo(() => {
     if (!session) return null;
@@ -134,9 +143,34 @@ export function CookingSessionPanel({ sessionId }: { sessionId: string }) {
     });
   }, [sessionId]);
 
+  useEffect(() => {
+    const savedView = window.localStorage.getItem("householdops:cooking-view");
+    if (savedView === "step" || savedView === "scroll") {
+      setViewMode(savedView);
+      return;
+    }
+
+    setViewMode(window.innerWidth < 768 ? "step" : "scroll");
+  }, []);
+
   function showSuccess(message: string) {
     setSuccess(message);
     setTimeout(() => setSuccess(null), 3000);
+  }
+
+  function updateViewMode(nextViewMode: "step" | "scroll") {
+    setViewMode(nextViewMode);
+    window.localStorage.setItem("householdops:cooking-view", nextViewMode);
+  }
+
+  function beginIngredientEdit(ingredientId: string, ingredientName: string) {
+    setEditingIngredientId(ingredientId);
+    setEditingIngredientName(ingredientName);
+  }
+
+  function beginStepEdit(stepId: string, instruction: string) {
+    setEditingStepId(stepId);
+    setEditingStepInstruction(instruction);
   }
 
   async function patchSession(body: Record<string, unknown>) {
@@ -266,6 +300,18 @@ export function CookingSessionPanel({ sessionId }: { sessionId: string }) {
 
       <section className="grid food-cooking-grid" data-testid="cooking-session-page">
         <article className="panel" data-testid="cooking-session-summary">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <button className="btn btn-ghost min-h-[44px]" type="button" onClick={() => router.back()}>
+              Back
+            </button>
+            <button
+              className="btn btn-outline min-h-[44px]"
+              type="button"
+              onClick={() => updateViewMode(viewMode === "step" ? "scroll" : "step")}
+            >
+              {viewMode === "step" ? "Scroll View" : "Step-by-Step"}
+            </button>
+          </div>
           <div className="eyebrow">Mobile cooking</div>
           <h2 data-testid="cooking-session-title">{session.title}</h2>
           <p className="muted" style={{ marginTop: "8px" }}>
@@ -321,17 +367,10 @@ export function CookingSessionPanel({ sessionId }: { sessionId: string }) {
               data-testid="cooking-complete-session"
               disabled={isPending || session.status === "Completed"}
               onClick={() => {
-                setError(null);
-                startTransition(() => {
-                  completeSession().then(() => {
-                    showSuccess("Cooking session completed.");
-                  }).catch((err: unknown) => {
-                    setError(err instanceof Error ? err.message : "Unable to complete cooking.");
-                  });
-                });
+                setShowCompleteConfirm(true);
               }}
             >
-              Complete cooking
+              Complete Meal
             </button>
           </div>
         </article>
@@ -464,10 +503,15 @@ export function CookingSessionPanel({ sessionId }: { sessionId: string }) {
 
       <section className="grid food-cooking-grid">
         <article className="panel" data-testid="cooking-ingredients-panel">
-          <div className="eyebrow">Ingredients</div>
-          <h2>{focusedRecipe.title}</h2>
-          <div className="stack-list" style={{ marginTop: "12px" }}>
-            {focusedRecipe.ingredients.map((ingredient) => (
+          <div className="collapse collapse-arrow rounded-box border border-base-300 bg-base-100">
+            <input checked={ingredientsExpanded} onChange={() => setIngredientsExpanded((current) => !current)} type="checkbox" />
+            <div className="collapse-title p-0">
+              <div className="eyebrow">Ingredients</div>
+              <h2>{focusedRecipe.title}</h2>
+            </div>
+            <div className="collapse-content px-0">
+              <div className="stack-list" style={{ marginTop: "12px" }}>
+                {focusedRecipe.ingredients.map((ingredient) => (
               <div className="stack-card" data-testid={`cooking-ingredient-${ingredient.id}`} key={ingredient.id}>
                 <div className="stack-card-header">
                   <label className="checkbox-field" style={{ alignItems: "flex-start", flex: 1 }}>
@@ -485,7 +529,42 @@ export function CookingSessionPanel({ sessionId }: { sessionId: string }) {
                       }}
                     />
                     <div>
-                      <strong>{ingredient.ingredientName}</strong>
+                      {editingIngredientId === ingredient.id ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <input
+                            className="input input-bordered input-sm min-h-[44px]"
+                            value={editingIngredientName}
+                            onChange={(event) => setEditingIngredientName(event.target.value)}
+                          />
+                          <button
+                            className="btn btn-sm min-h-[44px]"
+                            type="button"
+                            onClick={() => {
+                              setError(null);
+                              startTransition(() => {
+                                patchIngredient(ingredient.id, { ingredientName: editingIngredientName })
+                                  .then(() => setEditingIngredientId(null))
+                                  .catch((err: unknown) => {
+                                    setError(err instanceof Error ? err.message : "Unable to update ingredient name.");
+                                  });
+                              });
+                            }}
+                          >
+                            Save
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <strong>{ingredient.ingredientName}</strong>
+                          <button
+                            className="btn btn-ghost btn-xs min-h-[32px] min-w-[32px]"
+                            type="button"
+                            onClick={() => beginIngredientEdit(ingredient.id, ingredient.ingredientName)}
+                          >
+                            Edit
+                          </button>
+                        </div>
+                      )}
                       <div className="muted">Planned {formatQuantity(ingredient.plannedQuantity, ingredient.plannedUnit)}</div>
                     </div>
                   </label>
@@ -558,7 +637,9 @@ export function CookingSessionPanel({ sessionId }: { sessionId: string }) {
                   Mark skipped
                 </label>
               </div>
-            ))}
+                ))}
+              </div>
+            </div>
           </div>
         </article>
 
@@ -566,16 +647,44 @@ export function CookingSessionPanel({ sessionId }: { sessionId: string }) {
           <div className="eyebrow">Steps</div>
           <h2>{focusedRecipe.title}</h2>
           <div className="stack-list" style={{ marginTop: "12px" }}>
-            {focusedRecipe.steps.map((step) => (
+            {(viewMode === "step"
+              ? focusedRecipe.steps.filter((step) => step.position === focusedRecipe.currentStepIndex + 1)
+              : focusedRecipe.steps).map((step) => (
               <div
-                className={`stack-card ${step.position === focusedRecipe.currentStepIndex + 1 ? "food-current-step-card" : ""}`}
+                className={`stack-card ${step.position === focusedRecipe.currentStepIndex + 1 ? "food-current-step-card" : ""} ${step.isCompleted ? "opacity-70" : ""}`}
                 data-testid={`cooking-step-${step.id}`}
                 key={step.id}
               >
                 <div className="stack-card-header">
                   <div style={{ flex: 1 }}>
                     <strong>Step {step.position}</strong>
-                    <div className="muted">{step.instruction}</div>
+                    {editingStepId === step.id ? (
+                      <div className="mt-2 flex flex-col gap-2">
+                        <input
+                          className="input input-bordered min-h-[44px]"
+                          value={editingStepInstruction}
+                          onChange={(event) => setEditingStepInstruction(event.target.value)}
+                        />
+                        <button
+                          className="btn btn-sm min-h-[44px] self-start"
+                          type="button"
+                          onClick={() => {
+                            setError(null);
+                            startTransition(() => {
+                              patchStep(step.id, { instruction: editingStepInstruction })
+                                .then(() => setEditingStepId(null))
+                                .catch((err: unknown) => {
+                                  setError(err instanceof Error ? err.message : "Unable to update step.");
+                                });
+                            });
+                          }}
+                        >
+                          Save
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="muted" style={{ textDecoration: step.isCompleted ? "line-through" : "none" }}>{step.instruction}</div>
+                    )}
                   </div>
                   <input
                     data-testid={`cooking-step-toggle-${step.id}`}
@@ -594,6 +703,13 @@ export function CookingSessionPanel({ sessionId }: { sessionId: string }) {
                 <div className="action-row">
                   <button
                     className="pill-button"
+                    type="button"
+                    onClick={() => beginStepEdit(step.id, step.instruction)}
+                  >
+                    Edit text
+                  </button>
+                  <button
+                    className="pill-button"
                     data-testid={`cooking-step-focus-${step.id}`}
                     onClick={() => {
                       setError(null);
@@ -606,12 +722,66 @@ export function CookingSessionPanel({ sessionId }: { sessionId: string }) {
                   >
                     Focus this step
                   </button>
+                  {viewMode === "step" ? (
+                    <button
+                      className="pill-button"
+                      type="button"
+                      onClick={() => {
+                        setError(null);
+                        startTransition(() => {
+                          patchStep(step.id, { isCompleted: true, makeCurrent: true }).catch((err: unknown) => {
+                            setError(err instanceof Error ? err.message : "Unable to advance step.");
+                          });
+                        });
+                      }}
+                    >
+                      Next
+                    </button>
+                  ) : null}
                 </div>
               </div>
             ))}
           </div>
+          {viewMode === "scroll" || focusedRecipe.currentStepIndex + 1 >= focusedRecipe.steps.length ? (
+            <div className="action-row mt-4">
+              <button className="action-button" type="button" disabled={isPending} onClick={() => setShowCompleteConfirm(true)}>
+                Complete Meal
+              </button>
+            </div>
+          ) : null}
         </article>
       </section>
+      {showCompleteConfirm ? (
+        <div className="modal modal-open">
+          <div className="modal-box">
+            <h3 className="text-lg font-semibold">Complete meal?</h3>
+            <p className="py-4 text-sm opacity-80">This will finish the cooking session and return to Food Home.</p>
+            <div className="modal-action">
+              <button className="btn btn-ghost min-h-[44px]" type="button" onClick={() => setShowCompleteConfirm(false)}>
+                Cancel
+              </button>
+              <button
+                className="btn btn-primary min-h-[44px]"
+                type="button"
+                disabled={isPending}
+                onClick={() => {
+                  setError(null);
+                  startTransition(() => {
+                    completeSession().then(() => {
+                      showSuccess("Cooking session completed.");
+                      router.push("/app/food");
+                    }).catch((err: unknown) => {
+                      setError(err instanceof Error ? err.message : "Unable to complete cooking.");
+                    }).finally(() => setShowCompleteConfirm(false));
+                  });
+                }}
+              >
+                Complete Meal
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }

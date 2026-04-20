@@ -8,7 +8,7 @@ Accepted
 
 This repository began as a narrow build for a self-hosted household operations platform centered on households, identity, scheduling, display, administration, and one worker foundation.
 
-The current codebase has progressed beyond that initial bootstrap slice and now also includes implemented narrow slices for calendar integrations, reminders, chores, and lightweight notes.
+The current codebase has progressed beyond that initial bootstrap slice and now also includes implemented narrow slices for calendar integrations, reminders, chores, lightweight notes, and an actively expanding Food module.
 
 The repo guidance explicitly rejects speculative modules, generalized platforms, and business-domain microservice sprawl.
 
@@ -19,7 +19,7 @@ Use a single monorepo with:
 - one ASP.NET Core API host
 - one .NET worker process
 - one Next.js web app
-- backend module libraries for Households, Identity, Scheduling, Display, and Administration
+- backend module libraries for Households, Identity, Scheduling, Display, Administration, Integrations, Notifications, Chores, Notes, and Food
 - one infrastructure library for database/auth wiring
 - one small shared-kernel library for truly cross-cutting primitives only
 

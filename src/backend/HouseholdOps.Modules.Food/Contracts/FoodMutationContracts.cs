@@ -53,7 +53,10 @@ public sealed record AddItemsFromMealPlanSlotRequest(Guid MealPlanSlotId, bool P
 
 public sealed record BulkUpdateShoppingItemsRequest(IReadOnlyList<Guid> ItemIds, string State);
 
-public sealed record TransferToPantryRequest(IReadOnlyList<Guid> ItemIds, bool CompleteList);
+public sealed record TransferToPantryRequest(
+    IReadOnlyList<Guid> ItemIds,
+    bool CompleteList,
+    IReadOnlyDictionary<Guid, Guid>? ItemLocationOverrides = null);
 
 public sealed record CompleteShoppingListRequest(bool MoveCheckedToPantry);
 

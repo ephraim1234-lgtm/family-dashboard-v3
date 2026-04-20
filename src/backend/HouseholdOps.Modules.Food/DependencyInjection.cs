@@ -264,6 +264,44 @@ public static class DependencyInjection
             return response is null ? Results.NotFound() : Results.Ok(response);
         });
 
+        group.MapDelete("/meal-plan/{slotId:guid}", async (
+            Guid slotId,
+            IIdentityAccessService identityAccessService,
+            IFoodService foodService,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var deleted = await foodService.DeleteMealPlanSlotAsync(householdId, slotId, cancellationToken);
+            return deleted ? Results.NoContent() : Results.NotFound();
+        });
+
+        group.MapDelete("/meal-plan/{slotId:guid}/recipes/{recipeId:guid}", async (
+            Guid slotId,
+            Guid recipeId,
+            IIdentityAccessService identityAccessService,
+            IFoodService foodService,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var removed = await foodService.RemoveRecipeFromMealPlanSlotAsync(
+                householdId,
+                slotId,
+                recipeId,
+                cancellationToken);
+
+            return removed ? Results.NoContent() : Results.NotFound();
+        });
+
         group.MapGet("/shopping-lists", async (
             string? status,
             IIdentityAccessService identityAccessService,

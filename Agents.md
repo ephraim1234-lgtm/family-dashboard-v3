@@ -25,6 +25,7 @@ Use this file for durable repository rules. Put repeated procedural detail in sh
 - Notifications / Reminders
 - Calendar integrations
 - Chores / Routines
+- Food operations
 
 ### Existing but not expansion-driving surface
 
@@ -33,7 +34,6 @@ Use this file for durable repository rules. Put repeated procedural detail in sh
 
 ### Future domains
 
-- Food operations
 - Household documents
 - Maintenance tracking
 - Budgeting / bills
