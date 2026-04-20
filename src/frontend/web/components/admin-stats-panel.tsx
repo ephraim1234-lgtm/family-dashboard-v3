@@ -50,7 +50,7 @@ export function AdminStatsPanel() {
         {error ? <p className="error-text">{error}</p> : null}
 
         {stats ? (
-          <div className="pill-row" style={{ marginTop: "12px", flexWrap: "wrap", gap: "8px" }}>
+          <div className="pill-row mt-3 flex-wrap gap-2">
             <span className="pill">{stats.memberCount} member{stats.memberCount !== 1 ? "s" : ""}</span>
             <span className="pill">{stats.activeChoreCount} active chore{stats.activeChoreCount !== 1 ? "s" : ""}</span>
             <span className="pill">{stats.eventsThisWeekCount} event{stats.eventsThisWeekCount !== 1 ? "s" : ""} this week</span>

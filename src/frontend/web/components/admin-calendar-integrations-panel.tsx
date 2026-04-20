@@ -608,7 +608,7 @@ export function AdminCalendarIntegrationsPanel() {
             Redirect URI {oauthReadiness?.hasRedirectUri ? "ready" : "missing"}
           </span>
         </div>
-        <div className="form-stack" style={{ marginTop: "1rem" }}>
+        <div className="form-stack mt-4">
           <div className="field">
             <span>Configured redirect URI</span>
             <code>{oauthReadiness?.configuredRedirectUri ?? "Not configured yet"}</code>
@@ -658,7 +658,7 @@ export function AdminCalendarIntegrationsPanel() {
                   {calendars.length === 0 ? (
                     <p className="muted">No calendars discovered yet for this account.</p>
                   ) : (
-                    <div className="stack-list" style={{ marginTop: "0.75rem" }}>
+                    <div className="stack-list mt-3">
                       {calendars.map((calendar) => {
                         const existingLink = links.find(
                           (link) =>
@@ -683,7 +683,7 @@ export function AdminCalendarIntegrationsPanel() {
                             <div className="muted">
                               Time zone: {calendar.timeZone ?? "Not provided"}
                             </div>
-                            <div className="action-row compact-action-row" style={{ marginTop: "0.75rem" }}>
+                            <div className="action-row compact-action-row mt-3">
                               <button
                                 className="action-button"
                                 onClick={() => handleCreateManagedLink(calendar)}
@@ -716,25 +716,24 @@ export function AdminCalendarIntegrationsPanel() {
             .sort()
             .pop();
           return (
-            <div className="stack-card" style={{ marginBottom: "12px" }}>
+            <div className="stack-card mb-3">
               <div className="stack-card-header">
-                <div style={{ flex: 1 }}>
+                <div className="flex-1">
                   <strong>Integration health</strong>
-                  <div className="muted" style={{ fontSize: "0.82rem" }}>
+                  <div className="muted text-[0.82rem]">
                     {links.length} linked &middot; {healthyCount} healthy
                     {errorCount > 0 ? ` · ${errorCount} in error` : ""}
                     {autoOffCount > 0 ? ` · ${autoOffCount} auto-sync paused` : ""}
                   </div>
-                  <div className="muted" style={{ fontSize: "0.82rem" }}>
+                  <div className="muted text-[0.82rem]">
                     Last successful sync{" "}
                     {lastCompleted ? new Date(lastCompleted).toLocaleString() : "— none yet"}
                   </div>
                 </div>
                 <button
-                  className="action-button"
                   onClick={handleSyncAll}
                   disabled={isPending}
-                  style={{ fontSize: "0.85rem", padding: "8px 14px" }}
+                  className="action-button px-3.5 py-2 text-[0.85rem]"
                 >
                   Sync all now
                 </button>
@@ -743,7 +742,7 @@ export function AdminCalendarIntegrationsPanel() {
           );
         })() : null}
         {links.length > 0 ? (
-          <div className="pill-row" style={{ marginBottom: "12px" }}>
+          <div className="pill-row mb-3">
             <button
               className={linkReviewFilter === "All" ? "pill-button pill-button-active" : "pill-button"}
               onClick={() => setLinkReviewFilter("All")}
@@ -835,7 +834,7 @@ export function AdminCalendarIntegrationsPanel() {
                       </p>
                     ) : null}
                     {link.lastSyncError ? (
-                      <div className="stack-card" style={{ marginTop: "0.75rem" }}>
+                      <div className="stack-card mt-3">
                         <div className="stack-card-header">
                           <strong>Sync needs attention</strong>
                           {renderFailureCategory(link.lastSyncFailureCategory) ? (

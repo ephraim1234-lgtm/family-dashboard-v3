@@ -113,11 +113,11 @@ export function UpcomingAgendaPanel() {
         {error ? <p className="error-text">{error}</p> : null}
         {!response && !error && !isPending ? null : null}
         {response && dayGroups.length === 0 ? (
-          <p className="muted" style={{ marginTop: "12px" }}>
+          <p className="muted mt-3">
             Nothing scheduled in the next 14 days.
           </p>
         ) : (
-          <div className="day-group-list" style={{ marginTop: "16px" }}>
+          <div className="day-group-list mt-4">
             {dayGroups.map((group) => (
               <div className="day-group" key={group.date}>
                 <div className="day-group-heading">{group.label}</div>

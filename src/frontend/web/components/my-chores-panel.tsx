@@ -84,7 +84,7 @@ export function MyChoresPanel() {
         <div className="eyebrow">Today</div>
         <h2>My chores</h2>
         {error ? <p className="error-text">{error}</p> : null}
-        <div className="stack-list" style={{ marginTop: "16px" }}>
+        <div className="stack-list mt-4">
           {visible.map((c) => (
             <div className="stack-card" key={c.id}>
               <div className="stack-card-header">
@@ -94,7 +94,7 @@ export function MyChoresPanel() {
                     <div className="muted">{c.description}</div>
                   ) : null}
                   {c.assignedMemberName ? (
-                    <div className="muted" style={{ fontSize: "0.82rem" }}>
+                    <div className="muted text-[0.82rem]">
                       Assigned to {c.assignedMemberName}
                     </div>
                   ) : null}

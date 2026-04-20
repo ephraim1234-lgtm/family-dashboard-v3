@@ -11,15 +11,15 @@ export function CookingTab() {
       <div className="eyebrow">Cooking</div>
       <h2>Active sessions</h2>
       {data.activeCookingSessions.length === 0 ? (
-        <p className="muted" style={{ marginTop: "12px" }}>
+        <p className="muted mt-3">
           Start cooking from a recipe or meal plan to get total ingredients, recipe switching, pantry-aware deductions, and TV mode.
         </p>
       ) : (
-        <div className="stack-list" style={{ marginTop: "12px" }}>
+        <div className="stack-list mt-3">
           {data.activeCookingSessions.map((session: any) => (
             <div className="stack-card" data-testid={`food-active-session-${session.id}`} key={session.id}>
               <div className="stack-card-header">
-                <div style={{ flex: 1 }}>
+                <div className="flex-1">
                   <strong>{session.title}</strong>
                   <div className="muted">
                     {session.focusedRecipeTitle ? `${session.focusedRecipeTitle} • ` : ""}

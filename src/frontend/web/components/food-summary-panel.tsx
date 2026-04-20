@@ -45,10 +45,10 @@ export function FoodSummaryPanel() {
       <article className="panel">
         <div className="eyebrow">Food</div>
         <h2>Pantry, planning, and cooking</h2>
-        <p className="muted" style={{ marginTop: "8px" }}>
+        <p className="muted mt-2">
           {data.tonightCookView?.reason ?? "Your household food hub is ready for pantry, recipes, shopping, and cooking sessions."}
         </p>
-        <div className="pill-row" style={{ marginTop: "12px" }}>
+        <div className="pill-row mt-3">
           <span className="pill">{data.summary.recipeCount} recipes</span>
           <span className="pill">{data.summary.pantryItemCount} pantry items</span>
           <span className="pill">{data.summary.shoppingItemCount} shopping items</span>
@@ -60,7 +60,7 @@ export function FoodSummaryPanel() {
           ) : null}
         </div>
         {data.tonightCookView ? (
-          <p className="muted" style={{ marginTop: "12px" }}>
+          <p className="muted mt-3">
             Tonight: <strong>{data.tonightCookView.title}</strong>
             {data.tonightCookView.missingIngredientCount > 0
               ? ` with ${data.tonightCookView.missingIngredientCount} missing ingredient${data.tonightCookView.missingIngredientCount === 1 ? "" : "s"}`

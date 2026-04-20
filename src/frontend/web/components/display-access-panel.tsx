@@ -211,7 +211,7 @@ function LegacyDisplayAccessPanel({ token }: DisplayAccessPanelProps) {
         {snapshot ? (
           <>
             <h2>Upcoming agenda</h2>
-            <p className="muted" style={{ marginBottom: "0.5rem" }}>
+            <p className="muted mb-2">
               {new Date(snapshot.agendaSection.windowStartUtc).toLocaleDateString()} –{" "}
               {new Date(snapshot.agendaSection.windowEndUtc).toLocaleDateString()}
             </p>

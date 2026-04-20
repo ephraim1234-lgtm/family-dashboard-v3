@@ -118,7 +118,7 @@ export function AdminMembersPanel() {
         {members.length === 0 ? (
           <p className="muted">No members loaded.</p>
         ) : (
-          <div className="stack-list" style={{ marginTop: "16px" }}>
+          <div className="stack-list mt-4">
             {members.map((m) => (
               <div className="stack-card" key={m.membershipId}>
                 <div className="stack-card-header">
@@ -150,7 +150,7 @@ export function AdminMembersPanel() {
           If the email is not yet registered, a stub account will be created. The
           member can sign in once their auth is configured.
         </p>
-        <div className="form-stack" style={{ marginTop: "16px" }}>
+        <div className="form-stack mt-4">
           <div className="field">
             <span>Email</span>
             <input

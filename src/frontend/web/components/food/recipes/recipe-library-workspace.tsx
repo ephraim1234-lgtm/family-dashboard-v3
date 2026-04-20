@@ -32,12 +32,12 @@ export function RecipeLibraryWorkspace({ hideHeader = false }: { hideHeader?: bo
         <>
           <div className="eyebrow">Recipe library</div>
           <div className="stack-card-header">
-            <h2 style={{ margin: 0 }}>Shared household recipes</h2>
+            <h2 className="m-0">Shared household recipes</h2>
             <span className="pill">{recipeLibrary.length} shown</span>
           </div>
         </>
       ) : null}
-      <div className="field" style={{ marginTop: hideHeader ? 0 : "12px" }}>
+      <div className={`field ${hideHeader ? "" : "mt-3"}`}>
         <span>Search</span>
         <input
           aria-label="Recipe search"
@@ -48,14 +48,14 @@ export function RecipeLibraryWorkspace({ hideHeader = false }: { hideHeader?: bo
         />
       </div>
       {recipeLibrary.length > 0 ? (
-        <div className="stack-list" style={{ marginTop: "14px" }}>
+        <div className="stack-list mt-3.5">
           {recipeLibrary.map((recipe: any) => {
             const plannerOpen = plannerOpenId === recipe.id;
 
             return (
               <div className="stack-card" data-testid={`food-recipe-library-item-${recipe.id}`} key={recipe.id}>
                 <div className="stack-card-header">
-                  <div style={{ flex: 1 }}>
+                  <div className="flex-1">
                     <button
                       className="text-left"
                       data-testid={`food-recipe-library-view-${recipe.id}`}

@@ -96,14 +96,14 @@ export function AdminNotesPanel() {
         {notes.length === 0 ? (
           <p className="muted">No notes.</p>
         ) : (
-          <div className="stack-list" style={{ marginTop: "12px" }}>
+          <div className="stack-list mt-3">
             {notes.map((n) => (
               <div className="stack-card" key={n.id}>
                 <div className="stack-card-header">
                   <div>
                     <strong>{n.title}</strong>
                     {n.body ? <div className="muted">{n.body}</div> : null}
-                    <div className="muted" style={{ fontSize: "0.8rem" }}>
+                    <div className="muted text-[0.8rem]">
                       by {n.authorDisplayName}
                       {n.isPinned ? " · Pinned" : ""}
                     </div>

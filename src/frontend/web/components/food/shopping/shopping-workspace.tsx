@@ -54,7 +54,7 @@ export function ShoppingWorkspace() {
             <div className="stack-card-header">
               <div>
                 <div className="eyebrow">Shopping</div>
-                <h2 style={{ margin: 0 }}>{data.shoppingList.name}</h2>
+                <h2 className="m-0">{data.shoppingList.name}</h2>
               </div>
               <span className="pill">{activeShoppingItems.length} open</span>
             </div>
@@ -111,7 +111,7 @@ export function ShoppingWorkspace() {
             </div>
 
             {shoppingMealFilterId ? (
-              <div className="action-row" style={{ marginTop: "10px" }}>
+              <div className="action-row mt-2.5">
                 <span className="pill">Filtered to one meal</span>
                 <button className="pill-button" type="button" onClick={() => setShoppingMealFilterId(null)}>
                   Clear filter
@@ -155,7 +155,7 @@ export function ShoppingWorkspace() {
             </div>
 
             {purchasedCount > 0 ? (
-              <div className="mt-4 rounded-box border border-base-300 p-4" style={{ scrollMarginBottom: "12rem" }}>
+              <div className="mt-4 scroll-mb-48 rounded-box border border-base-300 p-4">
                 <div className="stack-card-header">
                   <strong>{purchasedCount} items purchased</strong>
                   <button className="btn btn-primary min-h-[44px]" type="button" onClick={() => setPostPurchaseOpen(true)}>
@@ -172,8 +172,8 @@ export function ShoppingWorkspace() {
                   {purchasedShoppingItems.map((item: any) => (
                     <div className="stack-card" key={`purchased-${item.id}`}>
                       <div className="stack-card-header">
-                        <div style={{ flex: 1 }}>
-                          <strong style={{ opacity: item.state === "Skipped" ? 0.6 : 1 }}>{item.ingredientName}</strong>
+                        <div className="flex-1">
+                          <strong className={item.state === "Skipped" ? "opacity-60" : ""}>{item.ingredientName}</strong>
                           <div className="muted">
                             {formatQuantity(item.quantityPurchased ?? item.quantityNeeded, item.unit)}
                           </div>
@@ -194,7 +194,7 @@ export function ShoppingWorkspace() {
           <article className="panel" data-testid="food-shopping-history">
             <div className="eyebrow">Trip history</div>
             <h2>Review completed trips without mixing them into the active list</h2>
-            <div className="stack-list" style={{ marginTop: "14px" }}>
+            <div className="stack-list mt-3.5">
               {data.shoppingHistory.map((trip: any) => (
                 <div className="stack-card" key={trip.id}>
                   <div className="stack-card-header">

@@ -58,7 +58,7 @@ export function MealPlanningWorkspace() {
           <article className="panel" data-testid="food-meal-planning">
             <div className="eyebrow">Meal planning</div>
             <h2>Build a real meal, not just a single recipe slot</h2>
-            <div className="grid" style={{ marginTop: "12px" }}>
+            <div className="grid mt-3">
               <div className="field">
                 <span>Date</span>
                 <input
@@ -98,7 +98,7 @@ export function MealPlanningWorkspace() {
                 onChange={(event) => setMealNotes(event.target.value)}
               />
             </div>
-            <div className="stack-list" style={{ marginTop: "12px" }}>
+            <div className="stack-list mt-3">
               {mealRows.map((row: any, index: number) => (
                 <div className="stack-card" data-testid={`food-meal-row-${index}`} key={`meal-row-${index}`}>
                   <div className="grid">
@@ -186,11 +186,11 @@ export function MealPlanningWorkspace() {
             <div className="eyebrow">Upcoming meals</div>
             <h2>Track coverage and jump into shopping or cooking</h2>
             {data.upcomingMeals.length > 0 ? (
-              <div className="stack-list" style={{ marginTop: "16px" }}>
+              <div className="stack-list mt-4">
                 {data.upcomingMeals.map((slot: any) => (
                   <div className="stack-card" data-testid={`food-meal-slot-${slot.id}`} key={slot.id}>
                     <div className="stack-card-header">
-                      <div style={{ flex: 1 }}>
+                      <div className="flex-1">
                         <div className="flex items-center gap-2">
                           <strong>{slot.title}</strong>
                           <button
@@ -257,7 +257,7 @@ export function MealPlanningWorkspace() {
                 ))}
               </div>
             ) : (
-              <p className="muted" style={{ marginTop: "12px" }}>
+              <p className="muted mt-3">
                 Upcoming meals will appear here once you save a plan.
               </p>
             )}

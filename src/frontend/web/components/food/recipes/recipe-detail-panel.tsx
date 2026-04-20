@@ -55,10 +55,10 @@ export function RecipeDetailPanel() {
       </div>
       {selectedRecipe ? (
         <>
-          <p className="muted" style={{ marginTop: "8px" }}>
+          <p className="muted mt-2">
             {selectedRecipe.summary ?? "This household-owned recipe keeps imported source and default household edits separate."}
           </p>
-          <div className="grid grid-cols-2 gap-3" style={{ marginTop: "16px" }}>
+          <div className="grid grid-cols-2 gap-3 mt-4">
             <button
               className="btn min-h-[44px]"
               data-testid="food-recipe-add-to-meal"
@@ -114,16 +114,16 @@ export function RecipeDetailPanel() {
             </div>
           ) : null}
 
-          <div className="pill-row" style={{ marginTop: "12px" }}>
+          <div className="pill-row mt-3">
             <span className="pill">Default rev {selectedRecipe.householdDefaultRevision.revisionNumber}</span>
             <span className="pill">Imported rev {selectedRecipe.importedSourceRevision.revisionNumber}</span>
             <span className="pill">{selectedRecipe.revisionCount} total revisions</span>
             {selectedRecipe.householdDefaultRevision.yieldText ? <span className="pill">{selectedRecipe.householdDefaultRevision.yieldText}</span> : null}
           </div>
-          <div className="grid" style={{ marginTop: "14px" }}>
+          <div className="grid mt-3.5">
             <div className="stack-card">
               <div className="eyebrow">Household default ingredients</div>
-              <div className="stack-list" style={{ marginTop: "10px" }}>
+              <div className="stack-list mt-2.5">
                 {selectedRecipe.householdDefaultRevision.ingredients.map((ingredient: any, index: number) => (
                   <div className="stack-card" key={`${ingredient.ingredientName}-${index}`}>
                     <strong>{ingredient.ingredientName}</strong>
@@ -135,7 +135,7 @@ export function RecipeDetailPanel() {
 
             <div className="stack-card">
               <div className="eyebrow">Steps</div>
-              <div className="stack-list" style={{ marginTop: "10px" }}>
+              <div className="stack-list mt-2.5">
                 {selectedRecipe.householdDefaultRevision.steps.map((step: any) => (
                   <div className="stack-card" key={step.position}>
                     <strong>Step {step.position}</strong>
@@ -147,7 +147,7 @@ export function RecipeDetailPanel() {
           </div>
         </>
       ) : (
-        <p className="muted" style={{ marginTop: "12px" }}>
+        <p className="muted mt-3">
           Choose a recipe from the shared library to inspect or edit the household default.
         </p>
       )}

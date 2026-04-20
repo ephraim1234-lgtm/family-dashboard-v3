@@ -81,7 +81,7 @@ export function AddEventPanel() {
         {successMsg ? <p className="success-text">{successMsg}</p> : null}
 
         {!showForm ? (
-          <div style={{ marginTop: "8px" }}>
+          <div className="mt-2">
             <button
               className="action-button-secondary"
               onClick={() => {
@@ -100,7 +100,7 @@ export function AddEventPanel() {
             </button>
           </div>
         ) : (
-          <div className="stack-list" style={{ marginTop: "12px" }}>
+          <div className="stack-list mt-3">
             <div className="stack-card">
               <div className="form-row">
                 <label className="form-label">Title *</label>
@@ -134,7 +134,7 @@ export function AddEventPanel() {
                         setEndsAt(applySuggestedEnd(startsAt, 60));
                       }
                     }}
-                    style={{ marginRight: "6px" }}
+                    className="mr-1.5"
                   />
                   All day
                 </label>
@@ -197,7 +197,7 @@ export function AddEventPanel() {
                   </div>
                 </>
               )}
-              <p className="muted" style={{ marginTop: "4px" }}>
+              <p className="muted mt-1">
                 {isAllDay
                   ? "All-day events use the selected local date and store it in UTC."
                   : "Times use your current browser locale and are stored in UTC."}
@@ -209,7 +209,7 @@ export function AddEventPanel() {
                   ))}
                 </div>
               ) : null}
-              <div className="pill-row" style={{ marginTop: "8px" }}>
+              <div className="pill-row mt-2">
                 <button
                   className="action-button"
                   onClick={handleSubmit}

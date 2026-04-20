@@ -130,7 +130,7 @@ export function NotesPanel() {
         ) : null}
 
         {notes.length > 0 ? (
-          <div className="stack-list" style={{ marginTop: "12px" }}>
+          <div className="stack-list mt-3">
             {notes.map((n) =>
               editingId === n.id ? (
                 <div className="stack-card" key={n.id}>
@@ -151,7 +151,7 @@ export function NotesPanel() {
                       rows={3}
                     />
                   </div>
-                  <div className="pill-row" style={{ marginTop: "8px" }}>
+                  <div className="pill-row mt-2">
                     <button
                       className="action-button"
                       onClick={() => handleSaveEdit(n.id)}
@@ -171,19 +171,18 @@ export function NotesPanel() {
               ) : (
                 <div className="stack-card" key={n.id}>
                   <div className="stack-card-header">
-                    <div style={{ flex: 1 }}>
+                    <div className="flex-1">
                       <strong>
                         {n.isPinned ? "📌 " : ""}
                         {n.title}
                       </strong>
                       {n.body ? <div className="muted">{n.body}</div> : null}
-                      <div className="muted" style={{ fontSize: "0.8rem" }}>
+                      <div className="muted text-[0.8rem]">
                         {n.authorDisplayName}
                       </div>
                     </div>
                     <button
-                      className="action-button-secondary"
-                      style={{ alignSelf: "flex-start", fontSize: "0.8rem" }}
+                      className="action-button-secondary self-start text-[0.8rem]"
                       onClick={() => startEdit(n)}
                       disabled={isPending}
                     >
@@ -197,7 +196,7 @@ export function NotesPanel() {
         ) : null}
 
         {showForm ? (
-          <div className="stack-list" style={{ marginTop: "12px" }}>
+          <div className="stack-list mt-3">
             <div className="stack-card">
               <div className="form-row">
                 <label className="form-label">Title</label>
@@ -218,7 +217,7 @@ export function NotesPanel() {
                   rows={3}
                 />
               </div>
-              <div className="pill-row" style={{ marginTop: "8px" }}>
+              <div className="pill-row mt-2">
                 <button
                   className="action-button"
                   onClick={handleAdd}
@@ -241,7 +240,7 @@ export function NotesPanel() {
             </div>
           </div>
         ) : (
-          <div style={{ marginTop: "12px" }}>
+          <div className="mt-3">
             <button
               className="action-button-secondary"
               onClick={() => setShowForm(true)}

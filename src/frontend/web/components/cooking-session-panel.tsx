@@ -314,15 +314,15 @@ export function CookingSessionPanel({ sessionId }: { sessionId: string }) {
           </div>
           <div className="eyebrow">Mobile cooking</div>
           <h2 data-testid="cooking-session-title">{session.title}</h2>
-          <p className="muted" style={{ marginTop: "8px" }}>
+          <p className="muted mt-2">
             Pantry mode: {session.pantryUpdateMode}. Actual usage drives pantry deductions, and recipe updates stay explicit.
           </p>
-          <div className="pill-row" style={{ marginTop: "12px" }}>
+          <div className="pill-row mt-3">
             <span className="pill">{session.recipeCount} recipes in this cook</span>
             <span className="pill">{focusedRecipe.role}</span>
             <span className="pill">{session.status}</span>
           </div>
-          <div className="pill-row" style={{ marginTop: "14px" }}>
+          <div className="pill-row mt-3.5">
             {session.recipes.map((recipe) => (
               <button
                 className="pill-button"
@@ -341,13 +341,13 @@ export function CookingSessionPanel({ sessionId }: { sessionId: string }) {
               </button>
             ))}
           </div>
-          <div className="stack-card" style={{ marginTop: "16px" }}>
+          <div className="stack-card mt-4">
             <div className="eyebrow">Focused recipe</div>
             <strong>{focusedRecipe.title}</strong>
-            <div className="muted" style={{ marginTop: "8px" }}>
+            <div className="muted mt-2">
               Current step {focusedRecipe.currentStepIndex + 1}/{focusedRecipe.steps.length}
             </div>
-            <div style={{ marginTop: "8px" }}>
+            <div className="mt-2">
               {focusedRecipe.currentStepInstruction ?? "Start prepping the ingredients."}
             </div>
             {focusedRecipe.nextStepInstruction ? (
@@ -378,10 +378,10 @@ export function CookingSessionPanel({ sessionId }: { sessionId: string }) {
         <article className="panel" data-testid="cooking-pantry-impact">
           <div className="eyebrow">Pantry impact</div>
           <h2>Actual usage and deduction</h2>
-          <p className="muted" style={{ marginTop: "8px" }}>
+          <p className="muted mt-2">
             {session.pantryImpactPreview.appliedCount} ingredients applied to pantry, {session.pantryImpactPreview.needsReviewCount} still need review.
           </p>
-          <div className="stack-list" style={{ marginTop: "14px" }}>
+          <div className="stack-list mt-3.5">
             {session.pantryImpactPreview.items.map((item) => (
               <div className="stack-card" key={item.sessionIngredientId}>
                 <div className="stack-card-header">
@@ -406,11 +406,11 @@ export function CookingSessionPanel({ sessionId }: { sessionId: string }) {
         <article className="panel" data-testid="cooking-total-ingredients">
           <div className="eyebrow">Total ingredients</div>
           <h2>Whole-meal ingredient checklist</h2>
-          <div className="stack-list" style={{ marginTop: "12px" }}>
+          <div className="stack-list mt-3">
             {session.totalIngredients.map((ingredient) => (
               <div className="stack-card" data-testid="cooking-total-ingredient" key={ingredient.groupKey}>
                 <div className="stack-card-header">
-                  <label className="checkbox-field" style={{ alignItems: "flex-start", flex: 1 }}>
+                  <label className="checkbox-field flex-1 items-start">
                     <input
                       data-testid={`cooking-total-ingredient-toggle-${ingredient.groupKey}`}
                       type="checkbox"
@@ -445,11 +445,11 @@ export function CookingSessionPanel({ sessionId }: { sessionId: string }) {
           <div className="eyebrow">Recipe memory</div>
           <h2>What should this cook teach the household?</h2>
           {focusedRecipe.recipeChangeSuggestion.hasMeaningfulChanges && !recipeSuggestionDismissed ? (
-            <div className="stack-card" style={{ marginTop: "12px" }}>
+            <div className="stack-card mt-3">
               <p className="muted">
                 {focusedRecipe.recipeChangeSuggestion.changedIngredientCount} ingredient amounts differ from the saved household default for {focusedRecipe.title}.
               </p>
-              <div className="pill-row" style={{ marginTop: "10px" }}>
+              <div className="pill-row mt-2.5">
                 {focusedRecipe.recipeChangeSuggestion.changedIngredients.map((item) => (
                   <span className="pill" key={item}>{item}</span>
                 ))}
@@ -492,7 +492,7 @@ export function CookingSessionPanel({ sessionId }: { sessionId: string }) {
               </div>
             </div>
           ) : (
-            <p className="muted" style={{ marginTop: "12px" }}>
+            <p className="muted mt-3">
               Session-only changes stay isolated unless you deliberately promote them into the household recipe.
             </p>
           )}
@@ -510,11 +510,11 @@ export function CookingSessionPanel({ sessionId }: { sessionId: string }) {
               <h2>{focusedRecipe.title}</h2>
             </div>
             <div className="collapse-content px-0">
-              <div className="stack-list" style={{ marginTop: "12px" }}>
+              <div className="stack-list mt-3">
                 {focusedRecipe.ingredients.map((ingredient) => (
               <div className="stack-card" data-testid={`cooking-ingredient-${ingredient.id}`} key={ingredient.id}>
                 <div className="stack-card-header">
-                  <label className="checkbox-field" style={{ alignItems: "flex-start", flex: 1 }}>
+                  <label className="checkbox-field flex-1 items-start">
                     <input
                       data-testid={`cooking-ingredient-toggle-${ingredient.id}`}
                       type="checkbox"
@@ -620,7 +620,7 @@ export function CookingSessionPanel({ sessionId }: { sessionId: string }) {
                     />
                   </div>
                 </div>
-                <label className="checkbox-field" style={{ marginTop: "8px" }}>
+                <label className="checkbox-field mt-2">
                   <input
                     data-testid={`cooking-ingredient-skipped-${ingredient.id}`}
                     type="checkbox"
@@ -646,7 +646,7 @@ export function CookingSessionPanel({ sessionId }: { sessionId: string }) {
         <article className="panel" data-testid="cooking-steps-panel">
           <div className="eyebrow">Steps</div>
           <h2>{focusedRecipe.title}</h2>
-          <div className="stack-list" style={{ marginTop: "12px" }}>
+          <div className="stack-list mt-3">
             {(viewMode === "step"
               ? focusedRecipe.steps.filter((step) => step.position === focusedRecipe.currentStepIndex + 1)
               : focusedRecipe.steps).map((step) => (
@@ -656,7 +656,7 @@ export function CookingSessionPanel({ sessionId }: { sessionId: string }) {
                 key={step.id}
               >
                 <div className="stack-card-header">
-                  <div style={{ flex: 1 }}>
+                  <div className="flex-1">
                     <strong>Step {step.position}</strong>
                     {editingStepId === step.id ? (
                       <div className="mt-2 flex flex-col gap-2">
@@ -683,7 +683,7 @@ export function CookingSessionPanel({ sessionId }: { sessionId: string }) {
                         </button>
                       </div>
                     ) : (
-                      <div className="muted" style={{ textDecoration: step.isCompleted ? "line-through" : "none" }}>{step.instruction}</div>
+                      <div className={`muted ${step.isCompleted ? "line-through" : ""}`}>{step.instruction}</div>
                     )}
                   </div>
                   <input

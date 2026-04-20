@@ -528,7 +528,7 @@ export function DisplaySurfacePanel({ token }: DisplaySurfacePanelProps) {
                         <strong>{day.label}</strong>
                         <span className="pill">{day.events.length}</span>
                       </div>
-                      <div className="display-agenda-list" style={{ marginTop: "6px" }}>
+                      <div className="display-agenda-list mt-1.5">
                         {day.events.map((item) => (
                           <div
                             className="display-agenda-item"

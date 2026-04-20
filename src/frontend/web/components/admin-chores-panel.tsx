@@ -192,18 +192,18 @@ export function AdminChoresPanel() {
         {chores.length === 0 ? (
           <p className="muted">No chores yet.</p>
         ) : (
-          <div className="stack-list" style={{ marginTop: "16px" }}>
+          <div className="stack-list mt-4">
             {chores.map((c) => (
               <div className="stack-card" key={c.id}>
                 <div className="stack-card-header">
                   <div>
-                    <strong style={{ opacity: c.isActive ? 1 : 0.55 }}>
+                    <strong className={c.isActive ? "" : "opacity-[0.55]"}>
                       {c.title}
                     </strong>
                     {c.assignedMemberName ? (
                       <div className="muted">{c.assignedMemberName}</div>
                     ) : null}
-                    <div className="muted" style={{ fontSize: "0.82rem" }}>
+                    <div className="muted text-[0.82rem]">
                       {c.recurrenceKind}
                       {c.recurrenceKind === "Weekly" && c.weeklyDaysMask
                         ? " · " +
@@ -237,9 +237,9 @@ export function AdminChoresPanel() {
         )}
 
         {completions.length > 0 ? (
-          <div style={{ marginTop: "24px" }}>
+          <div className="mt-6">
             <div className="eyebrow">Recent completions</div>
-            <div className="stack-list" style={{ marginTop: "10px" }}>
+            <div className="stack-list mt-2.5">
               {completions.map((c) => (
                 <div className="stack-card" key={c.id}>
                   <div className="stack-card-header">
@@ -247,12 +247,12 @@ export function AdminChoresPanel() {
                       <strong>{c.choreTitle}</strong>
                       <div className="muted">{c.completedByDisplayName}</div>
                     </div>
-                    <div className="muted" style={{ fontSize: "0.82rem" }}>
+                    <div className="muted text-[0.82rem]">
                       {new Date(c.completedAtUtc).toLocaleString()}
                     </div>
                   </div>
                   {c.notes ? (
-                    <div className="muted" style={{ fontSize: "0.88rem" }}>
+                    <div className="muted text-[0.88rem]">
                       {c.notes}
                     </div>
                   ) : null}
@@ -266,7 +266,7 @@ export function AdminChoresPanel() {
       <article className="panel">
         <div className="eyebrow">Chores</div>
         <h2>{isEditing ? "Edit chore" : "Add chore"}</h2>
-        <div className="form-stack" style={{ marginTop: "16px" }}>
+        <div className="form-stack mt-4">
           <div className="field">
             <span>Title</span>
             <input

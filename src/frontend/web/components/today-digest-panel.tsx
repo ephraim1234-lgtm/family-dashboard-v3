@@ -81,14 +81,14 @@ export function TodayDigestPanel() {
         <h2>Digest</h2>
 
         {data.pendingReminderCount > 0 ? (
-          <p className="muted" style={{ marginBottom: "8px" }}>
+          <p className="muted mb-2">
             {data.pendingReminderCount} pending reminder{data.pendingReminderCount !== 1 ? "s" : ""} today
           </p>
         ) : null}
 
         {data.todayEvents.length > 0 ? (
           <>
-            <div className="eyebrow" style={{ marginTop: "12px" }}>Events</div>
+            <div className="eyebrow mt-3">Events</div>
             <div className="stack-list">
               {data.todayEvents.map((e, i) => (
                 <div className="stack-card" key={i}>
@@ -106,7 +106,7 @@ export function TodayDigestPanel() {
 
         {data.todayChores.length > 0 ? (
           <>
-            <div className="eyebrow" style={{ marginTop: "12px" }}>Chores</div>
+            <div className="eyebrow mt-3">Chores</div>
             <div className="stack-list">
               {data.todayChores.map((c) => (
                 <div className="stack-card" key={c.id}>
@@ -122,7 +122,7 @@ export function TodayDigestPanel() {
 
         {data.pinnedNotes.length > 0 ? (
           <>
-            <div className="eyebrow" style={{ marginTop: "12px" }}>Pinned notes</div>
+            <div className="eyebrow mt-3">Pinned notes</div>
             <div className="stack-list">
               {data.pinnedNotes.map((n) => (
                 <div className="stack-card" key={n.id}>

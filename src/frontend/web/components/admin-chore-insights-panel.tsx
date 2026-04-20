@@ -52,19 +52,19 @@ export function AdminChoreInsightsPanel() {
 
         {insights ? (
           <>
-            <div className="pill-row" style={{ marginTop: "8px", gap: "8px" }}>
+            <div className="pill-row mt-2 gap-2">
               <span className="pill">{insights.totalCompletionsThisWeek} this week</span>
               <span className="pill">{insights.totalCompletionsThisMonth} this month</span>
             </div>
 
             {insights.chores.length > 0 ? (
-              <div className="stack-list" style={{ marginTop: "12px" }}>
+              <div className="stack-list mt-3">
                 {insights.chores.map((c) => (
                   <div className="stack-card" key={c.choreId}>
                     <div className="stack-card-header">
-                      <div style={{ flex: 1 }}>
+                      <div className="flex-1">
                         <strong>{c.title}</strong>
-                        <div className="muted" style={{ fontSize: "0.8rem" }}>
+                        <div className="muted text-[0.8rem]">
                           {c.completionsThisWeek} this week &middot; {c.completionsThisMonth} this month
                           {c.lastCompletedByDisplayName
                             ? ` · last: ${c.lastCompletedByDisplayName}`
@@ -76,7 +76,7 @@ export function AdminChoreInsightsPanel() {
                 ))}
               </div>
             ) : (
-              <p className="muted" style={{ marginTop: "8px" }}>No active chores.</p>
+              <p className="muted mt-2">No active chores.</p>
             )}
           </>
         ) : (

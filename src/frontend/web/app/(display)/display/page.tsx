@@ -6,7 +6,7 @@ export default function DisplayIndexPage() {
       <section className="hero">
         <div className="eyebrow">Display Surface</div>
         <h1>Token-required display access</h1>
-        <p className="lede" style={{ color: "rgba(247, 239, 224, 0.72)" }}>
+        <p className="lede text-[rgba(247,239,224,0.72)]">
           Display routes stay separate from normal user sessions. Provision a
           display device from the admin surface to obtain a usable display path.
         </p>

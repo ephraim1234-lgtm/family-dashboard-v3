@@ -78,7 +78,7 @@ export function TvCookingDisplay({ sessionId }: { sessionId: string }) {
         <h1 className="food-tv-title" data-testid="food-tv-title">{data.title}</h1>
 
         {data.recipeTitles.length > 1 ? (
-          <div className="pill-row" style={{ marginBottom: "20px" }}>
+          <div className="pill-row mb-5">
             {data.recipeTitles.map((title) => (
               <span className="pill" key={title}>{title}</span>
             ))}

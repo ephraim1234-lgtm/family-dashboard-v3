@@ -65,19 +65,19 @@ export function ActivityFeedPanel() {
         {items.length === 0 ? (
           <p className="muted">No recent activity.</p>
         ) : (
-          <div className="stack-list" style={{ marginTop: "12px" }}>
+          <div className="stack-list mt-3">
             {items.map((item, i) => (
               <div className="stack-card" key={`${item.kind}-${item.occurredAtUtc}-${i}`}>
                 <div className="stack-card-header">
-                  <div style={{ flex: 1 }}>
+                  <div className="flex-1">
                     <strong>{item.title}</strong>
                     {item.detail ? <div className="muted">{item.detail}</div> : null}
-                    <div className="muted" style={{ fontSize: "0.8rem" }}>
+                    <div className="muted text-[0.8rem]">
                       {item.kind === "ChoreCompletion" ? "Completed" : "Note added"} by{" "}
                       {item.actorDisplayName}
                     </div>
                   </div>
-                  <span className="pill" style={{ fontSize: "0.75rem", whiteSpace: "nowrap" }}>
+                  <span className="pill whitespace-nowrap text-[0.75rem]">
                     {formatRelativeTime(item.occurredAtUtc)}
                   </span>
                 </div>

@@ -14,7 +14,7 @@ export function ShoppingTripDetail({ trip, loading, onClose }: ShoppingTripDetai
   }
 
   return (
-    <div className="stack-card" style={{ marginTop: "14px" }}>
+    <div className="stack-card mt-3.5">
       <div className="stack-card-header">
         <div>
           <strong>{trip?.name ?? "Trip detail"}</strong>
@@ -25,7 +25,7 @@ export function ShoppingTripDetail({ trip, loading, onClose }: ShoppingTripDetai
         </button>
       </div>
       {trip ? (
-        <div className="stack-list" style={{ marginTop: "12px" }}>
+        <div className="stack-list mt-3">
           {trip.items.map((item) => (
             <div className="stack-card" key={item.id}>
               <div className="stack-card-header">

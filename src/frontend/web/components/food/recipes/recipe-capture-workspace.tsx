@@ -25,7 +25,7 @@ export function RecipeCaptureWorkspace() {
     <article className="panel" data-testid="food-recipe-capture-panel">
       <div className="eyebrow">Recipe capture</div>
       <h2>Bring in a recipe by link or create one from scratch</h2>
-      <div className="field" style={{ marginTop: "12px" }}>
+      <div className="field mt-3">
         <span>Recipe URL</span>
         <input
           aria-label="Recipe URL"
@@ -62,14 +62,14 @@ export function RecipeCaptureWorkspace() {
       </div>
 
       {importReview ? (
-        <div className="stack-card" style={{ marginTop: "16px" }} data-testid="food-import-review">
+        <div className="stack-card mt-4" data-testid="food-import-review">
           <div className="pill-row">
             <span className="pill">Status {importReview.status}</span>
             <span className="pill">Confidence {(importReview.parserConfidence * 100).toFixed(0)}%</span>
             {importReview.sourceSiteName ? <span className="pill">{importReview.sourceSiteName}</span> : null}
           </div>
           {importReview.warnings.length > 0 ? (
-            <div className="stack-list" style={{ marginTop: "10px" }}>
+            <div className="stack-list mt-2.5">
               {importReview.warnings.map((warning: string) => (
                 <div className="stack-card home-attention-card" key={warning}>
                   <span>{warning}</span>
@@ -81,7 +81,7 @@ export function RecipeCaptureWorkspace() {
       ) : null}
 
       {recipeDraft ? (
-        <div className="stack-list" style={{ marginTop: "16px" }}>
+        <div className="stack-list mt-4">
           <div className="stack-card" data-testid="food-recipe-draft">
             <div className="stack-card-header">
               <strong>
@@ -157,7 +157,7 @@ export function RecipeCaptureWorkspace() {
                 + Ingredient
               </button>
             </div>
-            <div className="stack-list" style={{ marginTop: "10px" }}>
+            <div className="stack-list mt-2.5">
               {recipeDraft.ingredients.map((ingredient: any, index: number) => (
                 <div className="stack-card" data-testid={`food-recipe-ingredient-${index}`} key={`draft-ingredient-${index}`}>
                   <div className="grid">
@@ -229,7 +229,7 @@ export function RecipeCaptureWorkspace() {
                 + Step
               </button>
             </div>
-            <div className="stack-list" style={{ marginTop: "10px" }}>
+            <div className="stack-list mt-2.5">
               {recipeDraft.steps.map((step: any, index: number) => (
                 <div className="stack-card" data-testid={`food-recipe-step-${index}`} key={`draft-step-${index}`}>
                   <div className="field">

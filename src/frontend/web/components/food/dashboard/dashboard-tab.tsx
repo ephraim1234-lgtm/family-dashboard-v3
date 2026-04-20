@@ -14,7 +14,7 @@ export function DashboardTab() {
           <p className="muted">
             Pantry, recipes, shopping, meal planning, and cooking stay connected here.
           </p>
-          <div className="summary-grid" style={{ marginTop: "16px" }}>
+          <div className="summary-grid mt-4">
             <div className="stack-card">
               <div className="eyebrow">Recipes</div>
               <div className="summary-stat">{data.summary.recipeCount}</div>
@@ -37,11 +37,11 @@ export function DashboardTab() {
         <article className="panel">
           <div className="eyebrow">Tonight</div>
           <h2>{data.tonightCookView?.title ?? "No dinner planned yet"}</h2>
-          <p className="muted" style={{ marginTop: "8px" }}>
+          <p className="muted mt-2">
             {data.tonightCookView?.reason ?? "Plan a meal, generate shopping gaps, and jump straight into cooking mode."}
           </p>
           {data.tonightCookView?.plannedRecipeTitles?.length ? (
-            <div className="pill-row" style={{ marginTop: "12px" }}>
+            <div className="pill-row mt-3">
               {data.tonightCookView.plannedRecipeTitles.map((title: string) => (
                 <span className="pill" key={title}>
                   {title}
@@ -50,7 +50,7 @@ export function DashboardTab() {
             </div>
           ) : null}
           {data.tonightCookView?.missingIngredients.length ? (
-            <div className="stack-list" style={{ marginTop: "12px" }}>
+            <div className="stack-list mt-3">
               {data.tonightCookView.missingIngredients.map((item: string) => (
                 <div className="stack-card" key={item}>
                   <strong>{item}</strong>
