@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useFoodHubContext } from "../food-hub-context";
-import { ModuleTabs } from "../shared/module-tabs";
+import { SubTabs } from "@/components/ui";
 
 export function MealPlanningWorkspace() {
   const {
@@ -39,13 +39,14 @@ export function MealPlanningWorkspace() {
         <article className="panel">
           <div className="eyebrow">Meal planning</div>
           <h2>Plan meals, then review coverage separately</h2>
-          <ModuleTabs
+          <SubTabs
             tabs={[
               { id: "composer", label: "Plan meal" },
               { id: "upcoming", label: "Upcoming meals" }
             ]}
             activeTab={planningTab}
             onChange={setPlanningTab}
+            ariaLabel="Meal planning tabs"
           />
         </article>
       </section>

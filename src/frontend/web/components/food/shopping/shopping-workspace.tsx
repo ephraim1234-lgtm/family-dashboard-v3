@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ClaimControl } from "./claim-control";
 import { ShoppingTripDetail } from "./shopping-trip-detail";
 import { useFoodHubContext } from "../food-hub-context";
-import { ModuleTabs } from "../shared/module-tabs";
+import { SubTabs } from "@/components/ui";
 
 export function ShoppingWorkspace() {
   const {
@@ -58,7 +58,7 @@ export function ShoppingWorkspace() {
         <article className="panel">
           <div className="eyebrow">Shopping workspace</div>
           <h2>Separate shopping, review, and trip history</h2>
-          <ModuleTabs
+          <SubTabs
             tabs={[
               { id: "list", label: "Shop list" },
               { id: "review", label: "Needs review" },
@@ -66,6 +66,7 @@ export function ShoppingWorkspace() {
             ]}
             activeTab={shoppingWorkspaceTab}
             onChange={setShoppingWorkspaceTab}
+            ariaLabel="Shopping tabs"
           />
         </article>
       </section>
@@ -80,21 +81,21 @@ export function ShoppingWorkspace() {
             </div>
             <div className="action-row" style={{ marginTop: "12px" }}>
               <button
-                className={shoppingTab === "active" ? "food-tab-button food-tab-button-active" : "food-tab-button"}
+                className={shoppingTab === "active" ? "sub-tab-button sub-tab-button-active" : "sub-tab-button"}
                 type="button"
                 onClick={() => setShoppingTab("active")}
               >
                 Active
               </button>
               <button
-                className={shoppingGroupMode === "flat" ? "food-tab-button food-tab-button-active" : "food-tab-button"}
+                className={shoppingGroupMode === "flat" ? "sub-tab-button sub-tab-button-active" : "sub-tab-button"}
                 type="button"
                 onClick={() => setShoppingGroupMode("flat")}
               >
                 Flat
               </button>
               <button
-                className={shoppingGroupMode === "aisle" ? "food-tab-button food-tab-button-active" : "food-tab-button"}
+                className={shoppingGroupMode === "aisle" ? "sub-tab-button sub-tab-button-active" : "sub-tab-button"}
                 type="button"
                 onClick={() => setShoppingGroupMode("aisle")}
               >

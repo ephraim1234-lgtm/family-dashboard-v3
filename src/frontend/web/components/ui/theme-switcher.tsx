@@ -1,0 +1,30 @@
+"use client";
+
+import { useId } from "react";
+import { useTheme } from "./use-theme";
+
+export function ThemeSwitcher() {
+  const { theme, setTheme, themes } = useTheme();
+  const selectId = useId();
+
+  return (
+    <div className="theme-switcher">
+      <label className="sr-only" htmlFor={selectId}>
+        Choose theme
+      </label>
+      <select
+        id={selectId}
+        aria-label="Choose theme"
+        className="theme-switcher-select"
+        value={theme}
+        onChange={(event) => setTheme(event.target.value as (typeof themes)[number]["id"])}
+      >
+        {themes.map((option) => (
+          <option key={option.id} value={option.id}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}

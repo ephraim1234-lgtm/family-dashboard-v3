@@ -4,6 +4,7 @@ test("creates a manual recipe and finds it again after reload", async ({ page })
   const recipeTitle = uniqueName("Playwright Manual Recipe");
 
   await gotoFood(page);
+  await page.getByRole("tab", { name: "Recipes" }).click();
   await page.getByTestId("food-recipe-start-manual").click();
 
   await page.getByTestId("food-recipe-draft-title").fill(recipeTitle);
@@ -20,12 +21,14 @@ test("creates a manual recipe and finds it again after reload", async ({ page })
 
   await page.reload();
   await expect(page.getByTestId("food-hub")).toBeVisible();
+  await page.getByRole("tab", { name: "Recipes" }).click();
+  await page.getByRole("tab", { name: "Library" }).click();
   await page.getByTestId("food-recipe-library-search").fill(recipeTitle);
   const recipeCard = page.locator("[data-testid^='food-recipe-library-item-']").filter({
     hasText: recipeTitle
   });
   await expect(recipeCard).toHaveCount(1);
-  await recipeCard.getByRole("button", { name: "View" }).click();
+  await recipeCard.getByRole("button", { name: "Open recipe" }).click();
   await expect(page.getByTestId("food-recipe-detail")).toContainText(recipeTitle);
 });
 
@@ -33,6 +36,7 @@ test("adds a shopping item and toggles it complete", async ({ page }) => {
   const shoppingItem = uniqueName("Playwright Shopping Item");
 
   await gotoFood(page);
+  await page.getByRole("tab", { name: "Shopping" }).click();
 
   await page.getByTestId("food-shopping-add-item").fill(shoppingItem);
   await page.getByTestId("food-shopping-add-quantity").fill("3");
@@ -49,5 +53,6 @@ test("adds a shopping item and toggles it complete", async ({ page }) => {
   await expect(itemCard).toHaveCount(1);
 
   await itemCard.getByRole("checkbox").click();
+  await page.getByRole("tab", { name: "Pantry" }).click();
   await expect(page.getByTestId("food-pantry-panel")).toContainText(shoppingItem);
 });

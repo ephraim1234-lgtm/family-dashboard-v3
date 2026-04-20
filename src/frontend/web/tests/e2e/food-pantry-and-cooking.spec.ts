@@ -4,6 +4,7 @@ test("adds and updates a pantry item with visible history", async ({ page }) => 
   const pantryItem = uniqueName("Playwright Pantry");
 
   await gotoFood(page);
+  await page.getByRole("tab", { name: "Pantry" }).click();
 
   await page.getByTestId("food-pantry-add-item").fill(pantryItem);
   await page.getByTestId("food-pantry-add-quantity").fill("2");
@@ -16,7 +17,7 @@ test("adds and updates a pantry item with visible history", async ({ page }) => 
   const pantryCard = page.locator("[data-testid^='food-pantry-item-']").filter({
     hasText: pantryItem
   }).first();
-  await pantryCard.click();
+  await pantryCard.getByRole("button", { name: "Open item" }).click();
 
   await page.getByTestId("food-pantry-detail-status").selectOption("Low");
   await page.getByTestId("food-pantry-detail-quantity").fill("1");
@@ -42,6 +43,8 @@ test("plans a multi-recipe meal, starts cooking, and persists a checked ingredie
   const mealTitle = uniqueName("Playwright Meal");
 
   await gotoFood(page);
+  await page.getByRole("tab", { name: "Recipes" }).click();
+  await page.getByRole("tab", { name: "Library" }).click();
 
   await page.getByTestId("food-recipe-library-search").fill(recipeMain.title);
   await page.getByTestId(`food-recipe-library-view-${recipeMain.id}`).click();

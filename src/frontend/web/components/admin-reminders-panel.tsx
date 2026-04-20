@@ -180,7 +180,7 @@ export function AdminRemindersPanel() {
             Pending reminders stay split into overdue and upcoming review states.
             The worker checks every 60 s and marks them fired once their due time passes.
           </p>
-          <div className="summary-grid" style={{ marginTop: "16px" }}>
+          <div className="summary-grid mt-16">
             <div className="stack-card">
               <div className="eyebrow">Pending</div>
               <div className="summary-stat">{pending.length}</div>
@@ -220,7 +220,7 @@ export function AdminRemindersPanel() {
           {error ? <p className="error-text">{error}</p> : null}
           {overdue.length > 0 ? (
             <>
-              <div className="eyebrow" style={{ marginTop: "16px" }}>Overdue</div>
+              <div className="eyebrow mt-16">Overdue</div>
               <div className="stack-list">
                 {overdue.map((r) => (
                   <div className="stack-card reminder-overdue-card" key={r.id}>
@@ -272,12 +272,12 @@ export function AdminRemindersPanel() {
             </>
           ) : null}
           {upcoming.length === 0 ? (
-            <p className="muted" style={{ marginTop: overdue.length > 0 ? "16px" : undefined }}>
+            <p className={overdue.length > 0 ? "muted mt-16" : "muted"}>
               No upcoming pending reminders.
             </p>
           ) : (
             <>
-              <div className="eyebrow" style={{ marginTop: "16px" }}>Upcoming</div>
+              <div className="eyebrow mt-16">Upcoming</div>
               <div className="stack-list">
                 {upcoming.map((r) => (
                   <div className="stack-card" key={r.id}>

@@ -9,14 +9,17 @@
     "lint": "next lint",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
-    "test:e2e:food": "playwright test tests/e2e/food-*.spec.ts"
+    "test:e2e:food": "playwright test tests/e2e/food-smoke.spec.ts tests/e2e/food-import.mocked.spec.ts tests/e2e/food-pantry-and-cooking.spec.ts tests/e2e/food-recipe-and-shopping.spec.ts"
   },
   "dependencies": {
+    "@tailwindcss/postcss": "^4.2.2",
     "@tanstack/react-query": "^5.99.1",
     "@tanstack/react-query-devtools": "^5.99.1",
+    "daisyui": "^5.5.19",
     "next": "^15.0.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "tailwindcss": "^4.2.2"
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",

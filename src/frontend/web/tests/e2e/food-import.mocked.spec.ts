@@ -37,6 +37,7 @@ test("imports a mocked recipe review into the editable draft workflow", async ({
   });
 
   await gotoFood(page);
+  await page.getByRole("tab", { name: "Recipes" }).click();
   await page.getByTestId("food-import-url").fill("https://example.com/mock-import");
   await page.getByTestId("food-import-submit").click();
 
@@ -57,6 +58,7 @@ test("shows stable error feedback when mocked import fails", async ({ page }) =>
   });
 
   await gotoFood(page);
+  await page.getByRole("tab", { name: "Recipes" }).click();
   await page.getByTestId("food-import-url").fill("https://example.com/bad-import");
   await page.getByTestId("food-import-submit").click();
 

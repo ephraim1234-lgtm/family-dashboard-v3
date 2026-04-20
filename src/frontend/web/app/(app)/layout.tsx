@@ -1,5 +1,5 @@
-import Link from "next/link";
 import { AppProviders } from "./providers";
+import { AppShellNav } from "@/components/ui";
 
 export default function AppShellLayout({
   children
@@ -8,18 +8,9 @@ export default function AppShellLayout({
     <AppProviders>
       <div className="shell">
         <header className="shell-header">
-          <div className="page">
-            <div className="eyebrow">App Surface</div>
-            <h1>Household App</h1>
-            <p className="lede">
-              Member-facing scheduling and household context shell.
-            </p>
-            <nav className="shell-nav">
-              <Link href="/app">Overview</Link>
-              <Link href="/app/food">Food</Link>
-              <Link href="/admin">Admin</Link>
-              <Link href="/display">Display</Link>
-            </nav>
+          <div className="shell-header-inner">
+            <span className="shell-wordmark">HouseholdOps</span>
+            <AppShellNav />
           </div>
         </header>
         <main className="page shell-main">{children}</main>

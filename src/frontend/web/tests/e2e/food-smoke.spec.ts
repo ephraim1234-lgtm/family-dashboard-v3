@@ -3,11 +3,22 @@ import { test, expect, gotoFood, uniqueName } from "./fixtures";
 test("loads the food module with the main sections for an authenticated household", async ({ page }) => {
   await gotoFood(page);
 
+  await page.getByRole("tab", { name: "Recipes" }).click();
   await expect(page.getByTestId("food-recipe-capture-panel")).toBeVisible();
+
+  await page.getByRole("tab", { name: "Library" }).click();
   await expect(page.getByTestId("food-recipe-library")).toBeVisible();
+
+  await page.getByRole("tab", { name: "Planning" }).click();
   await expect(page.getByTestId("food-meal-planning")).toBeVisible();
+
+  await page.getByRole("tab", { name: "Pantry" }).click();
   await expect(page.getByTestId("food-pantry-panel")).toBeVisible();
+
+  await page.getByRole("tab", { name: "Shopping" }).click();
   await expect(page.getByTestId("food-shopping-panel")).toBeVisible();
+
+  await page.getByRole("tab", { name: "Cooking" }).click();
   await expect(page.getByTestId("food-cooking-panel")).toBeVisible();
 });
 

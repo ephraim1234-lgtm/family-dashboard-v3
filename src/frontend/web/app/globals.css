@@ -1,3 +1,8 @@
+@import "tailwindcss";
+@plugin "daisyui";
+@source "../components/**/*.tsx";
+@source "../app/**/*.tsx";
+
 :root {
   color-scheme: light;
   --bg: #f4efe5;
@@ -6,6 +11,15 @@
   --text: #2f2417;
   --muted: #70624f;
   --admin: #8b5cf6;
+  --radius-panel: 24px;
+  --radius-pill: 999px;
+  --radius-card: 18px;
+  --shadow-panel: 0 20px 50px rgba(68, 47, 20, 0.08);
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+  --color-primary: #0f766e;
+  --color-admin: #8b5cf6;
+  --color-danger: #b91c1c;
+  --color-warning: #dc7814;
 }
 
 * {
@@ -21,7 +35,7 @@ body {
     radial-gradient(circle at top, rgba(15, 118, 110, 0.16), transparent 28%),
     linear-gradient(180deg, #fcf7ef 0%, var(--bg) 100%);
   color: var(--text);
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: var(--font-sans);
 }
 
 body {
@@ -73,10 +87,10 @@ a {
 
 .panel {
   border: 1px solid var(--line);
-  border-radius: 24px;
+  border-radius: var(--radius-panel);
   background: var(--panel);
   padding: 22px;
-  box-shadow: 0 20px 50px rgba(68, 47, 20, 0.08);
+  box-shadow: var(--shadow-panel);
 }
 
 .pill-row {
@@ -86,7 +100,7 @@ a {
 }
 
 .pill {
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px solid var(--line);
   padding: 8px 12px;
   font-size: 0.95rem;
@@ -106,7 +120,7 @@ a {
 
 .pill-button {
   appearance: none;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px solid var(--line);
   padding: 8px 12px;
   background: rgba(255, 255, 255, 0.72);
@@ -116,28 +130,57 @@ a {
 }
 
 .pill-button-active {
-  background: #0f766e;
-  border-color: #0f766e;
+  background: var(--color-primary);
+  border-color: var(--color-primary);
   color: #fffdf8;
 }
 
 .shell-header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
   border-bottom: 1px solid var(--line);
-  background: rgba(255, 250, 242, 0.92);
+  background: rgba(255, 250, 242, 0.88);
+  backdrop-filter: blur(12px);
+}
+
+.shell-header-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.shell-wordmark {
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--text);
+  flex-shrink: 0;
 }
 
 .shell-nav {
   display: flex;
   gap: 14px;
   flex-wrap: wrap;
-  margin-top: 18px;
+  align-items: center;
+  flex: 1;
 }
 
-.shell-nav a {
+.shell-nav-link {
   padding: 10px 14px;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.72);
+  color: var(--text);
+}
+
+.shell-nav-link-active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fffdf8;
 }
 
 .shell-main {
@@ -161,6 +204,7 @@ a {
     linear-gradient(180deg, #20160d 0%, #100b07 100%);
   color: #f7efe0;
   font-size: 1.08rem;
+  font-family: var(--font-sans);
 }
 
 .display-shell .panel {
@@ -425,9 +469,9 @@ a {
 .action-button {
   appearance: none;
   border: none;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 11px 16px;
-  background: #0f766e;
+  background: var(--color-primary);
   color: #fffdf8;
   cursor: pointer;
   font: inherit;
@@ -442,18 +486,17 @@ a {
   background: #7c3aed;
 }
 
-.food-tab-row {
+.sub-tab-row {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  margin-top: 16px;
-  margin-bottom: 16px;
+  margin: 16px 0;
 }
 
-.food-tab-button {
+.sub-tab-button {
   appearance: none;
   border: 1px solid rgba(15, 118, 110, 0.16);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 9px 14px;
   background: rgba(255, 255, 255, 0.72);
   color: var(--text);
@@ -462,21 +505,26 @@ a {
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
 }
 
-.food-tab-button:hover {
+.sub-tab-button:hover {
   background: rgba(15, 118, 110, 0.08);
   border-color: rgba(15, 118, 110, 0.3);
 }
 
-.food-tab-button-active {
-  background: #0f766e;
-  border-color: #0f766e;
+.sub-tab-button-active {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
   color: #fffdf8;
+}
+
+.sub-tab-button:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
 }
 
 .food-secondary-button {
   appearance: none;
   border: 1px solid rgba(15, 118, 110, 0.22);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 11px 16px;
   background: rgba(15, 118, 110, 0.08);
   color: #0f5f58;
@@ -492,7 +540,7 @@ a {
 .food-delete-button {
   appearance: none;
   border: 1px solid rgba(185, 28, 28, 0.24);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 8px 12px;
   background: rgba(185, 28, 28, 0.08);
   color: #991b1b;
@@ -653,9 +701,14 @@ a {
   display: grid;
   gap: 10px;
   padding: 14px;
-  border-radius: 18px;
+  border-radius: var(--radius-card);
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.56);
+  transition: background 0.15s ease;
+}
+
+.stack-card:hover {
+  background: rgba(255, 255, 255, 0.72);
 }
 
 .stack-card-header {
@@ -835,21 +888,6 @@ a {
   color: #9a3412;
 }
 
-.admin-section-header {
-  border-left: 3px solid var(--admin);
-}
-
-.admin-section-nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.admin-section-nav .pill {
-  font-size: 0.85rem;
-  padding: 6px 12px;
-}
-
 .home-attention-label {
   color: #9a3412;
 }
@@ -866,6 +904,145 @@ a {
   border-color: rgba(15, 118, 110, 0.25);
   color: #0f766e;
   white-space: nowrap;
+}
+
+.theme-switcher {
+  margin-left: auto;
+}
+
+.theme-switcher-select,
+.form-input,
+select,
+textarea,
+input {
+  font: inherit;
+}
+
+.theme-switcher-select {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+  padding: 9px 14px;
+  background: rgba(255, 255, 255, 0.76);
+  color: var(--text);
+}
+
+.btn {
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  font: inherit;
+}
+
+.btn:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.btn-sm {
+  padding: 6px 10px;
+  font-size: 0.82rem;
+}
+
+.btn-md {
+  padding: 11px 16px;
+}
+
+.btn-primary {
+  background: var(--color-primary);
+  color: #fffdf8;
+}
+
+.btn-secondary {
+  background: #7c3aed;
+  color: #fffdf8;
+}
+
+.btn-ghost {
+  border-color: var(--line);
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--text);
+}
+
+.btn-danger {
+  background: var(--color-danger);
+  color: #fffdf8;
+}
+
+.btn-admin {
+  background: var(--color-admin);
+  color: #fffdf8;
+}
+
+.panel-admin {
+  border-left: 3px solid var(--color-admin);
+}
+
+.pill-admin {
+  border-color: rgba(139, 92, 246, 0.24);
+  background: rgba(139, 92, 246, 0.12);
+  color: #6d28d9;
+}
+
+.pill-warning {
+  border-color: rgba(220, 120, 20, 0.25);
+  background: rgba(220, 120, 20, 0.12);
+  color: #9a3412;
+}
+
+.pill-danger {
+  border-color: rgba(185, 28, 28, 0.25);
+  background: rgba(185, 28, 28, 0.12);
+  color: #991b1b;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.mt-8 { margin-top: 8px; }
+.mt-12 { margin-top: 12px; }
+.mt-14 { margin-top: 14px; }
+.mt-16 { margin-top: 16px; }
+.mt-24 { margin-top: 24px; }
+.flex-1 { flex: 1; }
+.flex-shrink-0 { flex-shrink: 0; }
+.text-sm { font-size: 0.82rem; }
+.text-xs { font-size: 0.75rem; }
+.opacity-60 { opacity: 0.6; }
+
+@keyframes tab-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tab-content-enter {
+  animation: tab-fade-in 0.18s ease;
+}
+
+*:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+*:focus:not(:focus-visible) {
+  outline: none;
 }
 
 .home-week-glance {
@@ -960,7 +1137,7 @@ a {
 }
 
 @media (max-width: 640px) {
-  .food-tab-row,
+  .sub-tab-row,
   .action-row {
     flex-direction: column;
     align-items: stretch;
@@ -972,6 +1149,26 @@ a {
 
   .food-card-actions > * {
     flex: 1 1 auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .shell-header-inner {
+    padding: 8px 12px;
+    gap: 10px;
+  }
+
+  .shell-wordmark {
+    display: none;
+  }
+
+  .sub-tab-row {
+    gap: 6px;
+  }
+
+  .sub-tab-button {
+    padding: 7px 10px;
+    font-size: 0.85rem;
   }
 }
 
@@ -994,5 +1191,11 @@ a {
 
   .food-tv-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 1200px) {
+  .page {
+    max-width: 1200px;
   }
 }

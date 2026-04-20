@@ -1,10 +1,10 @@
 "use client";
 
 import { useFoodHubContext } from "../food-hub-context";
-import { ModuleTabs } from "../shared/module-tabs";
 import { RecipeCaptureWorkspace } from "./recipe-capture-workspace";
 import { RecipeDetailPanel } from "./recipe-detail-panel";
 import { RecipeLibraryWorkspace } from "./recipe-library-workspace";
+import { SubTabs } from "@/components/ui";
 
 export function RecipesWorkspace() {
   const { recipeWorkspaceTab, setRecipeWorkspaceTab } = useFoodHubContext();
@@ -15,7 +15,7 @@ export function RecipesWorkspace() {
         <article className="panel">
           <div className="eyebrow">Recipe workspace</div>
           <h2>Capture, browse, and maintain household recipes</h2>
-          <ModuleTabs
+          <SubTabs
             tabs={[
               { id: "capture", label: "Capture" },
               { id: "library", label: "Library" },
@@ -23,6 +23,7 @@ export function RecipesWorkspace() {
             ]}
             activeTab={recipeWorkspaceTab}
             onChange={setRecipeWorkspaceTab}
+            ariaLabel="Recipe tabs"
           />
         </article>
       </section>

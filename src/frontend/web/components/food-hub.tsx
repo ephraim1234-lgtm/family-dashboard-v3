@@ -14,8 +14,8 @@ import { useShoppingListDetail } from "./food/hooks/use-shopping-list-detail";
 import { MealPlanningWorkspace } from "./food/meal-plan/meal-planning-workspace";
 import { PantryWorkspace } from "./food/pantry/pantry-workspace";
 import { RecipesWorkspace } from "./food/recipes/recipes-workspace";
-import { ModuleTabs } from "./food/shared/module-tabs";
 import { ShoppingWorkspace } from "./food/shopping/shopping-workspace";
+import { SubTabs } from "@/components/ui";
 
 type FoodSummary = {
   recipeCount: number;
@@ -260,6 +260,15 @@ type ShoppingGroupMode = "flat" | "aisle";
 type FoodModuleTab = "dashboard" | "recipes" | "planning" | "pantry" | "shopping" | "cooking";
 
 type RecipeWorkspaceTab = "capture" | "library" | "detail";
+
+const FOOD_TABS = [
+  { id: "dashboard", label: "Dashboard" },
+  { id: "recipes", label: "Recipes" },
+  { id: "planning", label: "Planning" },
+  { id: "pantry", label: "Pantry" },
+  { id: "shopping", label: "Shopping" },
+  { id: "cooking", label: "Cooking" }
+] as const;
 
 function formatDate(date: string) {
   const d = new Date(`${date}T00:00:00`);
@@ -1122,9 +1131,9 @@ export function FoodHub() {
 
   return (
     <FoodHubProvider value={foodHubContextValue}>
-      <>
+      <div data-testid="food-hub">
       {error ? (
-        <section className="grid">
+        <section className="grid" aria-live="polite">
           <article className="panel">
             <p className="error-text" role="alert" data-testid="food-alert-error">
               {error}
@@ -1134,7 +1143,7 @@ export function FoodHub() {
       ) : null}
 
       {success ? (
-        <section className="grid">
+        <section className="grid" aria-live="polite">
           <article className="panel">
             <p className="success-text" role="status" data-testid="food-alert-success">
               {success}
@@ -1145,43 +1154,36 @@ export function FoodHub() {
 
       <section className="grid">
         <article className="panel">
-          <div className="eyebrow">Food surface</div>
-          <h2>Food is now its own workspace</h2>
-          <p className="muted">Jump between focused tabs instead of scrolling one giant page.</p>
-          <ModuleTabs
-            tabs={[
-              { id: "dashboard", label: "Dashboard" },
-              { id: "recipes", label: "Recipes" },
-              { id: "planning", label: "Planning" },
-              { id: "pantry", label: "Pantry" },
-              { id: "shopping", label: "Shopping" },
-              { id: "cooking", label: "Cooking" }
-            ]}
+          <SubTabs
+            tabs={[...FOOD_TABS]}
             activeTab={activeModuleTab}
             onChange={setActiveModuleTab}
+            ariaLabel="Food tabs"
           />
         </article>
       </section>
 
-      {activeModuleTab === "dashboard" ? <DashboardTab /> : null}
+      <div className="tab-content-enter">
+        {activeModuleTab === "dashboard" ? <DashboardTab /> : null}
 
-      <div className="section-spacer" />
+        <div className="section-spacer" />
 
-      {activeModuleTab === "recipes" ? <RecipesWorkspace /> : null}
+        {activeModuleTab === "recipes" ? <RecipesWorkspace /> : null}
 
-      <div className="section-spacer" />
+        <div className="section-spacer" />
 
-      {activeModuleTab === "planning" ? <MealPlanningWorkspace /> : null}
+        {activeModuleTab === "planning" ? <MealPlanningWorkspace /> : null}
 
-      <div className="section-spacer" />
+        <div className="section-spacer" />
 
-      {activeModuleTab === "pantry" ? <PantryWorkspace /> : null}
+        {activeModuleTab === "pantry" ? <PantryWorkspace /> : null}
 
-      {activeModuleTab === "shopping" ? <ShoppingWorkspace /> : null}
+        {activeModuleTab === "shopping" ? <ShoppingWorkspace /> : null}
 
-      {activeModuleTab === "cooking" ? <CookingTab /> : null}
+        {activeModuleTab === "cooking" ? <CookingTab /> : null}
+      </div>
 
-    </>
+    </div>
     </FoodHubProvider>
   );
 }

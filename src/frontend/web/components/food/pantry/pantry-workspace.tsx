@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useFoodHubContext } from "../food-hub-context";
-import { ModuleTabs } from "../shared/module-tabs";
+import { SubTabs } from "@/components/ui";
 
 export function PantryWorkspace() {
   const {
@@ -58,7 +58,7 @@ export function PantryWorkspace() {
         <article className="panel">
           <div className="eyebrow">Pantry workspace</div>
           <h2>Track inventory without mixing browsing and editing together</h2>
-          <ModuleTabs
+          <SubTabs
             tabs={[
               { id: "inventory", label: "Inventory" },
               { id: "low", label: "Low stock" },
@@ -66,6 +66,7 @@ export function PantryWorkspace() {
             ]}
             activeTab={pantryTab}
             onChange={setPantryTab}
+            ariaLabel="Pantry tabs"
           />
         </article>
       </section>

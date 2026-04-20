@@ -1,3 +1,7 @@
+"use client";
+
+import { useState } from "react";
+import { SubTabs } from "@/components/ui";
 import { AdminAccessPanel } from "../../../components/admin-access-panel";
 import { AdminChoreInsightsPanel } from "../../../components/admin-chore-insights-panel";
 import { AdminCalendarIntegrationsPanel } from "../../../components/admin-calendar-integrations-panel";
@@ -10,115 +14,78 @@ import { AdminRemindersPanel } from "../../../components/admin-reminders-panel";
 import { AdminSchedulingWorkspace } from "../../../components/admin-scheduling-workspace";
 import { AdminStatsPanel } from "../../../components/admin-stats-panel";
 
+type AdminTab = "overview" | "household" | "chores" | "notes" | "scheduling" | "display";
+
+const ADMIN_TABS = [
+  { id: "overview", label: "Overview" },
+  { id: "household", label: "Household" },
+  { id: "chores", label: "Chores" },
+  { id: "notes", label: "Notes" },
+  { id: "scheduling", label: "Scheduling" },
+  { id: "display", label: "Display" }
+] as const;
+
 export default function AdminPage() {
+  const [tab, setTab] = useState<AdminTab>("overview");
+
   return (
     <>
-      {/* ── Overview & access ── */}
       <section className="grid">
         <article className="panel">
+          <div className="eyebrow">Admin</div>
           <h2>Administration</h2>
           <p className="muted">
             Owner-gated workflows over core household domains.
           </p>
-          <nav className="admin-section-nav" style={{ marginTop: "14px" }}>
-            <a href="#overview" className="pill pill-link">Overview</a>
-            <a href="#household" className="pill pill-link">Household</a>
-            <a href="#chores" className="pill pill-link">Chores</a>
-            <a href="#notes" className="pill pill-link">Notes</a>
-            <a href="#scheduling" className="pill pill-link">Scheduling</a>
-            <a href="#display" className="pill pill-link">Display</a>
-          </nav>
+          <SubTabs
+            tabs={[...ADMIN_TABS]}
+            activeTab={tab}
+            onChange={setTab}
+            ariaLabel="Admin tabs"
+          />
         </article>
       </section>
 
       <div className="section-spacer" />
-      <div id="overview" />
-      <AdminStatsPanel />
+      <div className="tab-content-enter" data-testid="admin-workspace">
+        {tab === "overview" ? (
+          <>
+            <AdminStatsPanel />
+            <div className="section-spacer" />
+            <AdminAccessPanel />
+          </>
+        ) : null}
 
-      <div className="section-spacer" />
-      <AdminAccessPanel />
+        {tab === "household" ? (
+          <>
+            <AdminHouseholdSettingsPanel />
+            <div className="section-spacer" />
+            <AdminMembersPanel />
+          </>
+        ) : null}
 
-      {/* ── Household ── */}
-      <div className="section-spacer" />
-      <div id="household" />
-      <section className="grid">
-        <article className="panel admin-section-header">
-          <div className="eyebrow">Admin</div>
-          <h2>Household</h2>
-          <p className="muted">Settings and members</p>
-        </article>
-      </section>
+        {tab === "chores" ? (
+          <>
+            <AdminChoresPanel />
+            <div className="section-spacer" />
+            <AdminChoreInsightsPanel />
+          </>
+        ) : null}
 
-      <div className="section-spacer" />
-      <AdminHouseholdSettingsPanel />
+        {tab === "notes" ? <AdminNotesPanel /> : null}
 
-      <div className="section-spacer" />
-      <AdminMembersPanel />
+        {tab === "scheduling" ? (
+          <>
+            <AdminCalendarIntegrationsPanel />
+            <div className="section-spacer" />
+            <AdminSchedulingWorkspace />
+            <div className="section-spacer" />
+            <AdminRemindersPanel />
+          </>
+        ) : null}
 
-      {/* ── Chores & Routines ── */}
-      <div className="section-spacer" />
-      <div id="chores" />
-      <section className="grid">
-        <article className="panel admin-section-header">
-          <div className="eyebrow">Admin</div>
-          <h2>Chores &amp; routines</h2>
-          <p className="muted">Manage chores, view completion insights</p>
-        </article>
-      </section>
-
-      <div className="section-spacer" />
-      <AdminChoresPanel />
-
-      <div className="section-spacer" />
-      <AdminChoreInsightsPanel />
-
-      {/* ── Notes ── */}
-      <div className="section-spacer" />
-      <div id="notes" />
-      <section className="grid">
-        <article className="panel admin-section-header">
-          <div className="eyebrow">Admin</div>
-          <h2>Notes</h2>
-          <p className="muted">Pin, edit, and manage household notes</p>
-        </article>
-      </section>
-
-      <div className="section-spacer" />
-      <AdminNotesPanel />
-
-      {/* ── Scheduling ── */}
-      <div className="section-spacer" />
-      <div id="scheduling" />
-      <section className="grid">
-        <article className="panel admin-section-header">
-          <div className="eyebrow">Admin</div>
-          <h2>Scheduling</h2>
-          <p className="muted">Calendar integrations, events, and reminders</p>
-        </article>
-      </section>
-
-      <div className="section-spacer" />
-      <AdminCalendarIntegrationsPanel />
-
-      <div className="section-spacer" />
-      <AdminSchedulingWorkspace />
-
-      <div className="section-spacer" />
-      <AdminRemindersPanel />
-
-      {/* ── Display ── */}
-      <div className="section-spacer" />
-      <div id="display" />
-      <section className="grid">
-        <article className="panel admin-section-header">
-          <div className="eyebrow">Admin</div>
-          <h2>Display</h2>
-          <p className="muted">Kiosk device management and projection settings</p>
-        </article>
-      </section>
-
-      <div className="section-spacer" />
-      <AdminDisplayManagementPanel />
+        {tab === "display" ? <AdminDisplayManagementPanel /> : null}
+      </div>
     </>
   );
 }
