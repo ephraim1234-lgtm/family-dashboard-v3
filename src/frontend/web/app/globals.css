@@ -3,26 +3,27 @@
 @source "../components/**/*.tsx";
 @source "../app/**/*.tsx";
 
+/* Base / theme bridge */
+
 :root {
-  color-scheme: light;
-  --bg: #f4efe5;
-  --panel: rgba(255, 252, 246, 0.88);
-  --line: rgba(69, 49, 24, 0.12);
-  --text: #2f2417;
-  --muted: #70624f;
-  --admin: #8b5cf6;
+  --font-sans: var(--font-inter), system-ui, sans-serif;
   --radius-panel: 24px;
   --radius-pill: 999px;
   --radius-card: 18px;
-  --shadow-panel: 0 20px 50px rgba(68, 47, 20, 0.08);
-  --font-sans: var(--font-inter), system-ui, sans-serif;
-  --color-primary: #0f766e;
-  --color-admin: #8b5cf6;
-  --color-danger: #b91c1c;
-  --color-warning: #dc7814;
+  --bg: color-mix(in oklab, var(--color-base-200) 72%, var(--color-base-100));
+  --panel: color-mix(in oklab, var(--color-base-100) 92%, transparent);
+  --line: color-mix(in oklab, var(--color-base-content) 12%, transparent);
+  --text: var(--color-base-content);
+  --muted: color-mix(in oklab, var(--color-base-content) 68%, transparent);
+  --admin: var(--color-secondary);
+  --color-admin: var(--color-secondary);
+  --color-danger: var(--color-error);
+  --shadow-panel: 0 20px 50px color-mix(in oklab, var(--color-base-content) 10%, transparent);
 }
 
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
@@ -31,20 +32,27 @@ body {
   margin: 0;
   padding: 0;
   min-height: 100%;
-  background:
-    radial-gradient(circle at top, rgba(15, 118, 110, 0.16), transparent 28%),
-    linear-gradient(180deg, #fcf7ef 0%, var(--bg) 100%);
   color: var(--text);
   font-family: var(--font-sans);
 }
 
 body {
   min-height: 100vh;
+  background:
+    radial-gradient(circle at top, color-mix(in oklab, var(--color-primary) 14%, transparent), transparent 28%),
+    linear-gradient(180deg, color-mix(in oklab, var(--color-base-100) 94%, transparent) 0%, var(--bg) 100%);
 }
 
 a {
   color: inherit;
   text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
 }
 
 .page {
@@ -64,8 +72,7 @@ a {
   color: var(--muted);
 }
 
-.hero h1,
-.shell-header h1 {
+.hero h1 {
   margin: 10px 0 12px;
   font-size: clamp(2.4rem, 6vw, 4.8rem);
   line-height: 0.95;
@@ -135,61 +142,11 @@ a {
   color: #fffdf8;
 }
 
-.shell-header {
-  position: sticky;
-  top: 0;
-  z-index: 50;
-  border-bottom: 1px solid var(--line);
-  background: rgba(255, 250, 242, 0.88);
-  backdrop-filter: blur(12px);
-}
-
-.shell-header-inner {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 12px 20px;
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  flex-wrap: wrap;
-}
-
-.shell-wordmark {
-  font-weight: 600;
-  font-size: 1rem;
-  color: var(--text);
-  flex-shrink: 0;
-}
-
-.shell-nav {
-  display: flex;
-  gap: 14px;
-  flex-wrap: wrap;
-  align-items: center;
-  flex: 1;
-}
-
-.shell-nav-link {
-  padding: 10px 14px;
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.72);
-  color: var(--text);
-}
-
-.shell-nav-link-active {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-  color: #fffdf8;
-}
-
-.shell-main {
-  padding-top: 24px;
-}
-
 .section-spacer {
   height: 18px;
 }
+
+/* Display-only fixed styles */
 
 .display-page {
   max-width: 1440px;
@@ -455,6 +412,8 @@ a {
   opacity: 0.7;
 }
 
+/* Temporary legacy compatibility continues below for still-unmigrated panel surfaces */
+
 .muted {
   color: var(--muted);
 }
@@ -483,51 +442,17 @@ a {
 }
 
 .action-button-secondary {
-  background: #7c3aed;
-}
-
-.sub-tab-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin: 16px 0;
-}
-
-.sub-tab-button {
-  appearance: none;
-  border: 1px solid rgba(15, 118, 110, 0.16);
-  border-radius: var(--radius-pill);
-  padding: 9px 14px;
-  background: rgba(255, 255, 255, 0.72);
-  color: var(--text);
-  cursor: pointer;
-  font: inherit;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-}
-
-.sub-tab-button:hover {
-  background: rgba(15, 118, 110, 0.08);
-  border-color: rgba(15, 118, 110, 0.3);
-}
-
-.sub-tab-button-active {
-  background: var(--color-primary);
-  border-color: var(--color-primary);
-  color: #fffdf8;
-}
-
-.sub-tab-button:focus-visible {
-  outline: 2px solid var(--color-primary);
-  outline-offset: 2px;
+  background: var(--color-secondary);
+  color: var(--color-secondary-content);
 }
 
 .food-secondary-button {
   appearance: none;
-  border: 1px solid rgba(15, 118, 110, 0.22);
+  border: 1px solid color-mix(in oklab, var(--color-primary) 22%, transparent);
   border-radius: var(--radius-pill);
   padding: 11px 16px;
-  background: rgba(15, 118, 110, 0.08);
-  color: #0f5f58;
+  background: color-mix(in oklab, var(--color-primary) 8%, transparent);
+  color: var(--color-primary);
   cursor: pointer;
   font: inherit;
 }
@@ -539,11 +464,11 @@ a {
 
 .food-delete-button {
   appearance: none;
-  border: 1px solid rgba(185, 28, 28, 0.24);
+  border: 1px solid color-mix(in oklab, var(--color-danger) 24%, transparent);
   border-radius: var(--radius-pill);
   padding: 8px 12px;
-  background: rgba(185, 28, 28, 0.08);
-  color: #991b1b;
+  background: color-mix(in oklab, var(--color-danger) 8%, transparent);
+  color: var(--color-danger);
   cursor: pointer;
   font: inherit;
 }
@@ -594,27 +519,27 @@ a {
 
 .error-text {
   margin-top: 14px;
-  color: #9f1239;
+  color: var(--color-danger);
 }
 
 .success-text {
   margin-top: 14px;
-  color: #166534;
+  color: var(--color-success);
 }
 
 .action-button-danger {
   padding: 6px 14px;
-  border: 1px solid rgba(185, 28, 28, 0.4);
+  border: 1px solid color-mix(in oklab, var(--color-danger) 40%, transparent);
   border-radius: 8px;
-  background: rgba(185, 28, 28, 0.08);
-  color: #b91c1c;
+  background: color-mix(in oklab, var(--color-danger) 8%, transparent);
+  color: var(--color-danger);
   font-size: 0.85rem;
   cursor: pointer;
   transition: background 0.15s;
 }
 
 .action-button-danger:hover {
-  background: rgba(185, 28, 28, 0.16);
+  background: color-mix(in oklab, var(--color-danger) 16%, transparent);
 }
 
 .action-button-danger:disabled {
@@ -889,111 +814,45 @@ a {
 }
 
 .home-attention-label {
-  color: #9a3412;
+  color: var(--color-warning);
 }
 
 .home-attention-card {
-  border-color: rgba(194, 65, 12, 0.3);
-  background: rgba(255, 237, 213, 0.5);
+  border-color: color-mix(in oklab, var(--color-warning) 30%, transparent);
+  background: color-mix(in oklab, var(--color-warning) 12%, transparent);
 }
 
 .home-source-pill {
   font-size: 0.7rem;
   padding: 4px 10px;
-  background: rgba(15, 118, 110, 0.08);
-  border-color: rgba(15, 118, 110, 0.25);
-  color: #0f766e;
+  background: color-mix(in oklab, var(--color-primary) 8%, transparent);
+  border-color: color-mix(in oklab, var(--color-primary) 25%, transparent);
+  color: var(--color-primary);
   white-space: nowrap;
 }
 
-.theme-switcher {
-  margin-left: auto;
-}
-
-.theme-switcher-select,
-.form-input,
-select,
-textarea,
-input {
-  font: inherit;
-}
-
-.theme-switcher-select {
-  border: 1px solid var(--line);
-  border-radius: var(--radius-pill);
-  padding: 9px 14px;
-  background: rgba(255, 255, 255, 0.76);
-  color: var(--text);
-}
-
-.btn {
-  appearance: none;
-  border: 1px solid transparent;
-  border-radius: var(--radius-pill);
-  cursor: pointer;
-  font: inherit;
-}
-
-.btn:disabled {
-  opacity: 0.65;
-  cursor: wait;
-}
-
-.btn-sm {
-  padding: 6px 10px;
-  font-size: 0.82rem;
-}
-
-.btn-md {
-  padding: 11px 16px;
-}
-
-.btn-primary {
-  background: var(--color-primary);
-  color: #fffdf8;
-}
-
-.btn-secondary {
-  background: #7c3aed;
-  color: #fffdf8;
-}
-
-.btn-ghost {
-  border-color: var(--line);
-  background: rgba(255, 255, 255, 0.72);
-  color: var(--text);
-}
-
-.btn-danger {
-  background: var(--color-danger);
-  color: #fffdf8;
-}
-
-.btn-admin {
-  background: var(--color-admin);
-  color: #fffdf8;
-}
+/* Temporary legacy compatibility: remove as the remaining panel surfaces migrate */
 
 .panel-admin {
   border-left: 3px solid var(--color-admin);
 }
 
 .pill-admin {
-  border-color: rgba(139, 92, 246, 0.24);
-  background: rgba(139, 92, 246, 0.12);
-  color: #6d28d9;
+  border-color: color-mix(in oklab, var(--color-admin) 24%, transparent);
+  background: color-mix(in oklab, var(--color-admin) 12%, transparent);
+  color: var(--color-admin);
 }
 
 .pill-warning {
-  border-color: rgba(220, 120, 20, 0.25);
-  background: rgba(220, 120, 20, 0.12);
-  color: #9a3412;
+  border-color: color-mix(in oklab, var(--color-warning) 25%, transparent);
+  background: color-mix(in oklab, var(--color-warning) 12%, transparent);
+  color: var(--color-warning);
 }
 
 .pill-danger {
-  border-color: rgba(185, 28, 28, 0.25);
-  background: rgba(185, 28, 28, 0.12);
-  color: #991b1b;
+  border-color: color-mix(in oklab, var(--color-danger) 25%, transparent);
+  background: color-mix(in oklab, var(--color-danger) 12%, transparent);
+  color: var(--color-danger);
 }
 
 .sr-only {

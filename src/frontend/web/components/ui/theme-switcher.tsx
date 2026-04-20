@@ -8,14 +8,14 @@ export function ThemeSwitcher() {
   const selectId = useId();
 
   return (
-    <div className="theme-switcher">
+    <div className="space-y-2">
       <label className="sr-only" htmlFor={selectId}>
         Choose theme
       </label>
       <select
         id={selectId}
         aria-label="Choose theme"
-        className="theme-switcher-select"
+        className="select select-bordered w-full min-h-[48px] rounded-2xl border-base-300/70 bg-base-100"
         value={theme}
         onChange={(event) => setTheme(event.target.value as (typeof themes)[number]["id"])}
       >

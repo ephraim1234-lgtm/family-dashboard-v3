@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { SubTabs } from "@/components/ui";
+import { Suspense } from "react";
+import { Card, SubTabs, useWorkspaceQueryState } from "@/components/ui";
 import { AdminAccessPanel } from "../../../components/admin-access-panel";
 import { AdminChoreInsightsPanel } from "../../../components/admin-chore-insights-panel";
 import { AdminCalendarIntegrationsPanel } from "../../../components/admin-calendar-integrations-panel";
@@ -25,33 +25,34 @@ const ADMIN_TABS = [
   { id: "display", label: "Display" }
 ] as const;
 
-export default function AdminPage() {
-  const [tab, setTab] = useState<AdminTab>("overview");
+function AdminPageBody() {
+  const { workspace: tab, setWorkspace: setTab } = useWorkspaceQueryState(
+    ADMIN_TABS.map((item) => item.id),
+    "overview"
+  );
 
   return (
-    <>
-      <section className="grid">
-        <article className="panel">
+    <section className="space-y-6">
+      <Card className="space-y-5">
+        <div className="space-y-3">
           <div className="eyebrow">Admin</div>
-          <h2>Administration</h2>
-          <p className="muted">
+          <h2 className="text-3xl font-semibold tracking-tight">Administration</h2>
+          <p className="muted max-w-3xl">
             Owner-gated workflows over core household domains.
           </p>
-          <SubTabs
-            tabs={[...ADMIN_TABS]}
-            activeTab={tab}
-            onChange={setTab}
-            ariaLabel="Admin tabs"
-          />
-        </article>
-      </section>
+        </div>
+        <SubTabs
+          tabs={[...ADMIN_TABS]}
+          activeTab={tab}
+          onChange={setTab}
+          ariaLabel="Admin tabs"
+        />
+      </Card>
 
-      <div className="section-spacer" />
-      <div className="tab-content-enter" data-testid="admin-workspace">
+      <div className="tab-content-enter space-y-6" data-testid="admin-workspace">
         {tab === "overview" ? (
           <>
             <AdminStatsPanel />
-            <div className="section-spacer" />
             <AdminAccessPanel />
           </>
         ) : null}
@@ -59,7 +60,6 @@ export default function AdminPage() {
         {tab === "household" ? (
           <>
             <AdminHouseholdSettingsPanel />
-            <div className="section-spacer" />
             <AdminMembersPanel />
           </>
         ) : null}
@@ -67,7 +67,6 @@ export default function AdminPage() {
         {tab === "chores" ? (
           <>
             <AdminChoresPanel />
-            <div className="section-spacer" />
             <AdminChoreInsightsPanel />
           </>
         ) : null}
@@ -77,15 +76,21 @@ export default function AdminPage() {
         {tab === "scheduling" ? (
           <>
             <AdminCalendarIntegrationsPanel />
-            <div className="section-spacer" />
             <AdminSchedulingWorkspace />
-            <div className="section-spacer" />
             <AdminRemindersPanel />
           </>
         ) : null}
 
         {tab === "display" ? <AdminDisplayManagementPanel /> : null}
       </div>
-    </>
+    </section>
+  );
+}
+
+export default function AdminPage() {
+  return (
+    <Suspense fallback={<Card aria-busy="true">Loading admin workspace...</Card>}>
+      <AdminPageBody />
+    </Suspense>
   );
 }

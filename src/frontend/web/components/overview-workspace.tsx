@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense } from "react";
 import { AuthStatusPanel } from "./auth-status-panel";
 import { FoodSummaryPanel } from "./food-summary-panel";
 import { AgendaPanel } from "./overview-tabs/agenda-panel";
@@ -8,7 +8,7 @@ import { ChoresPanel } from "./overview-tabs/chores-panel";
 import { NotesPanel } from "./overview-tabs/notes-panel";
 import { OverviewProvider, useOverviewContext } from "./overview-tabs/overview-context";
 import { TodayPanel } from "./overview-tabs/today-panel";
-import { LoadingSpinner, SubTabs } from "@/components/ui";
+import { Card, LoadingSpinner, SubTabs, useWorkspaceQueryState } from "@/components/ui";
 
 type OverviewTab = "today" | "chores" | "notes" | "agenda";
 
@@ -20,7 +20,10 @@ const OVERVIEW_TABS = [
 ] as const;
 
 function OverviewWorkspaceBody() {
-  const [activeTab, setActiveTab] = useState<OverviewTab>("today");
+  const { workspace: activeTab, setWorkspace: setActiveTab } = useWorkspaceQueryState(
+    OVERVIEW_TABS.map((tab) => tab.id),
+    "today"
+  );
   const { data, isLoading, error, successMessage } = useOverviewContext();
 
   const content = (() => {
@@ -38,74 +41,67 @@ function OverviewWorkspaceBody() {
   })();
 
   return (
-    <>
+    <section className="space-y-6">
       {error ? (
-        <section className="grid" aria-live="polite">
-          <article className="panel">
-            <p className="error-text" role="alert">{error}</p>
-          </article>
-        </section>
+        <div className="alert alert-error shadow-sm" aria-live="polite" role="alert">
+          <span>{error}</span>
+        </div>
       ) : null}
 
       {successMessage ? (
-        <section className="grid" aria-live="polite">
-          <article className="panel">
-            <p className="success-text">{successMessage}</p>
-          </article>
-        </section>
+        <div className="alert alert-success shadow-sm" aria-live="polite">
+          <span>{successMessage}</span>
+        </div>
       ) : null}
 
-      <section className="grid" data-testid="overview-workspace">
-        <article className="panel">
+      <Card className="space-y-5" data-testid="overview-workspace">
+        <div className="space-y-3">
           <div className="eyebrow">Overview</div>
-          <h2>Household at a glance</h2>
-          <p className="muted">
+          <h2 className="text-3xl font-semibold tracking-tight">Household at a glance</h2>
+          <p className="muted max-w-3xl">
             Today, chores, notes, and agenda stay grouped in one member-facing workspace.
           </p>
-          <SubTabs
-            tabs={[...OVERVIEW_TABS]}
-            activeTab={activeTab}
-            onChange={setActiveTab}
-            ariaLabel="Overview tabs"
-          />
-        </article>
-      </section>
+        </div>
+        <SubTabs
+          tabs={[...OVERVIEW_TABS]}
+          activeTab={activeTab}
+          onChange={setActiveTab}
+          ariaLabel="Overview tabs"
+        />
+      </Card>
 
       {isLoading ? (
-        <>
-          <div className="section-spacer" />
-          <section className="grid" aria-busy="true">
-            <article className="panel">
-              <LoadingSpinner label="Loading overview workspace…" />
-            </article>
-          </section>
-        </>
+        <Card aria-busy="true">
+          <LoadingSpinner label="Loading overview workspace..." />
+        </Card>
       ) : data ? (
-        <div className="tab-content-enter">{content}</div>
+        <div className="tab-content-enter space-y-6">{content}</div>
       ) : (
-        <>
-          <div className="section-spacer" />
-          <section className="grid">
-            <article className="panel">
-              <p className="muted">Sign in to see your household home.</p>
-            </article>
-          </section>
-        </>
+        <Card>
+          <p className="muted">Sign in to see your household home.</p>
+        </Card>
       )}
 
-      <div className="section-spacer" />
-      <FoodSummaryPanel />
-
-      <div className="section-spacer" />
-      <AuthStatusPanel />
-    </>
+      <section className="space-y-4">
+        <FoodSummaryPanel />
+        <AuthStatusPanel />
+      </section>
+    </section>
   );
 }
 
 export function OverviewWorkspace() {
   return (
     <OverviewProvider>
-      <OverviewWorkspaceBody />
+      <Suspense
+        fallback={
+          <Card aria-busy="true">
+            <LoadingSpinner label="Loading overview workspace..." />
+          </Card>
+        }
+      >
+        <OverviewWorkspaceBody />
+      </Suspense>
     </OverviewProvider>
   );
 }

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
+import { Badge, Card } from "@/components/ui";
 
 type SummaryResponse = {
   summary: {
@@ -41,38 +42,41 @@ export function FoodSummaryPanel() {
   if (!loaded || !data) return null;
 
   return (
-    <section className="grid">
-      <article className="panel">
-        <div className="eyebrow">Food</div>
-        <h2>Pantry, planning, and cooking</h2>
-        <p className="muted mt-2">
+    <Card className="space-y-4">
+      <div className="eyebrow">Food</div>
+      <div className="space-y-2">
+        <h2 className="text-2xl font-semibold tracking-tight">Pantry, planning, and cooking</h2>
+        <p className="muted">
           {data.tonightCookView?.reason ?? "Your household food hub is ready for pantry, recipes, shopping, and cooking sessions."}
         </p>
-        <div className="pill-row mt-3">
-          <span className="pill">{data.summary.recipeCount} recipes</span>
-          <span className="pill">{data.summary.pantryItemCount} pantry items</span>
-          <span className="pill">{data.summary.shoppingItemCount} shopping items</span>
-          {data.summary.lowStockCount > 0 ? (
-            <span className="pill reminder-overdue-pill">{data.summary.lowStockCount} low stock</span>
-          ) : null}
-          {data.summary.activeCookingSessionCount > 0 ? (
-            <span className="pill">{data.summary.activeCookingSessionCount} active cooks</span>
-          ) : null}
-        </div>
-        {data.tonightCookView ? (
-          <p className="muted mt-3">
-            Tonight: <strong>{data.tonightCookView.title}</strong>
-            {data.tonightCookView.missingIngredientCount > 0
-              ? ` with ${data.tonightCookView.missingIngredientCount} missing ingredient${data.tonightCookView.missingIngredientCount === 1 ? "" : "s"}`
-              : " and pantry coverage looks strong"}
-          </p>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <Badge>{data.summary.recipeCount} recipes</Badge>
+        <Badge>{data.summary.pantryItemCount} pantry items</Badge>
+        <Badge>{data.summary.shoppingItemCount} shopping items</Badge>
+        {data.summary.lowStockCount > 0 ? (
+          <Badge variant="warning">{data.summary.lowStockCount} low stock</Badge>
         ) : null}
-        <div className="action-row">
-          <Link className="action-button" href="/app/food">
-            Open food hub
-          </Link>
-        </div>
-      </article>
-    </section>
+        {data.summary.activeCookingSessionCount > 0 ? (
+          <Badge>{data.summary.activeCookingSessionCount} active cooks</Badge>
+        ) : null}
+      </div>
+
+      {data.tonightCookView ? (
+        <p className="muted">
+          Tonight: <strong>{data.tonightCookView.title}</strong>
+          {data.tonightCookView.missingIngredientCount > 0
+            ? ` with ${data.tonightCookView.missingIngredientCount} missing ingredient${data.tonightCookView.missingIngredientCount === 1 ? "" : "s"}`
+            : " and pantry coverage looks strong"}
+        </p>
+      ) : null}
+
+      <div>
+        <Link className="btn btn-primary min-h-[48px] rounded-full px-5" href="/app/food">
+          Open food hub
+        </Link>
+      </div>
+    </Card>
   );
 }

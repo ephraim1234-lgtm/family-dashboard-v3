@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { Badge, Button, Card } from "@/components/ui";
 
 type SessionState = {
   isAuthenticated: boolean;
@@ -95,50 +96,38 @@ export function AuthStatusPanel() {
   }
 
   return (
-    <section className="grid">
-      <article className="panel">
+    <section className="grid gap-4 xl:grid-cols-[1.3fr_1fr_1fr]">
+      <Card className="space-y-4">
         <div className="eyebrow">Auth Status</div>
-        <h2>Development session</h2>
+        <h2 className="text-2xl font-semibold tracking-tight">Development session</h2>
         <p className="muted">
           This shell talks to the backend through narrow Next-side proxy routes
           so Dockerized local auth can stay same-origin.
         </p>
-        <div className="pill-row">
-          <span className="pill">
+        <div className="flex flex-wrap gap-2">
+          <Badge>
             {session.isAuthenticated ? "Authenticated" : "Anonymous"}
-          </span>
-          <span className="pill">
+          </Badge>
+          <Badge>
             Role: {session.activeHouseholdRole ?? "None"}
-          </span>
+          </Badge>
         </div>
-        <div className="action-row">
-          <button
-            className="action-button"
-            onClick={() => runAction("login")}
-            disabled={isPending}
-          >
+        <div className="flex flex-wrap gap-3">
+          <Button onClick={() => runAction("login")} disabled={isPending}>
             Dev Login
-          </button>
-          <button
-            className="action-button action-button-secondary"
-            onClick={() => runAction("logout")}
-            disabled={isPending}
-          >
+          </Button>
+          <Button variant="secondary" onClick={() => runAction("logout")} disabled={isPending}>
             Log Out
-          </button>
-          <button
-            className="action-button action-button-ghost"
-            onClick={() => refresh()}
-            disabled={isPending}
-          >
+          </Button>
+          <Button variant="ghost" onClick={() => refresh()} disabled={isPending}>
             Refresh Status
-          </button>
+          </Button>
         </div>
         {error ? <p className="error-text">{error}</p> : null}
-      </article>
+      </Card>
 
-      <article className="panel">
-        <h2>Current session</h2>
+      <Card>
+        <h2 className="text-xl font-semibold tracking-tight">Current session</h2>
         <dl className="data-list">
           <div>
             <dt>User</dt>
@@ -153,10 +142,10 @@ export function AuthStatusPanel() {
             <dd>{session.activeHouseholdRole ?? "None"}</dd>
           </div>
         </dl>
-      </article>
+      </Card>
 
-      <article className="panel">
-        <h2>Current household</h2>
+      <Card>
+        <h2 className="text-xl font-semibold tracking-tight">Current household</h2>
         <dl className="data-list">
           <div>
             <dt>Name</dt>
@@ -171,7 +160,7 @@ export function AuthStatusPanel() {
             <dd>{household?.activeRole ?? "Unavailable"}</dd>
           </div>
         </dl>
-      </article>
+      </Card>
     </section>
   );
 }
