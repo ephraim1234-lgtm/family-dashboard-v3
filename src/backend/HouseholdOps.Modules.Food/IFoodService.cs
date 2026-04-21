@@ -190,6 +190,12 @@ public interface IFoodService
         DateTimeOffset nowUtc,
         CancellationToken cancellationToken);
 
+    Task<bool> DeleteCookingSessionAsync(
+        Guid householdId,
+        Guid sessionId,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken);
+
     Task<RecipeDetailResponse?> PromoteCookingSessionToRecipeAsync(
         Guid householdId,
         Guid sessionId,

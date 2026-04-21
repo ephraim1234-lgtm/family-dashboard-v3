@@ -304,6 +304,177 @@ public class FoodServiceTests
     }
 
     [Fact]
+    public async Task DeleteCookingSessionAsync_Removes_Session_Data_And_Reverses_Pantry_Adjustments()
+    {
+        await using var dbContext = CreateDbContext();
+        var nowUtc = new DateTimeOffset(2026, 4, 18, 12, 0, 0, TimeSpan.Zero);
+        var ingredientId = Guid.NewGuid();
+        var pantryLocationId = Guid.NewGuid();
+
+        dbContext.FoodIngredients.Add(new FoodIngredient
+        {
+            Id = ingredientId,
+            HouseholdId = HouseholdId,
+            Name = "Garlic",
+            NormalizedName = "garlic",
+            DefaultUnit = "count",
+            CreatedAtUtc = nowUtc
+        });
+
+        dbContext.PantryLocations.Add(new PantryLocation
+        {
+            Id = pantryLocationId,
+            HouseholdId = HouseholdId,
+            Name = "Pantry",
+            SortOrder = 1,
+            CreatedAtUtc = nowUtc
+        });
+
+        var pantryItem = new PantryItem
+        {
+            Id = Guid.NewGuid(),
+            HouseholdId = HouseholdId,
+            IngredientId = ingredientId,
+            PantryLocationId = pantryLocationId,
+            IngredientName = "Garlic",
+            NormalizedIngredientName = "garlic",
+            Quantity = 5,
+            Unit = "count",
+            UpdatedAtUtc = nowUtc,
+            Status = "InStock"
+        };
+        dbContext.PantryItems.Add(pantryItem);
+        await dbContext.SaveChangesAsync();
+
+        var service = new FoodService(
+            dbContext,
+            new FakeHttpClientFactory(new HttpClient(new StubHttpHandler(string.Empty))));
+
+        var recipe = await service.SaveRecipeAsync(
+            HouseholdId,
+            UserId,
+            new SaveRecipeRequest(
+                ImportJobId: null,
+                Title: "Garlic Toast",
+                Summary: null,
+                YieldText: "2 servings",
+                Tags: null,
+                Notes: null,
+                Ingredients:
+                [
+                    new RecipeEditableIngredientRequest("Garlic", 2, "count", null, false)
+                ],
+                Steps:
+                [
+                    new RecipeEditableStepRequest(1, "Toast the bread.")
+                ]),
+            nowUtc,
+            CancellationToken.None);
+
+        var session = await service.StartCookingSessionAsync(
+            HouseholdId,
+            UserId,
+            new StartCookingSessionRequest(recipe.Id, null, PantryUpdateModes.Progressive),
+            nowUtc.AddMinutes(1),
+            CancellationToken.None);
+
+        var ingredient = Assert.Single(session.Recipes[0].Ingredients);
+        await service.UpdateCookingIngredientAsync(
+            HouseholdId,
+            session.Id,
+            ingredient.Id,
+            new UpdateCookingIngredientRequest(true, false, null, 2, "count", null),
+            nowUtc.AddMinutes(2),
+            CancellationToken.None);
+
+        var deleted = await service.DeleteCookingSessionAsync(
+            HouseholdId,
+            session.Id,
+            nowUtc.AddMinutes(3),
+            CancellationToken.None);
+
+        Assert.True(deleted);
+        Assert.False(await dbContext.CookingSessions.AnyAsync(item => item.Id == session.Id));
+        Assert.Empty(await dbContext.CookingSessionRecipes.Where(item => item.CookingSessionId == session.Id).ToListAsync());
+        Assert.Empty(await dbContext.CookingSessionIngredients.Where(item => item.CookingSessionId == session.Id).ToListAsync());
+        Assert.Empty(await dbContext.CookingSessionSteps.Where(item => item.CookingSessionId == session.Id).ToListAsync());
+        Assert.Empty(await dbContext.CookingSessionPantryAdjustments.ToListAsync());
+
+        var restoredPantryItem = await dbContext.PantryItems.SingleAsync(item => item.Id == pantryItem.Id);
+        Assert.Equal(5, restoredPantryItem.Quantity);
+        Assert.Empty(await dbContext.PantryItemActivities
+            .Where(item =>
+                item.PantryItemId == pantryItem.Id
+                && (item.Kind == PantryItemActivityKinds.CookingDeduction || item.Kind == PantryItemActivityKinds.CookingReversal))
+            .ToListAsync());
+    }
+
+    [Fact]
+    public async Task DeleteCookingSessionAsync_Returns_False_For_Missing_Or_CrossHousehold_Sessions()
+    {
+        await using var dbContext = CreateDbContext();
+        var nowUtc = new DateTimeOffset(2026, 4, 18, 12, 0, 0, TimeSpan.Zero);
+        var otherHouseholdId = Guid.Parse("cccccccc-cccc-cccc-cccc-cccccccccccc");
+        var otherUserId = Guid.Parse("dddddddd-dddd-dddd-dddd-dddddddddddd");
+
+        dbContext.Households.Add(new Household
+        {
+            Id = otherHouseholdId,
+            Name = "Other Household",
+            TimeZoneId = "UTC",
+            CreatedAtUtc = nowUtc.AddDays(-10)
+        });
+        await dbContext.SaveChangesAsync();
+
+        var service = new FoodService(
+            dbContext,
+            new FakeHttpClientFactory(new HttpClient(new StubHttpHandler(string.Empty))));
+
+        var otherRecipe = await service.SaveRecipeAsync(
+            otherHouseholdId,
+            otherUserId,
+            new SaveRecipeRequest(
+                ImportJobId: null,
+                Title: "Other Household Soup",
+                Summary: null,
+                YieldText: "4 servings",
+                Tags: null,
+                Notes: null,
+                Ingredients:
+                [
+                    new RecipeEditableIngredientRequest("Carrot", 1, "count", null, false)
+                ],
+                Steps:
+                [
+                    new RecipeEditableStepRequest(1, "Simmer the soup.")
+                ]),
+            nowUtc,
+            CancellationToken.None);
+
+        var otherSession = await service.StartCookingSessionAsync(
+            otherHouseholdId,
+            otherUserId,
+            new StartCookingSessionRequest(otherRecipe.Id, null, PantryUpdateModes.Progressive),
+            nowUtc.AddMinutes(1),
+            CancellationToken.None);
+
+        var missingDeleted = await service.DeleteCookingSessionAsync(
+            HouseholdId,
+            Guid.NewGuid(),
+            nowUtc.AddMinutes(2),
+            CancellationToken.None);
+        var crossHouseholdDeleted = await service.DeleteCookingSessionAsync(
+            HouseholdId,
+            otherSession.Id,
+            nowUtc.AddMinutes(2),
+            CancellationToken.None);
+
+        Assert.False(missingDeleted);
+        Assert.False(crossHouseholdDeleted);
+        Assert.True(await dbContext.CookingSessions.AnyAsync(item => item.Id == otherSession.Id));
+    }
+
+    [Fact]
     public async Task CreateMealPlanSlotAsync_GenerateShoppingList_Combines_Compatible_Ingredients_And_Separates_Uncertain_Units()
     {
         await using var dbContext = CreateDbContext();
@@ -379,8 +550,9 @@ public class FoodServiceTests
             .OrderBy(item => item.IngredientName)
             .ToListAsync();
 
-        var chicken = Assert.Single(shoppingItems.Where(item =>
-            item.NormalizedIngredientName == "chicken" && item.Unit == "lb"));
+        var chicken = Assert.Single(
+            shoppingItems,
+            item => item.NormalizedIngredientName == "chicken" && item.Unit == "lb");
         Assert.Equal(3, chicken.QuantityNeeded);
         Assert.Contains("Chicken Tacos", chicken.SourceRecipeTitle ?? string.Empty, StringComparison.Ordinal);
         Assert.Contains("Fresh Salsa", chicken.SourceRecipeTitle ?? string.Empty, StringComparison.Ordinal);

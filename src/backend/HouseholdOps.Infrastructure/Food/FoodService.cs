@@ -1582,6 +1582,38 @@ public sealed class FoodService(
         return await GetCookingSessionAsync(householdId, sessionId, cancellationToken);
     }
 
+    public async Task<bool> DeleteCookingSessionAsync(
+        Guid householdId,
+        Guid sessionId,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken)
+    {
+        var session = await dbContext.CookingSessions
+            .FirstOrDefaultAsync(item => item.HouseholdId == householdId && item.Id == sessionId, cancellationToken);
+        if (session is null)
+        {
+            return false;
+        }
+
+        var ingredients = await dbContext.CookingSessionIngredients
+            .Where(item => item.CookingSessionId == sessionId)
+            .ToListAsync(cancellationToken);
+
+        foreach (var ingredient in ingredients)
+        {
+            await ReverseExistingAdjustmentsAsync(
+                ingredient,
+                nowUtc,
+                cancellationToken,
+                recordActivity: false,
+                removeDeductionActivities: true);
+        }
+
+        dbContext.CookingSessions.Remove(session);
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
+    }
+
     public async Task<RecipeDetailResponse?> PromoteCookingSessionToRecipeAsync(
         Guid householdId,
         Guid sessionId,
@@ -2393,7 +2425,9 @@ public sealed class FoodService(
     private async Task ReverseExistingAdjustmentsAsync(
         CookingSessionIngredient ingredient,
         DateTimeOffset nowUtc,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool recordActivity = true,
+        bool removeDeductionActivities = false)
     {
         var adjustments = await dbContext.CookingSessionPantryAdjustments
             .Where(item => item.CookingSessionIngredientId == ingredient.Id)
@@ -2420,16 +2454,53 @@ public sealed class FoodService(
             pantryItem.Status = ComputePantryStatus(pantryItem.Quantity, pantryItem.LowThreshold);
             pantryItem.UpdatedAtUtc = nowUtc;
 
-            RecordPantryItemActivity(
-                pantryItem.HouseholdId,
-                pantryItem,
-                PantryItemActivityKinds.CookingReversal,
-                adjustment.QuantityDelta,
-                pantryItem.Quantity,
-                pantryItem.Unit,
-                null,
-                ingredient.IngredientName,
-                nowUtc);
+            if (recordActivity)
+            {
+                RecordPantryItemActivity(
+                    pantryItem.HouseholdId,
+                    pantryItem,
+                    PantryItemActivityKinds.CookingReversal,
+                    adjustment.QuantityDelta,
+                    pantryItem.Quantity,
+                    pantryItem.Unit,
+                    null,
+                    ingredient.IngredientName,
+                    nowUtc);
+            }
+        }
+
+        if (removeDeductionActivities)
+        {
+            var deductionActivities = await dbContext.PantryItemActivities
+                .Where(item =>
+                    pantryItemIds.Contains(item.PantryItemId)
+                    && item.Kind == PantryItemActivityKinds.CookingDeduction
+                    && item.SourceLabel == ingredient.IngredientName)
+                .ToListAsync(cancellationToken);
+
+            var adjustmentKeys = adjustments
+                .Select(item => new
+                {
+                    item.PantryItemId,
+                    item.AppliedAtUtc,
+                    QuantityDelta = -item.QuantityDelta
+                })
+                .ToHashSet();
+
+            var matchingActivities = deductionActivities
+                .Where(item => item.QuantityDelta is not null)
+                .Where(item => adjustmentKeys.Contains(new
+                {
+                    item.PantryItemId,
+                    AppliedAtUtc = item.OccurredAtUtc,
+                    QuantityDelta = item.QuantityDelta!.Value
+                }))
+                .ToList();
+
+            if (matchingActivities.Count > 0)
+            {
+                dbContext.PantryItemActivities.RemoveRange(matchingActivities);
+            }
         }
 
         dbContext.CookingSessionPantryAdjustments.RemoveRange(adjustments);

@@ -11,6 +11,10 @@ export const test = base.extend<FoodFixtures>({
   }
 });
 
+test.afterEach(async ({ foodApi }) => {
+  await foodApi.cleanup();
+});
+
 export { expect };
 
 export async function gotoFood(page: Page) {
