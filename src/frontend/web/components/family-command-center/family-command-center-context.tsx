@@ -4,7 +4,6 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createContext,
   useContext,
-  useEffect,
   useMemo,
   useState,
   useTransition
@@ -16,95 +15,22 @@ import {
   getMemberEventValidationIssues
 } from "../member-event-draft";
 import { useAdminOwnerSession } from "../use-admin-owner-session";
+import {
+  buildCommandCenterViewModel,
+  type CommandCenterViewModel,
+  type HomeResponse,
+  type HouseholdMemberOption
+} from "@/lib/family-command-center";
 
-export type HouseholdMemberOption = {
-  membershipId: string;
-  displayName: string;
-};
-
-export type HomeEvent = {
-  title: string;
-  startsAtUtc: string | null;
-  endsAtUtc: string | null;
-  isAllDay: boolean;
-  isImported: boolean;
-};
-
-export type HomeChore = {
-  id: string;
-  title: string;
-  assignedMembershipId: string | null;
-  assignedMemberName: string | null;
-  completedToday: boolean;
-};
-
-export type HomeNote = {
-  id: string;
-  title: string;
-  body: string | null;
-  authorDisplayName: string;
-};
-
-export type HomeActivityItem = {
-  kind: "ChoreCompletion" | "NoteCreated" | "ReminderFired";
-  title: string;
-  detail: string | null;
-  actorDisplayName: string;
-  occurredAtUtc: string;
-};
-
-export type HomeUpcomingEvent = {
-  scheduledEventId: string;
-  title: string;
-  startsAtUtc: string | null;
-  endsAtUtc: string | null;
-  isAllDay: boolean;
-  isImported: boolean;
-};
-
-export type HomeUpcomingDay = {
-  date: string;
-  events: HomeUpcomingEvent[];
-};
-
-export type HomeReminder = {
-  id: string;
-  eventTitle: string;
-  minutesBefore: number;
-  dueAtUtc: string;
-};
-
-export type HomeMemberChoreProgress = {
-  memberDisplayName: string;
-  completionsThisWeek: number;
-  currentStreakDays: number;
-};
-
-export type HomeResponse = {
-  todayEvents: HomeEvent[];
-  todayChores: HomeChore[];
-  pinnedNotes: HomeNote[];
-  recentActivity: HomeActivityItem[];
-  upcomingDays: HomeUpcomingDay[];
-  pendingReminders: HomeReminder[];
-  memberChoreProgress: HomeMemberChoreProgress[];
-  upcomingEventCount: number;
-  pendingReminderCount: number;
-};
-
-type OverviewContextValue = {
+type FamilyCommandCenterContextValue = {
   data: HomeResponse | null;
+  viewModel: CommandCenterViewModel | null;
   isLoading: boolean;
   isPending: boolean;
   error: string | null;
   successMessage: string | null;
   isOwner: boolean;
   members: HouseholdMemberOption[];
-  incompleteChores: HomeChore[];
-  doneChores: HomeChore[];
-  overdueReminders: HomeReminder[];
-  upcomingReminders: HomeReminder[];
-  hasTodayContent: boolean;
   showNoteForm: boolean;
   setShowNoteForm: (value: boolean) => void;
   noteTitle: string;
@@ -141,16 +67,10 @@ type OverviewContextValue = {
   handleSnoozeReminder: (id: string, snoozeMinutes: number) => void;
   handleAddReminder: () => void;
   handleAddEvent: () => void;
-  formatTime: (isoString: string | null) => string;
-  formatRelativeTime: (utc: string) => string;
-  formatDayLabel: (dateStr: string) => string;
-  formatWeekdayShort: (dateStr: string) => string;
-  formatReminderDueLabel: (utc: string) => string;
-  formatReminderTriageState: (utc: string) => string;
   applySuggestedEnd: (startsAtLocal: string, minutes: number) => string;
 };
 
-const OverviewContext = createContext<OverviewContextValue | null>(null);
+const FamilyCommandCenterContext = createContext<FamilyCommandCenterContextValue | null>(null);
 
 async function fetchHome() {
   const response = await fetch("/api/app/home", {
@@ -169,81 +89,31 @@ async function fetchHome() {
   return (await response.json()) as HomeResponse;
 }
 
-function formatTime(isoString: string | null): string {
-  if (!isoString) return "";
-  return new Date(isoString).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit"
+async function fetchMembers() {
+  const response = await fetch("/api/households/members", {
+    credentials: "same-origin",
+    cache: "no-store"
   });
-}
 
-function formatRelativeTime(utc: string): string {
-  const diffMs = Date.now() - new Date(utc).getTime();
-  const minutes = Math.floor(diffMs / 60_000);
-  if (minutes < 2) return "just now";
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
-
-function formatDayLabel(dateStr: string): string {
-  const day = new Date(`${dateStr}T00:00:00`);
-  const today = new Date();
-  const tomorrow = new Date(today);
-  tomorrow.setDate(today.getDate() + 1);
-
-  if (day.toDateString() === today.toDateString()) return "Today";
-  if (day.toDateString() === tomorrow.toDateString()) return "Tomorrow";
-
-  return day.toLocaleDateString([], {
-    weekday: "short",
-    month: "short",
-    day: "numeric"
-  });
-}
-
-function formatWeekdayShort(dateStr: string): string {
-  const day = new Date(`${dateStr}T00:00:00`);
-  const today = new Date();
-  if (day.toDateString() === today.toDateString()) return "Today";
-  return day.toLocaleDateString([], { weekday: "short" });
-}
-
-function formatReminderDueLabel(utc: string): string {
-  const due = new Date(utc);
-  return (
-    due.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" }) +
-    " " +
-    due.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-  );
-}
-
-function formatReminderTriageState(utc: string): string {
-  const deltaMinutes = Math.round((new Date(utc).getTime() - Date.now()) / 60_000);
-
-  if (deltaMinutes < 0) {
-    const overdueMinutes = Math.abs(deltaMinutes);
-    if (overdueMinutes < 60) return `Overdue by ${overdueMinutes} min`;
-    if (overdueMinutes % 60 === 0) return `Overdue by ${overdueMinutes / 60} hr`;
-    return `Overdue by ${overdueMinutes} min`;
+  if (!response.ok) {
+    throw new Error(`Failed to load household members: ${response.status}`);
   }
 
-  if (deltaMinutes < 60) return `Due in ${deltaMinutes} min`;
-  if (deltaMinutes % 60 === 0) return `Due in ${deltaMinutes / 60} hr`;
-  return `Due in ${deltaMinutes} min`;
+  const body = (await response.json()) as {
+    items: HouseholdMemberOption[];
+  };
+
+  return body.items;
 }
 
-export function OverviewProvider({
+export function FamilyCommandCenterProvider({
   children
 }: Readonly<{ children: React.ReactNode }>) {
   const queryClient = useQueryClient();
   const { isOwner } = useAdminOwnerSession();
   const [isPending, startTransition] = useTransition();
   const [completedIds, setCompletedIds] = useState<Set<string>>(new Set());
-  const [members, setMembers] = useState<HouseholdMemberOption[]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const [showNoteForm, setShowNoteForm] = useState(false);
@@ -254,22 +124,29 @@ export function OverviewProvider({
   const [reminderEventId, setReminderEventId] = useState("");
   const [reminderMinutes, setReminderMinutes] = useState("30");
 
+  const defaultEventDraft = useMemo(() => createDefaultMemberEventDraft(), []);
   const [showEventForm, setShowEventForm] = useState(false);
-  const [eventTitle, setEventTitle] = useState("");
+  const [eventTitle, setEventTitle] = useState(defaultEventDraft.title);
   const [eventDesc, setEventDesc] = useState("");
-  const [eventAllDay, setEventAllDay] = useState(false);
-  const [eventAllDayDate, setEventAllDayDate] = useState("");
-  const [eventStart, setEventStart] = useState("");
-  const [eventEnd, setEventEnd] = useState("");
+  const [eventAllDay, setEventAllDay] = useState(defaultEventDraft.isAllDay);
+  const [eventAllDayDate, setEventAllDayDate] = useState(defaultEventDraft.allDayDate);
+  const [eventStart, setEventStart] = useState(defaultEventDraft.startsAtLocal);
+  const [eventEnd, setEventEnd] = useState(defaultEventDraft.endsAtLocal);
 
   const homeQuery = useQuery({
     queryKey: ["overview", "home"],
     queryFn: fetchHome
   });
 
+  const membersQuery = useQuery({
+    queryKey: ["overview", "members"],
+    queryFn: fetchMembers,
+    enabled: isOwner
+  });
+
   function showSuccess(message: string) {
     setSuccessMessage(message);
-    window.setTimeout(() => setSuccessMessage(null), 3000);
+    window.setTimeout(() => setSuccessMessage(null), 3_000);
   }
 
   async function refreshHome() {
@@ -286,91 +163,43 @@ export function OverviewProvider({
     setEventEnd(nextDraft.endsAtLocal);
   }
 
-  useEffect(() => {
-    resetEventDraft();
-  }, []);
-
-  useEffect(() => {
-    if (homeQuery.error instanceof Error) {
-      setError(homeQuery.error.message);
-    }
-  }, [homeQuery.error]);
-
-  useEffect(() => {
-    if (homeQuery.data) {
-      setCompletedIds(new Set());
-    }
-  }, [homeQuery.data]);
-
-  useEffect(() => {
-    if (!isOwner) {
-      setMembers([]);
-      return;
+  const data = useMemo<HomeResponse | null>(() => {
+    if (!homeQuery.data) {
+      return null;
     }
 
-    let cancelled = false;
-
-    void (async () => {
-      try {
-        const response = await fetch("/api/households/members", {
-          credentials: "same-origin",
-          cache: "no-store"
-        });
-
-        if (!response.ok) return;
-
-        const body = (await response.json()) as {
-          items: HouseholdMemberOption[];
-        };
-
-        if (!cancelled) {
-          setMembers(body.items);
-        }
-      } catch {
-        if (!cancelled) {
-          setMembers([]);
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
+    return {
+      ...homeQuery.data,
+      todayChores: homeQuery.data.todayChores.map((chore) => ({
+        ...chore,
+        completedToday: chore.completedToday || completedIds.has(chore.id)
+      }))
     };
-  }, [isOwner]);
+  }, [completedIds, homeQuery.data]);
 
-  const data = homeQuery.data ?? null;
-  const incompleteChores = data?.todayChores.filter(
-    (chore) => !chore.completedToday && !completedIds.has(chore.id)
-  ) ?? [];
-  const doneChores = data?.todayChores.filter(
-    (chore) => chore.completedToday || completedIds.has(chore.id)
-  ) ?? [];
-  const overdueReminders = data?.pendingReminders.filter(
-    (reminder) => new Date(reminder.dueAtUtc).getTime() < Date.now()
-  ) ?? [];
-  const upcomingReminders = data?.pendingReminders.filter(
-    (reminder) => new Date(reminder.dueAtUtc).getTime() >= Date.now()
-  ) ?? [];
-  const hasTodayContent = data != null && (
-    data.todayEvents.length > 0 ||
-    data.todayChores.length > 0 ||
-    data.pendingReminderCount > 0
+  const viewModel = useMemo(
+    () => (data ? buildCommandCenterViewModel(data, new Date()) : null),
+    [data]
   );
 
-  const eventValidationIssues = getMemberEventValidationIssues({
-    title: eventTitle,
-    isAllDay: eventAllDay,
-    allDayDate: eventAllDayDate,
-    startsAtLocal: eventStart,
-    endsAtLocal: eventEnd
-  });
+  const eventValidationIssues = useMemo(
+    () =>
+      getMemberEventValidationIssues({
+        title: eventTitle,
+        isAllDay: eventAllDay,
+        allDayDate: eventAllDayDate,
+        startsAtLocal: eventStart,
+        endsAtLocal: eventEnd
+      }),
+    [eventAllDay, eventAllDayDate, eventEnd, eventStart, eventTitle]
+  );
 
   function runAction(action: () => Promise<void>, fallbackMessage: string) {
-    setError(null);
+    setActionError(null);
 
     startTransition(() => {
-      void action().catch((actionError: unknown) => {
-        setError(actionError instanceof Error ? actionError.message : fallbackMessage);
+      void action().catch((nextError: unknown) => {
+        setActionError(nextError instanceof Error ? nextError.message : fallbackMessage);
       });
     });
   }
@@ -467,7 +296,7 @@ export function OverviewProvider({
       throw new Error(`Snooze failed with ${response.status}.`);
     }
 
-    showSuccess(snoozeMinutes >= 1440 ? "Snoozed 1 day." : "Snoozed 1 hour.");
+    showSuccess(snoozeMinutes >= 1_440 ? "Snoozed 1 day." : "Snoozed 1 hour.");
     await refreshHome();
   }
 
@@ -525,19 +354,19 @@ export function OverviewProvider({
     await refreshHome();
   }
 
-  const value = useMemo<OverviewContextValue>(() => ({
+  const error = actionError
+    ?? (homeQuery.error instanceof Error ? homeQuery.error.message : null)
+    ?? (membersQuery.error instanceof Error ? membersQuery.error.message : null);
+
+  const value = useMemo<FamilyCommandCenterContextValue>(() => ({
     data,
+    viewModel,
     isLoading: homeQuery.isLoading,
     isPending,
     error,
     successMessage,
     isOwner,
-    members,
-    incompleteChores,
-    doneChores,
-    overdueReminders,
-    upcomingReminders,
-    hasTodayContent,
+    members: membersQuery.data ?? [],
     showNoteForm,
     setShowNoteForm,
     noteTitle,
@@ -589,54 +418,44 @@ export function OverviewProvider({
       if (eventValidationIssues.length > 0) return;
       runAction(addEvent, "Unable to add event.");
     },
-    formatTime,
-    formatRelativeTime,
-    formatDayLabel,
-    formatWeekdayShort,
-    formatReminderDueLabel,
-    formatReminderTriageState,
     applySuggestedEnd
   }), [
     data,
-    homeQuery.isLoading,
-    isPending,
     error,
-    successMessage,
+    eventAllDay,
+    eventAllDayDate,
+    eventDesc,
+    eventEnd,
+    eventStart,
+    eventTitle,
+    eventValidationIssues,
+    homeQuery.isLoading,
     isOwner,
-    members,
-    incompleteChores,
-    doneChores,
-    overdueReminders,
-    upcomingReminders,
-    hasTodayContent,
-    showNoteForm,
-    noteTitle,
+    isPending,
+    membersQuery.data,
     noteBody,
-    showReminderForm,
+    noteTitle,
     reminderEventId,
     reminderMinutes,
     showEventForm,
-    eventTitle,
-    eventDesc,
-    eventAllDay,
-    eventAllDayDate,
-    eventStart,
-    eventEnd,
-    eventValidationIssues
+    showNoteForm,
+    showReminderForm,
+    successMessage,
+    viewModel
   ]);
 
   return (
-    <OverviewContext.Provider value={value}>
+    <FamilyCommandCenterContext.Provider value={value}>
       {children}
-    </OverviewContext.Provider>
+    </FamilyCommandCenterContext.Provider>
   );
 }
 
-export function useOverviewContext() {
-  const context = useContext(OverviewContext);
+export function useFamilyCommandCenterContext() {
+  const context = useContext(FamilyCommandCenterContext);
 
   if (!context) {
-    throw new Error("OverviewContext is not available.");
+    throw new Error("FamilyCommandCenterContext is not available.");
   }
 
   return context;
