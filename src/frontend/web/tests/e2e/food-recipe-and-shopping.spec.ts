@@ -1,6 +1,6 @@
 import { test, expect, gotoFood, uniqueName, useMobileViewport } from "./fixtures";
 
-test("creates a manual recipe and finds it again after reload", async ({ page }) => {
+test("creates a manual recipe and finds it again after reload", async ({ page, foodApi }) => {
   const recipeTitle = uniqueName("Sunday Buttermilk Pancakes");
 
   await gotoFood(page);
@@ -19,6 +19,7 @@ test("creates a manual recipe and finds it again after reload", async ({ page })
   await page.getByTestId("food-recipe-save").click();
 
   await expect(page.getByTestId("food-alert-success")).toContainText("Recipe saved");
+  await foodApi.trackRecipeByTitle(recipeTitle);
 
   await page.reload();
   await expect(page.getByTestId("food-hub")).toBeVisible();
@@ -33,7 +34,7 @@ test("creates a manual recipe and finds it again after reload", async ({ page })
   await expect(page.getByTestId("food-recipe-detail")).toContainText(recipeTitle);
 });
 
-test("adds a shopping item and toggles it complete", async ({ page }) => {
+test("adds a shopping item and toggles it complete", async ({ page, foodApi }) => {
   const shoppingItem = uniqueName("Whole Wheat Tortillas");
 
   await useMobileViewport(page);
@@ -48,6 +49,7 @@ test("adds a shopping item and toggles it complete", async ({ page }) => {
 
   await expect(page.getByTestId("food-alert-success")).toContainText("Shopping item added");
   await expect(page.getByTestId("food-alert-success")).toBeHidden({ timeout: 5000 });
+  await foodApi.trackShoppingItemByName(shoppingItem);
 
   await page.getByRole("tab", { name: "Shopping" }).click();
 

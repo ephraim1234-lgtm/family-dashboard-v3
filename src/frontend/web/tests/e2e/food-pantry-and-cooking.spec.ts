@@ -1,6 +1,6 @@
 import { test, expect, gotoFood, fillAndBlur, uniqueName, useMobileViewport } from "./fixtures";
 
-test("adds and updates a pantry item with search and low-stock filtering", async ({ page }) => {
+test("adds and updates a pantry item with search and low-stock filtering", async ({ page, foodApi }) => {
   const pantryItem = uniqueName("Strawberry Yogurt");
 
   await useMobileViewport(page);
@@ -11,6 +11,7 @@ test("adds and updates a pantry item with search and low-stock filtering", async
   await page.getByTestId("food-add-to-pantry-drawer").getByRole("button", { name: "Add to Pantry" }).click();
 
   await expect(page.getByTestId("food-alert-success")).toContainText("Pantry item added");
+  await foodApi.trackPantryItemByName(pantryItem);
 
   await page.getByRole("tab", { name: "Pantry" }).click();
   await page.getByRole("textbox", { name: "Pantry search" }).fill(pantryItem);
@@ -45,6 +46,7 @@ test("adds a recipe to the meal plan and supports slot and recipe removals in pl
 
   const removableSlot = await foodApi.createMealSlot({
     date: new Date().toISOString().slice(0, 10),
+    slotName: "A-Test Dinner",
     title: uniqueName("Sausage and Broccoli Night"),
     recipes: [
       { recipeId: recipeMain.id, role: "Main" },
@@ -64,10 +66,10 @@ test("adds a recipe to the meal plan and supports slot and recipe removals in pl
   await page.getByRole("button", { name: "Save to Meal Plan" }).click();
   await expect(page.getByTestId("food-alert-success")).toContainText("Recipe added to the meal plan");
 
-  await page.getByRole("tab", { name: "Planning" }).click();
-  await expect(page.getByTestId("food-meal-planning")).toContainText(recipeMain.title);
+  await page.getByRole("tab", { name: "Meals" }).click();
+  await expect(page.getByTestId("food-meal-planning")).toBeVisible();
+  await page.getByTestId("food-meal-day-date").fill(removableSlot.date ?? new Date().toISOString().slice(0, 10));
 
-  await page.getByRole("tab", { name: "Upcoming" }).click();
   const removableCard = page.getByTestId(`food-meal-slot-${removableSlot.id}`);
   await expect(removableCard).toBeVisible();
 

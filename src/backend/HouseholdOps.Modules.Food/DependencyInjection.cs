@@ -683,6 +683,28 @@ public static class DependencyInjection
             return response is null ? Results.NotFound() : Results.Ok(response);
         });
 
+        group.MapDelete("/cooking-sessions/{sessionId:guid}", async (
+            Guid sessionId,
+            IIdentityAccessService identityAccessService,
+            IFoodService foodService,
+            IClock clock,
+            CancellationToken cancellationToken) =>
+        {
+            var session = identityAccessService.GetCurrentSession();
+            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            {
+                return Results.Unauthorized();
+            }
+
+            var deleted = await foodService.DeleteCookingSessionAsync(
+                householdId,
+                sessionId,
+                clock.UtcNow,
+                cancellationToken);
+
+            return deleted ? Results.NoContent() : Results.NotFound();
+        });
+
         group.MapPost("/cooking-sessions/{sessionId:guid}/promote", async (
             Guid sessionId,
             PromoteCookingSessionRecipeRequest? request,
