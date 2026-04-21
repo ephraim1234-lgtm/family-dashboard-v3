@@ -1,31 +1,85 @@
 import { test, expect, gotoFood, uniqueName, useMobileViewport } from "./fixtures";
 
+async function freezeClientDate(page: Parameters<typeof gotoFood>[0], isoDate: string) {
+  await page.addInitScript((dateString) => {
+    const fixedTime = new Date(`${dateString}T12:00:00Z`).valueOf();
+    const RealDate = Date;
+
+    class MockDate extends RealDate {
+      constructor(...args: any[]) {
+        if (args.length === 0) {
+          super(fixedTime);
+          return;
+        }
+
+        super(...args);
+      }
+
+      static now() {
+        return fixedTime;
+      }
+    }
+
+    MockDate.parse = RealDate.parse;
+    MockDate.UTC = RealDate.UTC;
+
+    // @ts-expect-error test-only Date override
+    window.Date = MockDate;
+  }, isoDate);
+}
+
 test("loads the food module with the five primary tabs on desktop", async ({ page }) => {
   await gotoFood(page);
 
   await expect(page.getByTestId("food-tab-bar")).toBeVisible();
   await expect(page.getByTestId("food-action-bar")).toBeHidden();
+  await expect(page.getByRole("tab", { name: "Home" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("food-home-overview")).toBeVisible();
+  await expect(page.getByTestId("food-home-attention")).toBeVisible();
 
   await page.getByRole("tab", { name: "Home" }).click();
   await expect(page.getByTestId("food-home-workspace")).toBeVisible();
 
   await page.getByRole("tab", { name: "Recipes" }).click();
+  await expect(page.getByRole("tab", { name: "Recipes" })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByTestId("food-recipe-library")).toBeVisible();
 
-  await page.getByRole("tab", { name: "Planning" }).click();
+  await page.getByRole("tab", { name: "Meals" }).click();
+  await expect(page.getByRole("tab", { name: "Meals" })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByTestId("food-meal-planning")).toBeVisible();
 
   await page.getByRole("tab", { name: "Pantry" }).click();
+  await expect(page.getByRole("tab", { name: "Pantry" })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByTestId("food-pantry-panel")).toBeVisible();
 
   await page.getByRole("tab", { name: "Shopping" }).click();
+  await expect(page.getByRole("tab", { name: "Shopping" })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByTestId("food-shopping-panel")).toBeVisible();
+});
+
+test("shows the empty-state home dashboard when nothing is planned today", async ({ page }) => {
+  await freezeClientDate(page, "2099-01-01");
+  await gotoFood(page);
+
+  await expect(page.getByTestId("food-home-empty-state")).toBeVisible();
+  await expect(page.getByTestId("food-home-recipes-preview")).toBeVisible();
+});
+
+test("surfaces today's meals on home cards with direct actions", async ({ page }) => {
+  await gotoFood(page);
+
+  await expect(page.getByTestId("food-home-today-section")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Start cooking" }).first()).toBeVisible();
+  await expect(
+    page.getByText(/Pantry ready|\d+ missing/).first()
+  ).toBeVisible();
 });
 
 test("shows the mobile quick-action bar and bottom drawers", async ({ page }) => {
   await useMobileViewport(page);
   await gotoFood(page);
 
+  await expect(page.getByTestId("food-tab-bar")).toBeVisible();
   await expect(page.getByTestId("food-action-bar")).toBeVisible();
 
   await page.getByTestId("food-action-bar").getByRole("button", { name: "Add to List" }).click();
