@@ -54,8 +54,8 @@ public static class DependencyInjection
                 return Results.Unauthorized();
             }
 
-            var windowDays = ParseBrowseWindowDays(request.Query["days"]);
-            var windowStart = ParseBrowseWindowStartUtc(request.Query["startUtc"], clock.UtcNow);
+            var windowDays = ScheduleWindowQueryParser.ParseWindowDays(request.Query["days"]);
+            var windowStart = ScheduleWindowQueryParser.ParseWindowStartUtc(request.Query["startUtc"], clock.UtcNow);
             var windowEnd = windowStart.AddDays(windowDays);
 
             var response = await browseQueryService.GetUpcomingBrowseAsync(
@@ -227,6 +227,7 @@ public static class DependencyInjection
             IIdentityAccessService identityAccessService,
             IAgendaQueryService agendaQueryService,
             IClock clock,
+            HttpRequest request,
             CancellationToken cancellationToken) =>
         {
             var session = identityAccessService.GetCurrentSession();
@@ -236,8 +237,13 @@ public static class DependencyInjection
                 return Results.Unauthorized();
             }
 
-            var windowStart = clock.UtcNow;
-            var windowEnd = windowStart.AddDays(14);
+            var windowDays = ScheduleWindowQueryParser.ParseWindowDays(
+                request.Query["days"],
+                fallbackDays: 14);
+            var windowStart = ScheduleWindowQueryParser.ParseWindowStartUtc(
+                request.Query["startUtc"],
+                clock.UtcNow);
+            var windowEnd = windowStart.AddDays(windowDays);
 
             var response = await agendaQueryService.GetUpcomingEventsAsync(
                 new UpcomingEventsRequest(householdId, windowStart, windowEnd),
@@ -247,37 +253,5 @@ public static class DependencyInjection
         });
 
         return app;
-    }
-
-    private static int ParseBrowseWindowDays(string? rawDays)
-    {
-        if (!int.TryParse(rawDays, out var parsedDays))
-        {
-            return 14;
-        }
-
-        return parsedDays switch
-        {
-            7 => 7,
-            14 => 14,
-            30 => 30,
-            _ => 14
-        };
-    }
-
-    private static DateTimeOffset ParseBrowseWindowStartUtc(
-        string? rawStartUtc,
-        DateTimeOffset fallbackUtcNow)
-    {
-        if (DateTimeOffset.TryParse(rawStartUtc, out var parsedStartUtc))
-        {
-            return new DateTimeOffset(
-                parsedStartUtc.UtcDateTime.Date,
-                TimeSpan.Zero);
-        }
-
-        return new DateTimeOffset(
-            fallbackUtcNow.UtcDateTime.Date,
-            TimeSpan.Zero);
     }
 }

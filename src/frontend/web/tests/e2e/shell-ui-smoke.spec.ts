@@ -5,8 +5,12 @@ test("renders shared shell tabs with the correct active state", async ({ page })
 
   await page.goto("/app");
   await expect(primaryNav.getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
+  await expect(primaryNav.getByRole("link", { name: "Calendar" })).not.toHaveAttribute("aria-current", "page");
   await expect(primaryNav.getByRole("link", { name: "Food" })).not.toHaveAttribute("aria-current", "page");
   await expect(primaryNav.getByRole("link", { name: "Admin" })).not.toHaveAttribute("aria-current", "page");
+
+  await page.goto("/app/calendar");
+  await expect(primaryNav.getByRole("link", { name: "Calendar" })).toHaveAttribute("aria-current", "page");
 
   await page.goto("/app/food");
   await expect(primaryNav.getByRole("link", { name: "Food" })).toHaveAttribute("aria-current", "page");
@@ -68,4 +72,11 @@ test("food hub still renders inside the shared shell", async ({ page }) => {
 
   await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();
   await expect(page.getByTestId("food-hub")).toBeVisible();
+});
+
+test("calendar surface renders inside the shared shell", async ({ page }) => {
+  await page.goto("/app/calendar");
+
+  await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();
+  await expect(page.getByTestId("family-calendar-page")).toBeVisible();
 });

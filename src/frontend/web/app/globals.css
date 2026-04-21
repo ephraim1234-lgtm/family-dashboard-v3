@@ -320,6 +320,178 @@ textarea {
   box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent-admin) 12%, transparent), var(--shadow-panel);
 }
 
+.family-calendar-page {
+  gap: 1.5rem;
+}
+
+.family-calendar-layout {
+  display: grid;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.family-calendar-toolbar,
+.family-calendar-summary-row,
+.family-calendar-day-summary,
+.family-calendar-item-head,
+.family-calendar-drawer-stack,
+.family-calendar-quick-add,
+.family-calendar-rail {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.family-calendar-summary-row,
+.family-calendar-item-head {
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.family-calendar-toolbar {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.family-calendar-range {
+  margin: 0;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  color: var(--text-strong);
+}
+
+.family-calendar-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.family-calendar-day-card {
+  display: flex;
+  min-height: 18rem;
+  flex-direction: column;
+  gap: 0.9rem;
+  border: 1px solid var(--surface-line);
+  border-radius: 1.5rem;
+  padding: 1rem;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(250, 247, 241, 0.78)),
+    color-mix(in oklab, var(--surface-panel) 94%, transparent);
+}
+
+.family-calendar-day-card-today {
+  border-color: color-mix(in oklab, var(--accent-primary) 32%, var(--surface-line));
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent-primary) 18%, transparent);
+}
+
+.family-calendar-day-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.family-calendar-day-title {
+  margin: 0.25rem 0 0;
+  font-size: 1.05rem;
+  color: var(--text-strong);
+}
+
+.family-calendar-item-list,
+.family-calendar-agenda {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.family-calendar-item-card {
+  appearance: none;
+  width: 100%;
+  text-align: left;
+  display: grid;
+  gap: 0.6rem;
+  position: relative;
+  z-index: 1;
+  border: 1px solid var(--surface-line);
+  border-radius: 1.1rem;
+  padding: 0.9rem;
+  background: rgba(255, 255, 255, 0.75);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.family-calendar-item-card:hover {
+  border-color: var(--surface-line-strong);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.family-calendar-item-card-event {
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent-primary) 8%, transparent);
+}
+
+.family-calendar-item-card-reminder {
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent-warning) 14%, transparent);
+}
+
+.family-calendar-empty .ui-empty-state {
+  padding-inline: 0;
+}
+
+.family-calendar-today-card {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.family-calendar-quick-add,
+.family-calendar-drawer-stack {
+  flex-direction: column;
+}
+
+.family-calendar-rail {
+  flex-direction: column;
+}
+
+.family-calendar-agenda .stack-card,
+.family-calendar-rail .family-section {
+  min-width: 0;
+}
+
+.family-checkbox-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.family-calendar-day-summary {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.family-calendar-drawer-stack .stack-card {
+  margin-bottom: 0.25rem;
+}
+
+@media (min-width: 1100px) {
+  .family-calendar-layout {
+    grid-template-columns: minmax(0, 2fr) minmax(18rem, 24rem);
+  }
+}
+
+@media (max-width: 1200px) {
+  .family-calendar-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .family-calendar-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .family-calendar-summary-row,
+  .family-calendar-day-head {
+    flex-direction: column;
+  }
+}
+
 .ui-page-container {
   display: grid;
   gap: 1.5rem;

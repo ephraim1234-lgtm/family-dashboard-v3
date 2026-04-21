@@ -15,6 +15,17 @@ const SHELL_TABS = [
     )
   },
   {
+    href: "/app/calendar",
+    label: "Calendar",
+    description: "Week-first family planning and reminders",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M7.5 4.75v3M16.5 4.75v3M5 9.25h14M6.75 6.75h10.5A1.75 1.75 0 0 1 19 8.5v8.75A1.75 1.75 0 0 1 17.25 19H6.75A1.75 1.75 0 0 1 5 17.25V8.5a1.75 1.75 0 0 1 1.75-1.75Z" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M8.5 12.5h3" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      </svg>
+    )
+  },
+  {
     href: "/app/food",
     label: "Food",
     description: "Recipes, pantry, shopping, and cooking",

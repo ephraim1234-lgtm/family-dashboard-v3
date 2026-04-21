@@ -34,6 +34,7 @@ type HouseholdMetaBadgesProps = {
   sourceLabel?: FamilySourceLabel;
   kind?: FamilyItemKind;
   urgencyState?: FamilyUrgencyState;
+  accessLabel?: "Editable" | "Read only";
   className?: string;
 };
 
@@ -42,6 +43,7 @@ export function HouseholdMetaBadges({
   sourceLabel,
   kind,
   urgencyState,
+  accessLabel,
   className
 }: HouseholdMetaBadgesProps) {
   return (
@@ -68,6 +70,11 @@ export function HouseholdMetaBadges({
           }
         >
           {urgencyText(urgencyState)}
+        </Badge>
+      ) : null}
+      {accessLabel ? (
+        <Badge variant={accessLabel === "Editable" ? "admin" : "default"}>
+          {accessLabel}
         </Badge>
       ) : null}
     </div>
