@@ -4,6 +4,7 @@ import { useState } from "react";
 import { usePathname } from "next/navigation";
 import { siteConfig } from "@/lib/site-config";
 import { AppShellNav } from "./app-shell-nav";
+import { Button } from "./button";
 
 function shellContext(pathname: string) {
   if (pathname.startsWith("/admin")) {
@@ -29,7 +30,7 @@ function shellContext(pathname: string) {
   };
 }
 
-export function SharedShell({
+export function AppShell({
   children
 }: Readonly<{
   children: React.ReactNode;
@@ -81,15 +82,15 @@ export function SharedShell({
                   {context.title}
                 </div>
               </div>
-              <button
-                type="button"
-                className="ui-button ui-button-ghost ui-button-sm"
+              <Button
                 aria-label="Open navigation"
                 aria-expanded={isDrawerOpen}
+                variant="ghost"
+                size="sm"
                 onClick={() => setIsDrawerOpen(true)}
               >
                 Menu
-              </button>
+              </Button>
             </div>
           </header>
 
@@ -111,13 +112,13 @@ export function SharedShell({
                       {siteConfig.productName}
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    className="ui-button ui-button-ghost ui-button-sm"
+                  <Button
+                    variant="ghost"
+                    size="sm"
                     onClick={() => setIsDrawerOpen(false)}
                   >
                     Close
-                  </button>
+                  </Button>
                 </div>
 
                 <AppShellNav onNavigate={() => setIsDrawerOpen(false)} />
@@ -153,3 +154,5 @@ export function SharedShell({
     </div>
   );
 }
+
+export const SharedShell = AppShell;

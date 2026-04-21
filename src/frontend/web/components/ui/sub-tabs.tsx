@@ -1,5 +1,7 @@
 "use client";
 
+import { cn } from "@/lib/cn";
+
 type SubTabsProps<TTab extends string> = {
   tabs: Array<{ id: TTab; label: string }>;
   activeTab: TTab;
@@ -28,10 +30,7 @@ export function SubTabs<TTab extends string>({
             type="button"
             role="tab"
             aria-selected={isActive}
-            className={[
-              "ui-subtab",
-              isActive ? "ui-subtab-active" : null
-            ].join(" ")}
+            className={cn("ui-subtab", isActive ? "ui-subtab-active" : null)}
             onClick={() => onChange(tab.id)}
           >
             {tab.label}

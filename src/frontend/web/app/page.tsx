@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Card, PageContainer, PageHeader, SectionHeader } from "@/components/ui";
 
 const surfaces = [
   {
@@ -20,24 +21,28 @@ const surfaces = [
 
 export default function HomePage() {
   return (
-    <main className="page">
-      <section className="hero">
-        <div className="eyebrow">Bootstrap Foundation</div>
-        <h1>Household operations, built in deliberate stages.</h1>
-        <p className="lede">
-          This repo starts narrow on household context, scheduling,
-          recurrence-ready foundations, display access, and administration.
-        </p>
-      </section>
+    <PageContainer as="main" className="page">
+      <PageHeader
+        className="hero"
+        copyClassName="max-w-3xl"
+        description="This repo starts narrow on household context, scheduling, recurrence-ready foundations, display access, and administration."
+        descriptionClassName="lede"
+        eyebrow="Bootstrap Foundation"
+        surface="plain"
+        title="Household operations, built in deliberate stages."
+        titleAs="h1"
+      />
 
       <section className="grid">
         {surfaces.map((surface) => (
-          <Link key={surface.href} href={surface.href} className="panel">
-            <h2>{surface.title}</h2>
-            <p className="muted">{surface.body}</p>
-          </Link>
+          <Card as="article" className="h-full" key={surface.href}>
+            <Link className="flex h-full flex-col gap-3" href={surface.href}>
+              <SectionHeader title={surface.title} />
+              <p className="muted">{surface.body}</p>
+            </Link>
+          </Card>
         ))}
       </section>
-    </main>
+    </PageContainer>
   );
 }

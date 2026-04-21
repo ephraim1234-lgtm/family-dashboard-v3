@@ -1,4 +1,5 @@
 import type { HTMLAttributes } from "react";
+import { cn } from "@/lib/cn";
 
 type CardVariant = "default" | "admin";
 
@@ -13,11 +14,10 @@ export function Card({
   variant = "default",
   ...props
 }: CardProps) {
-  const classes = [
-    "ui-card",
-    variant === "admin" ? "ui-card-admin" : null,
-    className
-  ].filter(Boolean).join(" ");
-
-  return <Component className={classes} {...props} />;
+  return (
+    <Component
+      className={cn("ui-card", variant === "admin" ? "ui-card-admin" : null, className)}
+      {...props}
+    />
+  );
 }

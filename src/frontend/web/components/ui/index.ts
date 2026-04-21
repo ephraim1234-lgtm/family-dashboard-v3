@@ -7,6 +7,7 @@ export * from "./bottom-drawer";
 export * from "./empty-state";
 export * from "./loading-spinner";
 export * from "./overflow-menu";
+export * from "./page-primitives";
 export * from "./segmented-toggle";
 export * from "./shared-shell";
 export * from "./sub-tabs";

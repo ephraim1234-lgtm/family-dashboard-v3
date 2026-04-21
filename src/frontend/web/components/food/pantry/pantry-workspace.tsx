@@ -1,6 +1,6 @@
 "use client";
 
-import { SegmentedToggle } from "@/components/ui";
+import { ActionButton, EmptyState, SectionHeader, SegmentedToggle } from "@/components/ui";
 import { useFoodHubContext } from "../food-hub-context";
 
 export function PantryWorkspace() {
@@ -44,8 +44,10 @@ export function PantryWorkspace() {
   return (
     <section className="grid gap-4">
       <article className="panel" data-testid="food-pantry-panel">
-        <div className="eyebrow">Pantry</div>
-        <h2>Track inventory by location and low-stock status</h2>
+        <SectionHeader
+          eyebrow="Pantry"
+          title="Track inventory by location and low-stock status"
+        />
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <SegmentedToggle
             value={pantryLocationFilter}
@@ -58,13 +60,13 @@ export function PantryWorkspace() {
             onChange={setPantryLocationFilter}
             testId="food-pantry-location-tabs"
           />
-          <button
-            className={`ui-button ui-button-sm ${pantryLowStockOnly ? "ui-button-active" : "ui-button-ghost"}`}
-            type="button"
+          <ActionButton
+            size="sm"
+            variant={pantryLowStockOnly ? "active" : "ghost"}
             onClick={() => setPantryLowStockOnly((current: boolean) => !current)}
           >
             Low Stock
-          </button>
+          </ActionButton>
         </div>
         <div className="field mt-4">
           <span>Search</span>
@@ -88,10 +90,11 @@ export function PantryWorkspace() {
                 </button>
                 <div className="flex items-center gap-2">
                   <span className="pill">{item.status}</span>
-                  <button
-                    className="ui-button ui-button-ghost ui-button-sm min-w-[44px]"
-                    type="button"
+                  <ActionButton
+                    className="min-w-[44px]"
                     disabled={isPending}
+                    size="sm"
+                    variant="ghost"
                     onClick={() => {
                       setError(null);
                       startTransition(() => {
@@ -102,12 +105,14 @@ export function PantryWorkspace() {
                     }}
                   >
                     Trash
-                  </button>
+                  </ActionButton>
                 </div>
               </div>
             </div>
           ))}
-          {filteredPantryItems.length === 0 ? <p className="muted">No pantry items match this view.</p> : null}
+          {filteredPantryItems.length === 0 ? (
+            <EmptyState message="No pantry items match this view." />
+          ) : null}
         </div>
       </article>
 
@@ -162,10 +167,8 @@ export function PantryWorkspace() {
             <input data-testid="food-pantry-detail-note" value={pantryEditNote} onChange={(event) => setPantryEditNote(event.target.value)} />
           </div>
           <div className="action-row">
-            <button
-              className="action-button"
+            <ActionButton
               data-testid="food-pantry-save"
-              type="button"
               onClick={() => {
                 setError(null);
                 startTransition(() => {
@@ -176,7 +179,7 @@ export function PantryWorkspace() {
               }}
             >
               Save pantry item
-            </button>
+            </ActionButton>
           </div>
           <div className="stack-list mt-4">
             {pantryHistory.map((entry: any) => (

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ShoppingTripDetail } from "./shopping-trip-detail";
 import { useFoodHubContext } from "../food-hub-context";
-import { SubTabs } from "@/components/ui";
+import { ActionButton, EmptyState, PageContainer, PageHeader, SectionHeader, SubTabs } from "@/components/ui";
 
 export function ShoppingWorkspace() {
   const {
@@ -32,53 +32,50 @@ export function ShoppingWorkspace() {
   const [shoppingWorkspaceTab, setShoppingWorkspaceTab] = useState<"list" | "history">("list");
 
   return (
-    <>
-      <section className="grid">
-        <article className="panel">
-          <div className="eyebrow">Shopping workspace</div>
-          <h2>Track purchases, review completed items, and confirm pantry transfer once</h2>
-          <SubTabs
-            tabs={[
-              { id: "list", label: "Shop list" },
-              { id: "history", label: "Trip history" }
-            ]}
-            activeTab={shoppingWorkspaceTab}
-            onChange={setShoppingWorkspaceTab}
-            ariaLabel="Shopping tabs"
-          />
-        </article>
-      </section>
+    <PageContainer>
+      <PageHeader
+        eyebrow="Shopping workspace"
+        title="Track purchases, review completed items, and confirm pantry transfer once"
+      >
+        <SubTabs
+          tabs={[
+            { id: "list", label: "Shop list" },
+            { id: "history", label: "Trip history" }
+          ]}
+          activeTab={shoppingWorkspaceTab}
+          onChange={setShoppingWorkspaceTab}
+          ariaLabel="Shopping tabs"
+        />
+      </PageHeader>
 
       {shoppingWorkspaceTab === "list" ? (
         <section className="grid gap-4">
           <article className="panel" data-testid="food-shopping-panel">
-            <div className="stack-card-header">
-              <div>
-                <div className="eyebrow">Shopping</div>
-                <h2 className="m-0">{data.shoppingList.name}</h2>
-              </div>
-              <span className="pill">{activeShoppingItems.length} open</span>
-            </div>
+            <SectionHeader
+              actions={<span className="pill">{activeShoppingItems.length} open</span>}
+              eyebrow="Shopping"
+              title={data.shoppingList.name}
+            />
 
             <div className="mt-3 flex flex-wrap gap-2">
-              <button
-                className={`ui-button ui-button-sm ${shoppingGroupMode === "flat" ? "ui-button-active" : "ui-button-ghost"}`}
-                type="button"
+              <ActionButton
+                size="sm"
+                variant={shoppingGroupMode === "flat" ? "active" : "ghost"}
                 onClick={() => setShoppingGroupMode("flat")}
               >
                 Flat
-              </button>
-              <button
-                className={`ui-button ui-button-sm ${shoppingGroupMode === "aisle" ? "ui-button-active" : "ui-button-ghost"}`}
-                type="button"
+              </ActionButton>
+              <ActionButton
+                size="sm"
+                variant={shoppingGroupMode === "aisle" ? "active" : "ghost"}
                 onClick={() => setShoppingGroupMode("aisle")}
               >
                 By aisle
-              </button>
-              <button
-                className="ui-button ui-button-ghost ui-button-sm"
-                type="button"
+              </ActionButton>
+              <ActionButton
                 disabled={activeShoppingItems.length === 0}
+                size="sm"
+                variant="ghost"
                 onClick={() => {
                   setError(null);
                   startTransition(() => {
@@ -89,11 +86,11 @@ export function ShoppingWorkspace() {
                 }}
               >
                 Mark All Purchased
-              </button>
-              <button
-                className="ui-button ui-button-ghost ui-button-sm"
-                type="button"
+              </ActionButton>
+              <ActionButton
                 disabled={purchasedShoppingItems.length === 0}
+                size="sm"
+                variant="ghost"
                 onClick={() => {
                   setError(null);
                   startTransition(() => {
@@ -104,15 +101,15 @@ export function ShoppingWorkspace() {
                 }}
               >
                 Clear Completed
-              </button>
+              </ActionButton>
             </div>
 
             {shoppingMealFilterId ? (
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <span className="pill">Filtered to one meal</span>
-                <button className="ui-button ui-button-ghost ui-button-sm" type="button" onClick={() => setShoppingMealFilterId(null)}>
+                <ActionButton size="sm" variant="ghost" onClick={() => setShoppingMealFilterId(null)}>
                   Clear filter
-                </button>
+                </ActionButton>
               </div>
             ) : null}
 
@@ -155,9 +152,9 @@ export function ShoppingWorkspace() {
               <div className="ui-inline-card mt-4 scroll-mb-48">
                 <div className="stack-card-header">
                   <strong>{purchasedCount} items purchased</strong>
-                  <button className="ui-button ui-button-primary ui-button-sm" type="button" onClick={() => setPostPurchaseOpen(true)}>
+                  <ActionButton size="sm" onClick={() => setPostPurchaseOpen(true)}>
                     Confirm / Complete
-                  </button>
+                  </ActionButton>
                 </div>
               </div>
             ) : null}
@@ -189,8 +186,10 @@ export function ShoppingWorkspace() {
       {shoppingWorkspaceTab === "history" ? (
         <section className="grid gap-4">
           <article className="panel" data-testid="food-shopping-history">
-            <div className="eyebrow">Trip history</div>
-            <h2>Review completed trips without mixing them into the active list</h2>
+            <SectionHeader
+              eyebrow="Trip history"
+              title="Review completed trips without mixing them into the active list"
+            />
             <div className="stack-list mt-3.5">
               {data.shoppingHistory.map((trip: any) => (
                 <div className="stack-card" key={trip.id}>
@@ -205,6 +204,9 @@ export function ShoppingWorkspace() {
                   </div>
                 </div>
               ))}
+              {data.shoppingHistory.length === 0 ? (
+                <EmptyState message="Completed shopping trips will appear here once a list has been finished." />
+              ) : null}
             </div>
           </article>
           {selectedHistoryTripId && historyTripQuery.data ? (
@@ -216,7 +218,7 @@ export function ShoppingWorkspace() {
           ) : null}
         </section>
       ) : null}
-    </>
+    </PageContainer>
   );
 }
 

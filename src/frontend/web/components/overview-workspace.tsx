@@ -8,7 +8,16 @@ import { ChoresPanel } from "./overview-tabs/chores-panel";
 import { NotesPanel } from "./overview-tabs/notes-panel";
 import { OverviewProvider, useOverviewContext } from "./overview-tabs/overview-context";
 import { TodayPanel } from "./overview-tabs/today-panel";
-import { Card, LoadingSpinner, SubTabs, useWorkspaceQueryState } from "@/components/ui";
+import {
+  Card,
+  EmptyState,
+  LoadingSpinner,
+  PageContainer,
+  PageHeader,
+  StatusMessage,
+  SubTabs,
+  useWorkspaceQueryState
+} from "@/components/ui";
 
 type OverviewTab = "today" | "chores" | "notes" | "agenda";
 
@@ -41,34 +50,29 @@ function OverviewWorkspaceBody() {
   })();
 
   return (
-    <section className="space-y-6">
+    <PageContainer>
       {error ? (
-        <div className="ui-alert ui-alert-danger shadow-sm" aria-live="polite" role="alert">
-          <span>{error}</span>
-        </div>
+        <StatusMessage aria-live="polite" message={error} variant="danger" />
       ) : null}
 
       {successMessage ? (
-        <div className="ui-alert ui-alert-success shadow-sm" aria-live="polite">
-          <span>{successMessage}</span>
-        </div>
+        <StatusMessage aria-live="polite" message={successMessage} variant="success" />
       ) : null}
 
-      <Card className="space-y-5" data-testid="overview-workspace">
-        <div className="space-y-3">
-          <div className="eyebrow">Overview</div>
-          <h2 className="text-3xl font-semibold tracking-tight">Household at a glance</h2>
-          <p className="muted max-w-3xl">
-            Today, chores, notes, and agenda stay grouped in one member-facing workspace.
-          </p>
-        </div>
+      <PageHeader
+        className="space-y-5"
+        data-testid="overview-workspace"
+        description="Today, chores, notes, and agenda stay grouped in one member-facing workspace."
+        eyebrow="Overview"
+        title="Household at a glance"
+      >
         <SubTabs
           tabs={[...OVERVIEW_TABS]}
           activeTab={activeTab}
           onChange={setActiveTab}
           ariaLabel="Overview tabs"
         />
-      </Card>
+      </PageHeader>
 
       {isLoading ? (
         <Card aria-busy="true">
@@ -78,7 +82,7 @@ function OverviewWorkspaceBody() {
         <div className="tab-content-enter space-y-6">{content}</div>
       ) : (
         <Card>
-          <p className="muted">Sign in to see your household home.</p>
+          <EmptyState message="Sign in to see your household home." />
         </Card>
       )}
 
@@ -86,7 +90,7 @@ function OverviewWorkspaceBody() {
         <FoodSummaryPanel />
         <AuthStatusPanel />
       </section>
-    </section>
+    </PageContainer>
   );
 }
 

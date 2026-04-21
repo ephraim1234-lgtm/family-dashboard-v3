@@ -1,21 +1,28 @@
 import type { ButtonHTMLAttributes } from "react";
+import { cn } from "@/lib/cn";
 
-type ButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "admin";
-type ButtonSize = "sm" | "md";
+export type ButtonVariant =
+  | "primary"
+  | "secondary"
+  | "ghost"
+  | "danger"
+  | "admin"
+  | "success"
+  | "outline"
+  | "active";
+export type ButtonSize = "xs" | "sm" | "md";
 
-type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant;
   size?: ButtonSize;
 };
 
-export function Button({
+export function getButtonClassName({
   className,
   variant = "primary",
-  size = "md",
-  type = "button",
-  ...props
-}: ButtonProps) {
-  const classes = [
+  size = "md"
+}: Pick<ButtonProps, "className" | "variant" | "size">) {
+  return cn(
     "ui-button",
     variant === "danger"
       ? "ui-button-danger"
@@ -25,10 +32,34 @@ export function Button({
           ? "ui-button-secondary"
           : variant === "ghost"
             ? "ui-button-ghost"
-            : "ui-button-primary",
-    size === "sm" ? "ui-button-sm" : "ui-button-md",
+            : variant === "success"
+              ? "ui-button-success"
+              : variant === "outline"
+                ? "ui-button-outline"
+                : variant === "active"
+                  ? "ui-button-active"
+                  : "ui-button-primary",
+    size === "xs"
+      ? "ui-button-xs"
+      : size === "sm"
+        ? "ui-button-sm"
+        : "ui-button-md",
     className
-  ].filter(Boolean).join(" ");
+  );
+}
 
-  return <button type={type} className={classes} {...props} />;
+export function Button({
+  className,
+  variant = "primary",
+  size = "md",
+  type = "button",
+  ...props
+}: ButtonProps) {
+  return (
+    <button
+      type={type}
+      className={getButtonClassName({ className, variant, size })}
+      {...props}
+    />
+  );
 }

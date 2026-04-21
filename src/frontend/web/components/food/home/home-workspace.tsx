@@ -3,37 +3,13 @@
 import { useMemo, useState } from "react";
 import { RecipeLibraryWorkspace } from "../recipes/recipe-library-workspace";
 import { useFoodHubContext } from "../food-hub-context";
-
-function formatDateLabel(date: string) {
-  return new Date(`${date}T00:00:00`).toLocaleDateString([], {
-    weekday: "short",
-    month: "short",
-    day: "numeric"
-  });
-}
-
-function HomeStat({
-  label,
-  value,
-  tone = "default"
-}: {
-  label: string;
-  value: string | number;
-  tone?: "default" | "warning" | "accent";
-}) {
-  const toneClassName = tone === "warning"
-    ? "ui-inline-card-warning"
-    : tone === "accent"
-      ? "ui-inline-card-accent"
-      : "ui-inline-card";
-
-  return (
-    <div className={`p-3 ${toneClassName}`}>
-      <div className="text-xl font-semibold tracking-tight">{value}</div>
-      <div className="ui-text-muted mt-1 text-sm">{label}</div>
-    </div>
-  );
-}
+import {
+  ActionButton,
+  EmptyState,
+  SectionHeader,
+  StatCard,
+  StatusMessage
+} from "@/components/ui";
 
 function HomeAttentionCard({
   eyebrow,
@@ -61,11 +37,19 @@ function HomeAttentionCard({
       <div className="eyebrow">{eyebrow}</div>
       <div className="mt-1 text-base font-semibold">{title}</div>
       <p className="ui-text-muted mt-2 text-sm">{description}</p>
-      <button className="ui-button ui-button-ghost ui-button-sm mt-3" type="button" onClick={onAction}>
+      <ActionButton className="mt-3" size="sm" variant="ghost" onClick={onAction}>
         {actionLabel}
-      </button>
+      </ActionButton>
     </div>
   );
+}
+
+function formatDateLabel(date: string) {
+  return new Date(`${date}T00:00:00`).toLocaleDateString([], {
+    weekday: "short",
+    month: "short",
+    day: "numeric"
+  });
 }
 
 export function HomeWorkspace() {
@@ -106,27 +90,32 @@ export function HomeWorkspace() {
 
   const firstCookingSession = data.activeCookingSessions[0] ?? null;
   const lowStockBanner = !dismissedLowStock && data.summary.lowStockCount > 0 ? (
-    <article className="ui-alert ui-alert-warning">
-      <div>
-        <strong>{data.summary.lowStockCount} pantry items need attention soon.</strong>
-        <div className="mt-1 text-sm opacity-80">Review low-stock staples before the next grocery run sneaks up on you.</div>
-      </div>
+    <StatusMessage
+      message={
+        <>
+          <strong>{data.summary.lowStockCount} pantry items need attention soon.</strong>
+          <div className="mt-1 text-sm opacity-80">
+            Review low-stock staples before the next grocery run sneaks up on you.
+          </div>
+        </>
+      }
+      variant="warning"
+    >
       <div className="flex gap-2">
-        <button
-          className="ui-button ui-button-sm"
-          type="button"
+        <ActionButton
+          size="sm"
           onClick={() => {
             setPantryLowStockOnly(true);
             setActiveModuleTab("pantry");
           }}
         >
           Review pantry
-        </button>
-        <button className="ui-button ui-button-ghost ui-button-sm" type="button" onClick={() => setDismissedLowStock(true)}>
+        </ActionButton>
+        <ActionButton size="sm" variant="ghost" onClick={() => setDismissedLowStock(true)}>
           Dismiss
-        </button>
+        </ActionButton>
       </div>
-    </article>
+    </StatusMessage>
   ) : null;
 
   function openRecipeLibrary() {
@@ -164,39 +153,28 @@ export function HomeWorkspace() {
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.75fr)_minmax(0,1fr)]">
         <article className="panel overflow-hidden" data-testid="food-home-overview">
-          <div className="eyebrow">Home</div>
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="max-w-2xl">
-              <h2>{todaysMeals.length > 0 ? "Keep food moving today" : "Get tonight lined up fast"}</h2>
-              <p className="muted mt-2">
-                {todaysMeals.length > 0
-                  ? "See what is planned, spot any gaps, and jump straight into cooking or shopping."
-                  : "Use Home as the quick-start board for planning dinner, checking pantry gaps, and finding a recipe everyone can agree on."}
-              </p>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <button className="ui-button ui-button-primary ui-button-sm" type="button" onClick={handleQuickCook}>
-                Cook now
-              </button>
-              <button className="ui-button ui-button-ghost ui-button-sm" type="button" onClick={openRecipeLibrary}>
-                Browse recipes
-              </button>
-              <button className="ui-button ui-button-ghost ui-button-sm" type="button" onClick={() => openShoppingView()}>
-                Open shopping
-              </button>
-              <button className="ui-button ui-button-ghost ui-button-sm" type="button" onClick={() => openPantryView(false)}>
-                Review pantry
-              </button>
-            </div>
-          </div>
+          <SectionHeader
+            actions={
+              <>
+                <ActionButton size="sm" onClick={handleQuickCook}>Cook now</ActionButton>
+                <ActionButton size="sm" variant="ghost" onClick={openRecipeLibrary}>Browse recipes</ActionButton>
+                <ActionButton size="sm" variant="ghost" onClick={() => openShoppingView()}>Open shopping</ActionButton>
+                <ActionButton size="sm" variant="ghost" onClick={() => openPantryView(false)}>Review pantry</ActionButton>
+              </>
+            }
+            description={todaysMeals.length > 0
+              ? "See what is planned, spot any gaps, and jump straight into cooking or shopping."
+              : "Use Home as the quick-start board for planning dinner, checking pantry gaps, and finding a recipe everyone can agree on."}
+            eyebrow="Home"
+            title={todaysMeals.length > 0 ? "Keep food moving today" : "Get tonight lined up fast"}
+          />
 
           <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            <HomeStat label="Recipes ready" value={data.summary.recipeCount} />
-            <HomeStat label="Pantry items" value={data.summary.pantryItemCount} />
-            <HomeStat label="Open shopping items" value={openShoppingCount} tone={openShoppingCount > 0 ? "accent" : "default"} />
-            <HomeStat label="Low stock" value={data.summary.lowStockCount} tone={data.summary.lowStockCount > 0 ? "warning" : "default"} />
-            <HomeStat label="Meals ahead" value={data.summary.upcomingMealCount} />
+            <StatCard label="Recipes ready" value={data.summary.recipeCount} />
+            <StatCard label="Pantry items" value={data.summary.pantryItemCount} />
+            <StatCard label="Open shopping items" tone={openShoppingCount > 0 ? "accent" : "default"} value={openShoppingCount} />
+            <StatCard label="Low stock" tone={data.summary.lowStockCount > 0 ? "warning" : "default"} value={data.summary.lowStockCount} />
+            <StatCard label="Meals ahead" value={data.summary.upcomingMealCount} />
           </div>
 
           <div className="ui-inline-card mt-5">
@@ -212,10 +190,9 @@ export function HomeWorkspace() {
               </div>
               <div className="flex flex-wrap gap-2">
                 {data.tonightCookView?.mealPlanSlotId ? (
-                  <button
-                    className="ui-button ui-button-primary ui-button-sm"
+                  <ActionButton
                     disabled={isPending}
-                    type="button"
+                    size="sm"
                     onClick={() => {
                       setError(null);
                       startTransition(() => {
@@ -226,16 +203,16 @@ export function HomeWorkspace() {
                     }}
                   >
                     Start tonight
-                  </button>
+                  </ActionButton>
                 ) : (
-                  <button className="ui-button ui-button-primary ui-button-sm" type="button" onClick={openRecipeLibrary}>
+                  <ActionButton size="sm" onClick={openRecipeLibrary}>
                     Pick a recipe
-                  </button>
+                  </ActionButton>
                 )}
                 {data.tonightCookView?.missingIngredientCount ? (
-                  <button className="ui-button ui-button-ghost ui-button-sm" type="button" onClick={() => openShoppingView(data.tonightCookView?.mealPlanSlotId ?? null)}>
+                  <ActionButton size="sm" variant="ghost" onClick={() => openShoppingView(data.tonightCookView?.mealPlanSlotId ?? null)}>
                     {data.tonightCookView.missingIngredientCount} missing
-                  </button>
+                  </ActionButton>
                 ) : null}
               </div>
             </div>
@@ -243,9 +220,11 @@ export function HomeWorkspace() {
         </article>
 
         <article className="panel" data-testid="food-home-attention">
-          <div className="eyebrow">Needs attention</div>
-          <h2>What to check next</h2>
-          <p className="muted mt-2">The Home tab stays useful when it highlights the next thing worth doing, not every detail in the module.</p>
+          <SectionHeader
+            description="The Home tab stays useful when it highlights the next thing worth doing, not every detail in the module."
+            eyebrow="Needs attention"
+            title="What to check next"
+          />
 
           <div className="mt-4 space-y-3">
             {data.summary.lowStockCount > 0 ? (
@@ -296,9 +275,10 @@ export function HomeWorkspace() {
             ) : null}
 
             {data.summary.lowStockCount === 0 && needsReviewCount === 0 && openShoppingCount === 0 && !firstCookingSession && (!nextUpcomingMeal || todaysMeals.length > 0) ? (
-              <div className="ui-inline-card ui-text-muted text-sm">
-                Everything looks calm right now. Use Home for quick starts, then jump into Recipes, Meals, Pantry, or Shopping when you need detail.
-              </div>
+              <EmptyState
+                className="ui-inline-card text-sm"
+                message="Everything looks calm right now. Use Home for quick starts, then jump into Recipes, Meals, Pantry, or Shopping when you need detail."
+              />
             ) : null}
           </div>
         </article>
@@ -306,16 +286,12 @@ export function HomeWorkspace() {
 
       {todaysMeals.length > 0 ? (
         <article className="panel" data-testid="food-home-today-section">
-          <div className="eyebrow">Today</div>
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <h2>Meals ready to cook</h2>
-              <p className="muted mt-2">Each meal card keeps the essentials visible: recipes, missing ingredients, and the fastest next action.</p>
-            </div>
-            <button className="ui-button ui-button-ghost ui-button-sm" type="button" onClick={openMealsView}>
-              Open meals
-            </button>
-          </div>
+          <SectionHeader
+            actions={<ActionButton size="sm" variant="ghost" onClick={openMealsView}>Open meals</ActionButton>}
+            description="Each meal card keeps the essentials visible: recipes, missing ingredients, and the fastest next action."
+            eyebrow="Today"
+            title="Meals ready to cook"
+          />
 
           <div className="mt-4 grid gap-4 lg:grid-cols-2">
             {todaysMeals.map((slot: any) => (
@@ -347,10 +323,9 @@ export function HomeWorkspace() {
                 {slot.notes ? <p className="ui-text-muted mt-3 text-sm">{slot.notes}</p> : null}
 
                 <div className="mt-4 flex flex-wrap gap-2">
-                  <button
-                    className="ui-button ui-button-primary ui-button-sm"
+                  <ActionButton
                     disabled={isPending}
-                    type="button"
+                    size="sm"
                     onClick={() => {
                       setError(null);
                       startTransition(() => {
@@ -361,10 +336,10 @@ export function HomeWorkspace() {
                     }}
                   >
                     Start cooking
-                  </button>
-                  <button className="ui-button ui-button-ghost ui-button-sm" type="button" onClick={() => openShoppingView(slot.id)}>
+                  </ActionButton>
+                  <ActionButton size="sm" variant="ghost" onClick={() => openShoppingView(slot.id)}>
                     {slot.shoppingOpenIngredientCount > 0 ? "Review shopping" : "Open shopping"}
-                  </button>
+                  </ActionButton>
                 </div>
               </div>
             ))}
@@ -373,39 +348,34 @@ export function HomeWorkspace() {
       ) : (
         <section className="grid gap-4 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.35fr)]">
           <article className="panel" data-testid="food-home-empty-state">
-            <div className="eyebrow">Today</div>
-            <h2>Nothing is planned for today</h2>
-            <p className="muted mt-2">
-              Pick a recipe, import something new, or head to Meals to plan ahead before the day gets busy.
-            </p>
+            <SectionHeader
+              description="Pick a recipe, import something new, or head to Meals to plan ahead before the day gets busy."
+              eyebrow="Today"
+              title="Nothing is planned for today"
+            />
 
             {nextUpcomingMeal ? (
-              <div className="ui-inline-card mt-4">
-                <div className="eyebrow">Up next</div>
-                <div className="mt-1 text-base font-semibold">{nextUpcomingMeal.title}</div>
-                <p className="ui-text-muted mt-2 text-sm">
-                  {formatDateLabel(nextUpcomingMeal.date)} - {nextUpcomingMeal.slotName}
-                </p>
-              </div>
+              <EmptyState
+                action={null}
+                className="ui-inline-card mt-4 text-sm"
+                message={`${formatDateLabel(nextUpcomingMeal.date)} - ${nextUpcomingMeal.slotName}`}
+                title={nextUpcomingMeal.title}
+              />
             ) : null}
 
             <div className="mt-5 flex flex-wrap gap-2">
-              <button className="ui-button ui-button-primary ui-button-sm" type="button" onClick={openRecipeLibrary}>
-                Browse recipes
-              </button>
-              <button className="ui-button ui-button-ghost ui-button-sm" type="button" onClick={openRecipeImport}>
-                Import recipe
-              </button>
-              <button className="ui-button ui-button-ghost ui-button-sm" type="button" onClick={openMealsView}>
-                Open meals
-              </button>
+              <ActionButton size="sm" onClick={openRecipeLibrary}>Browse recipes</ActionButton>
+              <ActionButton size="sm" variant="ghost" onClick={openRecipeImport}>Import recipe</ActionButton>
+              <ActionButton size="sm" variant="ghost" onClick={openMealsView}>Open meals</ActionButton>
             </div>
           </article>
 
           <div className="panel" data-testid="food-home-recipes-preview">
-            <div className="eyebrow">Recipe ideas</div>
-            <h2>Find something everyone will actually eat</h2>
-            <p className="muted mt-2">Search the shared library, then turn a good recipe into a meal plan or a quick cook session.</p>
+            <SectionHeader
+              description="Search the shared library, then turn a good recipe into a meal plan or a quick cook session."
+              eyebrow="Recipe ideas"
+              title="Find something everyone will actually eat"
+            />
             <div className="mt-4">
               <RecipeLibraryWorkspace hideHeader />
             </div>

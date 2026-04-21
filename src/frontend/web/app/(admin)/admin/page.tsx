@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense } from "react";
-import { Card, SubTabs, useWorkspaceQueryState } from "@/components/ui";
+import { Card, PageContainer, PageHeader, SubTabs, useWorkspaceQueryState } from "@/components/ui";
 import { AdminAccessPanel } from "../../../components/admin-access-panel";
 import { AdminChoreInsightsPanel } from "../../../components/admin-chore-insights-panel";
 import { AdminCalendarIntegrationsPanel } from "../../../components/admin-calendar-integrations-panel";
@@ -32,22 +32,20 @@ function AdminPageBody() {
   );
 
   return (
-    <section className="space-y-6">
-      <Card className="space-y-5">
-        <div className="space-y-3">
-          <div className="eyebrow">Admin</div>
-          <h2 className="text-3xl font-semibold tracking-tight">Administration</h2>
-          <p className="muted max-w-3xl">
-            Owner-gated workflows over core household domains.
-          </p>
-        </div>
+    <PageContainer>
+      <PageHeader
+        className="space-y-5 ui-card-admin"
+        description="Owner-gated workflows over core household domains."
+        eyebrow="Admin"
+        title="Administration"
+      >
         <SubTabs
           tabs={[...ADMIN_TABS]}
           activeTab={tab}
           onChange={setTab}
           ariaLabel="Admin tabs"
         />
-      </Card>
+      </PageHeader>
 
       <div className="tab-content-enter space-y-6" data-testid="admin-workspace">
         {tab === "overview" ? (
@@ -83,7 +81,7 @@ function AdminPageBody() {
 
         {tab === "display" ? <AdminDisplayManagementPanel /> : null}
       </div>
-    </section>
+    </PageContainer>
   );
 }
 

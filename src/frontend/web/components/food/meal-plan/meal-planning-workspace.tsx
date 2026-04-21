@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useFoodHubContext } from "../food-hub-context";
-import { SubTabs } from "@/components/ui";
+import { ActionButton, EmptyState, PageContainer, PageHeader, SectionHeader, SubTabs } from "@/components/ui";
 
 function formatDateLabel(date: string) {
   return new Date(`${date}T00:00:00`).toLocaleDateString([], {
@@ -30,7 +30,7 @@ function SlotList({
   } = useFoodHubContext();
 
   if (slots.length === 0) {
-    return <p className="muted mt-3">{emptyMessage}</p>;
+    return <EmptyState className="mt-3" message={emptyMessage} />;
   }
 
   return (
@@ -124,32 +124,31 @@ export function MealPlanningWorkspace() {
   );
 
   return (
-    <>
-      <section className="grid">
-        <article className="panel">
-          <div className="eyebrow">Meal planning</div>
-          <h2>Review meals by day, then jump into shopping or cooking</h2>
-          <SubTabs
-            tabs={[
-              { id: "day", label: "Day view" },
-              { id: "upcoming", label: "Upcoming" }
-            ]}
-            activeTab={planningTab}
-            onChange={setPlanningTab}
-            ariaLabel="Meal planning views"
-          />
-        </article>
-      </section>
+    <PageContainer>
+      <PageHeader
+        eyebrow="Meal planning"
+        title="Review meals by day, then jump into shopping or cooking"
+      >
+        <SubTabs
+          tabs={[
+            { id: "day", label: "Day view" },
+            { id: "upcoming", label: "Upcoming" }
+          ]}
+          activeTab={planningTab}
+          onChange={setPlanningTab}
+          ariaLabel="Meal planning views"
+        />
+      </PageHeader>
 
       <section className="grid gap-4">
         {planningTab === "day" ? (
           <article className="panel" data-testid="food-meal-planning">
-            <div className="eyebrow">Day view</div>
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <h2>{formatDateLabel(selectedDate)}</h2>
-                <p className="muted mt-2">Meals are added from recipe cards and recipe detail views.</p>
-              </div>
+            <SectionHeader
+              description="Meals are added from recipe cards and recipe detail views."
+              eyebrow="Day view"
+              title={formatDateLabel(selectedDate)}
+            />
+            <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
               <label className="field w-full max-w-xs">
                 <span>Date</span>
                 <input
@@ -169,9 +168,9 @@ export function MealPlanningWorkspace() {
 
             {daySlots.length === 0 ? (
               <div className="mt-4">
-                <button className="ui-button ui-button-primary ui-button-sm" type="button" onClick={() => setActiveModuleTab("recipes")}>
+                <ActionButton size="sm" onClick={() => setActiveModuleTab("recipes")}>
                   Browse recipes
-                </button>
+                </ActionButton>
               </div>
             ) : null}
           </article>
@@ -179,8 +178,11 @@ export function MealPlanningWorkspace() {
 
         {planningTab === "upcoming" ? (
           <article className="panel" data-testid="food-meal-upcoming">
-            <div className="eyebrow">Upcoming meals</div>
-            <h2>Track the next meals and remove or cook them in place</h2>
+            <SectionHeader
+              description="Track the next meals and remove or cook them in place."
+              eyebrow="Upcoming meals"
+              title="Track the next meals and remove or cook them in place"
+            />
             <SlotList
               slots={data.upcomingMeals}
               emptyMessage="Upcoming meals will appear here once you add them from Recipes."
@@ -188,6 +190,6 @@ export function MealPlanningWorkspace() {
           </article>
         ) : null}
       </section>
-    </>
+    </PageContainer>
   );
 }

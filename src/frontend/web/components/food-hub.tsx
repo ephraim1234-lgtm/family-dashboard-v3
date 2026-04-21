@@ -19,7 +19,15 @@ import { FoodActionBar } from "./food/shell/food-action-bar";
 import { FoodTabBar } from "./food/shell/food-tab-bar";
 import { ShoppingWorkspace } from "./food/shopping/shopping-workspace";
 import { PostPurchaseConfirm } from "./food/shopping/post-purchase-confirm";
-import { ConfirmDeleteModal, UndoToast, useUndoToast } from "@/components/ui";
+import {
+  Card,
+  EmptyState,
+  PageContainer,
+  StatusMessage,
+  ConfirmDeleteModal,
+  UndoToast,
+  useUndoToast
+} from "@/components/ui";
 
 type FoodSummary = {
   recipeCount: number;
@@ -1315,47 +1323,44 @@ export function FoodHub() {
 
   if (loading) {
     return (
-      <section className="grid" data-testid="food-hub-loading">
-        <article className="panel">
-          <p className="muted">Loading the household food system...</p>
-        </article>
-      </section>
+      <Card data-testid="food-hub-loading">
+        <EmptyState message="Loading the household food system..." />
+      </Card>
     );
   }
 
   if (!data) {
     return (
-      <section className="grid">
-        <article className="panel">
-          <p className="error-text" role="alert" data-testid="food-alert-error">
-            {error ?? "Food could not be loaded."}
-          </p>
-        </article>
-      </section>
+      <Card>
+        <StatusMessage
+          data-testid="food-alert-error"
+          message={error ?? "Food could not be loaded."}
+          variant="danger"
+        />
+      </Card>
     );
   }
 
   return (
     <FoodHubProvider value={foodHubContextValue}>
-      <div className="pb-48 md:pb-10" data-testid="food-hub">
+      <PageContainer className="pb-48 md:pb-10" data-testid="food-hub">
       {error ? (
-        <section className="grid" aria-live="polite">
-          <article className="panel">
-            <p className="error-text" role="alert" data-testid="food-alert-error">
-              {error}
-            </p>
-          </article>
-        </section>
+        <StatusMessage
+          aria-live="polite"
+          data-testid="food-alert-error"
+          message={error}
+          variant="danger"
+        />
       ) : null}
 
       {success ? (
-        <section className="grid" aria-live="polite">
-          <article className="panel">
-            <p className="success-text" role="status" data-testid="food-alert-success">
-              {success}
-            </p>
-          </article>
-        </section>
+        <StatusMessage
+          aria-live="polite"
+          data-testid="food-alert-success"
+          message={success}
+          role="status"
+          variant="success"
+        />
       ) : null}
 
       <section className="grid">
@@ -1427,7 +1432,7 @@ export function FoodHub() {
         }}
         isPending={isPending}
       />
-    </div>
+    </PageContainer>
     </FoodHubProvider>
   );
 }
