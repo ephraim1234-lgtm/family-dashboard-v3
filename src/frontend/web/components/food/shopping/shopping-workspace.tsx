@@ -9,6 +9,7 @@ export function ShoppingWorkspace() {
   const {
     data,
     activeShoppingItems,
+    completedShoppingItems,
     shoppingMealFilterId,
     setShoppingMealFilterId,
     shoppingGroupMode,
@@ -35,7 +36,7 @@ export function ShoppingWorkspace() {
       <section className="grid">
         <article className="panel">
           <div className="eyebrow">Shopping workspace</div>
-          <h2>Track shopping, purchases, and history</h2>
+          <h2>Track purchases, review completed items, and confirm pantry transfer once</h2>
           <SubTabs
             tabs={[
               { id: "list", label: "Shop list" },
@@ -59,23 +60,23 @@ export function ShoppingWorkspace() {
               <span className="pill">{activeShoppingItems.length} open</span>
             </div>
 
-            <div className="action-row mt-3">
+            <div className="mt-3 flex flex-wrap gap-2">
               <button
-                className={shoppingGroupMode === "flat" ? "sub-tab-button sub-tab-button-active" : "sub-tab-button"}
+                className={`btn min-h-[44px] ${shoppingGroupMode === "flat" ? "btn-active" : "btn-ghost"}`}
                 type="button"
                 onClick={() => setShoppingGroupMode("flat")}
               >
                 Flat
               </button>
               <button
-                className={shoppingGroupMode === "aisle" ? "sub-tab-button sub-tab-button-active" : "sub-tab-button"}
+                className={`btn min-h-[44px] ${shoppingGroupMode === "aisle" ? "btn-active" : "btn-ghost"}`}
                 type="button"
                 onClick={() => setShoppingGroupMode("aisle")}
               >
                 By aisle
               </button>
               <button
-                className="pill-button"
+                className="btn btn-ghost min-h-[44px]"
                 type="button"
                 disabled={activeShoppingItems.length === 0}
                 onClick={() => {
@@ -90,17 +91,13 @@ export function ShoppingWorkspace() {
                 Mark All Purchased
               </button>
               <button
-                className="pill-button"
+                className="btn btn-ghost min-h-[44px]"
                 type="button"
                 disabled={purchasedShoppingItems.length === 0}
                 onClick={() => {
                   setError(null);
                   startTransition(() => {
-                    Promise.all(
-                      purchasedShoppingItems
-                        .filter((item: any) => item.state === "Purchased")
-                        .map((item: any) => handleDeleteShoppingItem(item))
-                    ).catch((err: unknown) => {
+                    Promise.all(purchasedShoppingItems.map((item: any) => handleDeleteShoppingItem(item))).catch((err: unknown) => {
                       setError(err instanceof Error ? err.message : "Unable to clear completed items.");
                     });
                   });
@@ -111,9 +108,9 @@ export function ShoppingWorkspace() {
             </div>
 
             {shoppingMealFilterId ? (
-              <div className="action-row mt-2.5">
+              <div className="mt-3 flex flex-wrap items-center gap-2">
                 <span className="pill">Filtered to one meal</span>
-                <button className="pill-button" type="button" onClick={() => setShoppingMealFilterId(null)}>
+                <button className="btn btn-ghost btn-sm min-h-[44px]" type="button" onClick={() => setShoppingMealFilterId(null)}>
                   Clear filter
                 </button>
               </div>
@@ -165,12 +162,12 @@ export function ShoppingWorkspace() {
               </div>
             ) : null}
 
-            {purchasedShoppingItems.length > 0 ? (
+            {completedShoppingItems.length > 0 ? (
               <details className="mt-4">
-                <summary className="muted">Purchased or skipped ({purchasedShoppingItems.length})</summary>
+                <summary className="muted">Purchased or skipped ({completedShoppingItems.length})</summary>
                 <div className="stack-list mt-3">
-                  {purchasedShoppingItems.map((item: any) => (
-                    <div className="stack-card" key={`purchased-${item.id}`}>
+                  {completedShoppingItems.map((item: any) => (
+                    <div className="stack-card" key={`completed-${item.id}`}>
                       <div className="stack-card-header">
                         <div className="flex-1">
                           <strong className={item.state === "Skipped" ? "opacity-60" : ""}>{item.ingredientName}</strong>
@@ -178,7 +175,7 @@ export function ShoppingWorkspace() {
                             {formatQuantity(item.quantityPurchased ?? item.quantityNeeded, item.unit)}
                           </div>
                         </div>
-                        <span className="pill">{item.state}</span>
+                        <span className={`pill ${item.state === "Skipped" ? "opacity-60" : ""}`}>{item.state}</span>
                       </div>
                     </div>
                   ))}
@@ -202,7 +199,7 @@ export function ShoppingWorkspace() {
                       <strong>{trip.name}</strong>
                       <div className="muted">{trip.itemsPurchasedCount}/{trip.totalItemCount} purchased</div>
                     </div>
-                    <button className="pill-button" type="button" onClick={() => setSelectedHistoryTripId(trip.id)}>
+                    <button className="btn btn-ghost min-h-[44px]" type="button" onClick={() => setSelectedHistoryTripId(trip.id)}>
                       Open
                     </button>
                   </div>
@@ -241,7 +238,7 @@ function ShoppingItemRow({
   startTransition: (callback: () => void) => void;
 }) {
   return (
-    <div className="stack-card">
+    <div className={`stack-card ${item.state === "NeedsReview" ? "border-warning/60" : ""}`}>
       <div className="stack-card-header">
         <div>
           <strong>{item.ingredientName}</strong>
@@ -250,7 +247,7 @@ function ShoppingItemRow({
             {item.sourceMealTitle ? ` - ${item.sourceMealTitle}` : ""}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             className="btn btn-success btn-sm min-h-[44px]"
             type="button"

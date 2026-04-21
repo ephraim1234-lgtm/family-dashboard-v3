@@ -1,6 +1,6 @@
-import { test, expect, gotoFood, uniqueName } from "./fixtures";
+import { test, expect, gotoFood, uniqueName, useMobileViewport } from "./fixtures";
 
-test("loads the food module with the main sections for an authenticated household", async ({ page }) => {
+test("loads the food module with the five primary tabs on desktop", async ({ page }) => {
   await gotoFood(page);
 
   await expect(page.getByTestId("food-tab-bar")).toBeVisible();
@@ -22,7 +22,25 @@ test("loads the food module with the main sections for an authenticated househol
   await expect(page.getByTestId("food-shopping-panel")).toBeVisible();
 });
 
-test("renders mobile and TV cooking routes for a valid session", async ({ page, foodApi }) => {
+test("shows the mobile quick-action bar and bottom drawers", async ({ page }) => {
+  await useMobileViewport(page);
+  await gotoFood(page);
+
+  await expect(page.getByTestId("food-action-bar")).toBeVisible();
+
+  await page.getByTestId("food-action-bar").getByRole("button", { name: "Add to List" }).click();
+  await expect(page.getByTestId("food-add-to-list-drawer")).toBeVisible();
+  await page.getByTestId("food-add-to-list-drawer").getByRole("button", { name: /^Close$/ }).click();
+
+  await page.getByTestId("food-action-bar").getByRole("button", { name: "Add to Pantry" }).click();
+  await expect(page.getByTestId("food-add-to-pantry-drawer")).toBeVisible();
+  await page.getByTestId("food-add-to-pantry-drawer").getByRole("button", { name: /^Close$/ }).click();
+
+  await page.getByTestId("food-action-bar").getByRole("button", { name: "Alerts" }).click();
+  await expect(page.getByTestId("food-alerts-panel")).toBeVisible();
+});
+
+test("renders cooking routes without Food-local tab or action bars", async ({ page, foodApi }) => {
   const recipeOne = await foodApi.createRecipe({
     title: uniqueName("Lemon Herb Chicken"),
     ingredients: [{ ingredientName: "Chicken", quantity: 1, unit: "lb" }],
@@ -50,6 +68,8 @@ test("renders mobile and TV cooking routes for a valid session", async ({ page, 
   await page.goto(`/app/food/cooking/${session.id}`);
   await expect(page.getByTestId("cooking-session-page")).toBeVisible();
   await expect(page.getByTestId("cooking-session-title")).toContainText(slot.title);
+  await expect(page.getByTestId("food-tab-bar")).toHaveCount(0);
+  await expect(page.getByTestId("food-action-bar")).toHaveCount(0);
 
   await page.goto(`/app/food/cooking/${session.id}/tv`);
   await expect(page.getByTestId("food-tv-display")).toBeVisible();

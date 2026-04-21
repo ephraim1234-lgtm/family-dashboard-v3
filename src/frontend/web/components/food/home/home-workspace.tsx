@@ -26,55 +26,52 @@ export function HomeWorkspace() {
     [data.upcomingMeals, today]
   );
 
+  const lowStockBanner = !dismissedLowStock && data.summary.lowStockCount > 0 ? (
+    <article className="alert">
+      <div>
+        <strong>{data.summary.lowStockCount} pantry items are running low.</strong>
+      </div>
+      <div className="flex gap-2">
+        <button
+          className="btn btn-sm min-h-[44px]"
+          type="button"
+          onClick={() => {
+            setPantryLowStockOnly(true);
+            setActiveModuleTab("pantry");
+          }}
+        >
+          View pantry
+        </button>
+        <button className="btn btn-ghost btn-sm min-h-[44px]" type="button" onClick={() => setDismissedLowStock(true)}>
+          Dismiss
+        </button>
+      </div>
+    </article>
+  ) : null;
+
   if (todaysMeals.length === 0) {
     return (
       <section className="grid gap-4" data-testid="food-home-workspace">
-        {!dismissedLowStock && data.summary.lowStockCount > 0 ? (
-          <article className="alert">
-            <div>
-              <strong>{data.summary.lowStockCount} pantry items are running low.</strong>
-            </div>
-            <div className="flex gap-2">
-              <button
-                className="btn btn-sm min-h-[44px]"
-                type="button"
-                onClick={() => {
-                  setPantryLowStockOnly(true);
-                  setActiveModuleTab("pantry");
-                }}
-              >
-                View pantry
-              </button>
-              <button className="btn btn-ghost btn-sm min-h-[44px]" type="button" onClick={() => setDismissedLowStock(true)}>
-                Dismiss
-              </button>
-            </div>
-          </article>
-        ) : null}
+        {lowStockBanner}
         <article className="panel">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
               <div className="eyebrow">Home</div>
               <h2>Nothing planned today - find something to cook</h2>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <button className="btn btn-primary min-h-[44px]" type="button" onClick={() => setActiveModuleTab("recipes")}>
-                Browse Recipes
-              </button>
-              <button
-                className="btn btn-ghost min-h-[44px]"
-                type="button"
-                onClick={() => {
-                  setActiveModuleTab("recipes");
-                  setRecipeWorkspaceTab("capture");
-                  setImportUrl("");
-                  setImportReview(null);
-                  setRecipeDraft(null);
-                }}
-              >
-                Import Recipe
-              </button>
-            </div>
+            <button
+              className="btn btn-primary min-h-[44px]"
+              type="button"
+              onClick={() => {
+                setActiveModuleTab("recipes");
+                setRecipeWorkspaceTab("capture");
+                setImportUrl("");
+                setImportReview(null);
+                setRecipeDraft(null);
+              }}
+            >
+              Import Recipe
+            </button>
           </div>
           <RecipeLibraryWorkspace hideHeader />
         </article>
@@ -84,28 +81,7 @@ export function HomeWorkspace() {
 
   return (
     <section className="grid gap-4" data-testid="food-home-workspace">
-      {!dismissedLowStock && data.summary.lowStockCount > 0 ? (
-        <article className="alert">
-          <div>
-            <strong>{data.summary.lowStockCount} pantry items are running low.</strong>
-          </div>
-          <div className="flex gap-2">
-            <button
-              className="btn btn-sm min-h-[44px]"
-              type="button"
-              onClick={() => {
-                setPantryLowStockOnly(true);
-                setActiveModuleTab("pantry");
-              }}
-            >
-              View pantry
-            </button>
-            <button className="btn btn-ghost btn-sm min-h-[44px]" type="button" onClick={() => setDismissedLowStock(true)}>
-              Dismiss
-            </button>
-          </div>
-        </article>
-      ) : null}
+      {lowStockBanner}
       {todaysMeals.map((slot: any) => (
         <article className="panel" key={slot.id}>
           <div className="eyebrow">{slot.slotName}</div>

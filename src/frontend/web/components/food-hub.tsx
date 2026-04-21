@@ -258,8 +258,6 @@ type MealComposerRow = {
   role: string;
 };
 
-type ShoppingTab = "active" | "history";
-
 type ShoppingGroupMode = "flat" | "aisle";
 
 type FoodModuleTab = "home" | "recipes" | "planning" | "pantry" | "shopping";
@@ -361,11 +359,6 @@ export function FoodHub() {
   const [recipeDraft, setRecipeDraft] = useState<RecipeDraft | null>(null);
 
   const [pantryName, setPantryName] = useState("");
-  const [pantryLocationId, setPantryLocationId] = useState<string>("");
-  const [pantryQuantity, setPantryQuantity] = useState("");
-  const [pantryUnit, setPantryUnit] = useState("");
-  const [pantryLowThreshold, setPantryLowThreshold] = useState("");
-  const [pantryExpiresAt, setPantryExpiresAt] = useState("");
 
   const [pantryEditLocationId, setPantryEditLocationId] = useState("");
   const [pantryEditQuantity, setPantryEditQuantity] = useState("");
@@ -380,7 +373,6 @@ export function FoodHub() {
   const [shoppingQuantity, setShoppingQuantity] = useState("");
   const [shoppingUnit, setShoppingUnit] = useState("");
   const [shoppingNotes, setShoppingNotes] = useState("");
-  const [shoppingTab, setShoppingTab] = useState<ShoppingTab>("active");
   const [shoppingGroupMode, setShoppingGroupMode] = useState<ShoppingGroupMode>("flat");
   const [activeModuleTab, setActiveModuleTab] = useState<FoodModuleTab>("home");
   const [recipeWorkspaceTab, setRecipeWorkspaceTab] = useState<RecipeWorkspaceTab>("library");
@@ -406,16 +398,8 @@ export function FoodHub() {
     mergedQuantityNeeded: number | null;
     unit: string | null;
   } | null>(null);
-  const [showCompleteTripDialog, setShowCompleteTripDialog] = useState(false);
-  const [moveCheckedToPantryOnComplete, setMoveCheckedToPantryOnComplete] = useState(true);
   const [selectedHistoryTripId, setSelectedHistoryTripId] = useState<string | null>(null);
 
-  const [mealDate, setMealDate] = useState("");
-  const [mealSlotName, setMealSlotName] = useState("Dinner");
-  const [mealTitle, setMealTitle] = useState("");
-  const [mealNotes, setMealNotes] = useState("");
-  const [generateShopping, setGenerateShopping] = useState(true);
-  const [mealRows, setMealRows] = useState<MealComposerRow[]>([{ recipeId: "", role: "Main" }]);
   const { toast, setToast, showUndoToast } = useUndoToast();
 
   const dashboardQuery = useFoodDashboard();
@@ -469,9 +453,14 @@ export function FoodHub() {
     [filteredShoppingItems]
   );
 
+  const completedShoppingItems = useMemo(
+    () => data?.shoppingList.items.filter((item) => item.state === "Purchased" || item.state === "Skipped") ?? [],
+    [data]
+  );
+
   const purchasedShoppingItems = useMemo(
-    () => filteredShoppingItems.filter((item) => item.state === "Purchased" || item.state === "Skipped"),
-    [filteredShoppingItems]
+    () => data?.shoppingList.items.filter((item) => item.state === "Purchased") ?? [],
+    [data]
   );
 
   const shoppingItemsByAisle = useMemo(() => {
@@ -483,10 +472,7 @@ export function FoodHub() {
     return Array.from(grouped.entries()).sort((left, right) => left[0].localeCompare(right[0]));
   }, [activeShoppingItems]);
 
-  const purchasedCount = useMemo(
-    () => data?.shoppingList.items.filter((item) => item.state === "Purchased").length ?? 0,
-    [data]
-  );
+  const purchasedCount = purchasedShoppingItems.length;
 
   const quickPantryLocationOptions = useMemo(() => {
     const findLocation = (fallback: string) =>
@@ -498,6 +484,37 @@ export function FoodHub() {
       { label: "Freezer", value: findLocation("Freezer") }
     ];
   }, [data]);
+
+  const postPurchaseConflictLabels = useMemo(() => {
+    if (!data) {
+      return {};
+    }
+
+    return purchasedShoppingItems.reduce<Record<string, string | null>>((labels, item) => {
+      const selectedLocationId = postPurchaseLocations[item.id] ?? item.pantryLocationId ?? null;
+      const sameNameItems = data.pantryItems.filter((pantryItem) =>
+        pantryItem.ingredientName.trim().toLowerCase() === item.ingredientName.trim().toLowerCase()
+      );
+
+      const matchingLocationItem = selectedLocationId
+        ? sameNameItems.find((pantryItem) => pantryItem.pantryLocationId === selectedLocationId)
+        : null;
+
+      if (matchingLocationItem) {
+        labels[item.id] = `Merges with ${matchingLocationItem.locationName ?? "this location"}`;
+        return labels;
+      }
+
+      const otherLocationItem = sameNameItems[0];
+      if (otherLocationItem?.locationName) {
+        labels[item.id] = `Already stored in ${otherLocationItem.locationName}`;
+        return labels;
+      }
+
+      labels[item.id] = null;
+      return labels;
+    }, {});
+  }, [data, postPurchaseLocations, purchasedShoppingItems]);
 
   const lowStockAlertItems = useMemo(
     () => lowStockItems.slice(0, 8).map((item) => ({
@@ -579,17 +596,11 @@ export function FoodHub() {
 
     const body = (await response.json()) as FoodDashboard;
     setData(body);
-    if (!pantryLocationId && body.pantryLocations.length > 0) {
-      setPantryLocationId(body.pantryLocations[0].id);
-    }
     if (!selectedPantryItemId && body.pantryItems.length > 0) {
       setSelectedPantryItemId(body.pantryItems[0].id);
     }
     if (!selectedRecipeId && body.recipes.length > 0) {
       setSelectedRecipeId(body.recipes[0].id);
-    }
-    if (!mealRows[0]?.recipeId && body.recipes.length > 0) {
-      setMealRows([{ recipeId: body.recipes[0].id, role: "Main" }]);
     }
   }
 
@@ -632,20 +643,14 @@ export function FoodHub() {
 
     const body = dashboardQuery.data;
     setData(body);
-    if (!pantryLocationId && body.pantryLocations.length > 0) {
-      setPantryLocationId(body.pantryLocations[0].id);
-    }
     if (!selectedPantryItemId && body.pantryItems.length > 0) {
       setSelectedPantryItemId(body.pantryItems[0].id);
     }
     if (!selectedRecipeId && body.recipes.length > 0) {
       setSelectedRecipeId(body.recipes[0].id);
     }
-    if (!mealRows[0]?.recipeId && body.recipes.length > 0) {
-      setMealRows([{ recipeId: body.recipes[0].id, role: "Main" }]);
-    }
     setLoading(false);
-  }, [dashboardQuery.data, pantryLocationId, selectedPantryItemId, selectedRecipeId, mealRows]);
+  }, [dashboardQuery.data, selectedPantryItemId, selectedRecipeId]);
 
   useEffect(() => {
     if (recipeLibraryQuery.data) {
@@ -882,38 +887,6 @@ export function FoodHub() {
     );
   }
 
-  async function handleAddPantryItem() {
-    const response = await fetch("/api/food/pantry-items", {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        ingredientName: pantryName.trim(),
-        pantryLocationId: pantryLocationId || null,
-        quantity: pantryQuantity ? Number(pantryQuantity) : null,
-        unit: pantryUnit.trim() || null,
-        lowThreshold: pantryLowThreshold ? Number(pantryLowThreshold) : null,
-        expiresAtUtc: pantryExpiresAt
-          ? new Date(`${pantryExpiresAt}T12:00:00`).toISOString()
-          : null
-      })
-    });
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || `Pantry add failed with ${response.status}.`);
-    }
-
-    const pantryItem = (await response.json()) as PantryItem;
-    setPantryName("");
-    setPantryQuantity("");
-    setPantryUnit("");
-    setPantryLowThreshold("");
-    setPantryExpiresAt("");
-    setSelectedPantryItemId(pantryItem.id);
-    await refreshAll();
-    showSuccess("Pantry item added.");
-  }
-
   async function handleQuickAddPantryItem() {
     const selectedLocationId = quickPantryLocationOptions.find((option) => option.value === quickPantryLocationId)?.value
       ?? data?.pantryLocations[0]?.id
@@ -995,7 +968,7 @@ export function FoodHub() {
   async function handleToggleShoppingItem(item: ShoppingListItem, nextCompleted: boolean) {
     await foodClient.updateShoppingItem(item.id, {
       isCompleted: nextCompleted,
-      moveToPantry: nextCompleted,
+      moveToPantry: false,
       state: nextCompleted
         ? "Purchased"
         : item.state === "Skipped"
@@ -1006,7 +979,7 @@ export function FoodHub() {
     });
 
     await refreshAll();
-    showSuccess(nextCompleted ? "Marked purchased and moved into pantry." : "Returned item to the shopping list.");
+    showSuccess(nextCompleted ? "Marked purchased." : "Returned item to the shopping list.");
   }
 
   async function handleSkipShoppingItem(item: ShoppingListItem) {
@@ -1057,52 +1030,15 @@ export function FoodHub() {
   async function handleRecipeAddToShoppingList(recipeId: string) {
     await foodClient.addItemsFromRecipe({ recipeId, pantryAware: true });
     setActiveModuleTab("shopping");
-    setShoppingTab("active");
     await refreshAll();
     showSuccess("Recipe ingredients added to the shopping list.");
-  }
-
-  async function handleClearNeedsReview(item: ShoppingListItem) {
-    await foodClient.updateShoppingItem(item.id, {
-      clearNeedsReview: true,
-      state: "Needed"
-    });
-    await refreshAll();
-    showSuccess("Review flag cleared.");
-  }
-
-  async function handleSplitNeedsReview(item: ShoppingListItem) {
-    await foodClient.createShoppingItem({
-      ingredientName: item.ingredientName,
-      quantity: item.quantityNeeded,
-      unit: item.unit,
-      notes: item.notes,
-      forceSeparate: true
-    });
-    await foodClient.updateShoppingItem(item.id, {
-      clearNeedsReview: true,
-      state: "Needed"
-    });
-    await refreshAll();
-    showSuccess("Created a separate line so you can edit it independently.");
-  }
-
-  async function handleCompleteTrip() {
-    if (!data) return;
-    await foodClient.completeShoppingList(data.shoppingList.id, {
-      moveCheckedToPantry: moveCheckedToPantryOnComplete
-    });
-    setShowCompleteTripDialog(false);
-    await refreshAll();
-    showSuccess("Trip completed and a fresh active list is ready.");
   }
 
   async function handleTransferPurchasedItemsToPantry() {
     if (!data) return;
 
-    const purchasedItems = data.shoppingList.items.filter((item) => item.state === "Purchased");
     await foodClient.transferShoppingListItemsToPantry(data.shoppingList.id, {
-      itemIds: purchasedItems.map((item) => item.id),
+      itemIds: purchasedShoppingItems.map((item) => item.id),
       completeList: true,
       itemLocationOverrides: postPurchaseLocations
     });
@@ -1110,22 +1046,6 @@ export function FoodHub() {
     setPostPurchaseOpen(false);
     await refreshAll();
     showSuccess("Purchased items moved to pantry and the trip was completed.");
-  }
-
-  async function handleClaimShoppingItem(item: ShoppingListItem) {
-    await foodClient.updateShoppingItem(item.id, {
-      claimForCurrentUser: true
-    });
-    await refreshAll();
-    showSuccess("Shopping item claimed.");
-  }
-
-  async function handleReleaseShoppingItem(item: ShoppingListItem) {
-    await foodClient.updateShoppingItem(item.id, {
-      clearClaim: true
-    });
-    await refreshAll();
-    showSuccess("Claim released.");
   }
 
   async function handleDeleteRecipe(recipeId: string) {
@@ -1181,41 +1101,9 @@ export function FoodHub() {
       notes: `Pantry ${item.status.toLowerCase()} at ${item.locationName ?? "unassigned location"}`
     });
     setActiveModuleTab("shopping");
-    setShoppingTab("active");
     setShoppingMealFilterId(null);
     await refreshAll();
     showSuccess("Low-stock pantry item added to shopping.");
-  }
-
-  async function handlePlanMeal() {
-    const response = await fetch("/api/food/meal-plan", {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        recipeId: null,
-        date: mealDate,
-        slotName: mealSlotName.trim() || "Dinner",
-        title: mealTitle.trim() || null,
-        notes: mealNotes.trim() || null,
-        generateShoppingList: generateShopping,
-        recipes: mealRows
-          .filter((row) => row.recipeId)
-          .map((row) => ({
-            recipeId: row.recipeId,
-            role: row.role
-          }))
-      })
-    });
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || `Meal planning failed with ${response.status}.`);
-    }
-
-    setMealNotes("");
-    setMealTitle("");
-    await refreshAll();
-    showSuccess(generateShopping ? "Meal planned and shopping gaps drafted." : "Meal planned.");
   }
 
   async function handlePlanMealFromRecipe(recipeId: string, date: string, slotName: string) {
@@ -1341,17 +1229,6 @@ export function FoodHub() {
     setDeleteTarget,
     pantryName,
     setPantryName,
-    pantryLocationId,
-    setPantryLocationId,
-    pantryQuantity,
-    setPantryQuantity,
-    pantryUnit,
-    setPantryUnit,
-    pantryLowThreshold,
-    setPantryLowThreshold,
-    pantryExpiresAt,
-    setPantryExpiresAt,
-    handleAddPantryItem,
     handleQuickAddPantryItem,
     lowStockItems,
     filteredPantryItems,
@@ -1389,8 +1266,6 @@ export function FoodHub() {
     pantryHistory,
     activeShoppingItems,
     needsReviewItems,
-    shoppingTab,
-    setShoppingTab,
     shoppingGroupMode,
     setShoppingGroupMode,
     shoppingMealFilterId,
@@ -1416,42 +1291,22 @@ export function FoodHub() {
     mergePreview,
     handleAddShoppingItem,
     purchasedCount,
-    showCompleteTripDialog,
-    setShowCompleteTripDialog,
-    moveCheckedToPantryOnComplete,
-    setMoveCheckedToPantryOnComplete,
-    handleCompleteTrip,
     handleTransferPurchasedItemsToPantry,
-    handleClearNeedsReview,
-    handleSplitNeedsReview,
     handleToggleShoppingItem,
     handleSkipShoppingItem,
     handleMarkAllShoppingItemsPurchased,
     handleDeleteShoppingItem: handleUndoableDeleteShoppingItem,
-    handleClaimShoppingItem,
-    handleReleaseShoppingItem,
     selectedHistoryTripId,
     setSelectedHistoryTripId,
     historyTripQuery,
     shoppingItemsByAisle,
+    completedShoppingItems,
     purchasedShoppingItems,
     postPurchaseOpen,
     setPostPurchaseOpen,
     postPurchaseLocations,
     setPostPurchaseLocations,
-    mealDate,
-    setMealDate,
-    mealSlotName,
-    setMealSlotName,
-    mealTitle,
-    setMealTitle,
-    mealNotes,
-    setMealNotes,
-    mealRows,
-    setMealRows,
-    generateShopping,
-    setGenerateShopping,
-    handlePlanMeal,
+    postPurchaseConflictLabels,
     handleDeleteMealPlanSlot,
     handleRemoveRecipeFromMealPlanSlot,
     toast,
@@ -1556,7 +1411,7 @@ export function FoodHub() {
         items={purchasedShoppingItems.map((item) => ({
           id: item.id,
           ingredientName: item.ingredientName,
-          conflictLabel: item.state === "NeedsReview" ? "Needs review" : null
+          conflictLabel: postPurchaseConflictLabels[item.id] ?? null
         }))}
         locationOptions={quickPantryLocationOptions}
         selectedLocations={postPurchaseLocations}

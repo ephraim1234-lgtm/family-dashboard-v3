@@ -29,6 +29,9 @@ export function PostPurchaseConfirm({
     <div className="modal modal-open" data-testid="food-post-purchase-confirm">
       <div className="modal-box max-w-3xl">
         <h3 className="text-lg font-semibold">Add purchased items to pantry</h3>
+        <p className="mt-2 text-sm opacity-75">
+          Purchased items are added to pantry in one pass after you confirm the destination for each line.
+        </p>
         <div className="mt-4 space-y-3">
           {items.map((item) => (
             <div className="rounded-box border border-base-300 p-3" key={item.id}>
@@ -37,7 +40,7 @@ export function PostPurchaseConfirm({
                 {item.conflictLabel ? <span className="badge badge-warning">{item.conflictLabel}</span> : null}
               </div>
               <SegmentedToggle
-                value={selectedLocations[item.id]}
+                value={selectedLocations[item.id] ?? locationOptions[0]?.value ?? ""}
                 options={locationOptions}
                 onChange={(value) => onLocationChange(item.id, value)}
               />

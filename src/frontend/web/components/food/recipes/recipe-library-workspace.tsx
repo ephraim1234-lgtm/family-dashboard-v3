@@ -116,7 +116,7 @@ export function RecipeLibraryWorkspace({ hideHeader = false }: { hideHeader?: bo
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-3">
                   <button
-                    className="btn min-h-[44px]"
+                    className="btn btn-primary min-h-[44px]"
                     type="button"
                     onClick={() => setPlannerOpenId((current) => current === recipe.id ? null : recipe.id)}
                   >

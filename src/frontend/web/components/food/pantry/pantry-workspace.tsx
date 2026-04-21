@@ -81,7 +81,7 @@ export function PantryWorkspace() {
           {filteredPantryItems.map((item: any) => (
             <div className="stack-card food-row-shell" data-testid={`food-pantry-item-${item.id}`} key={item.id}>
               <div className="stack-card-header">
-                <button className="text-left" type="button" onClick={() => setSelectedPantryItemId(item.id)}>
+                <button className="min-h-[44px] text-left" type="button" onClick={() => setSelectedPantryItemId(item.id)}>
                   <strong>{item.ingredientName}</strong>
                   <div className="muted">
                     {formatQuantity(item.quantity, item.unit)} - {item.locationName ?? "Unassigned"}

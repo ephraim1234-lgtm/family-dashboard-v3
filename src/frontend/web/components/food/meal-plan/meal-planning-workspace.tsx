@@ -1,266 +1,191 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useFoodHubContext } from "../food-hub-context";
 import { SubTabs } from "@/components/ui";
 
-export function MealPlanningWorkspace() {
+function formatDateLabel(date: string) {
+  return new Date(`${date}T00:00:00`).toLocaleDateString([], {
+    weekday: "short",
+    month: "short",
+    day: "numeric"
+  });
+}
+
+function SlotList({
+  slots,
+  emptyMessage
+}: {
+  slots: any[];
+  emptyMessage: string;
+}) {
   const {
-    buildFieldTestId,
-    mealDate,
-    setMealDate,
-    mealSlotName,
-    setMealSlotName,
-    mealTitle,
-    setMealTitle,
-    mealNotes,
-    setMealNotes,
-    mealRows,
-    setMealRows,
-    recipeLibrary,
-    generateShopping,
-    setGenerateShopping,
-    isPending,
+    setActiveModuleTab,
+    setShoppingMealFilterId,
     setError,
     startTransition,
-    handlePlanMeal,
-    data,
-    formatDate,
-    setActiveModuleTab,
-    setShoppingTab,
-    setShoppingMealFilterId,
     handleStartCooking,
     handleRemoveRecipeFromMealPlanSlot,
     setDeleteTarget
   } = useFoodHubContext();
-  const [planningTab, setPlanningTab] = useState<"composer" | "upcoming">("composer");
+
+  if (slots.length === 0) {
+    return <p className="muted mt-3">{emptyMessage}</p>;
+  }
+
+  return (
+    <div className="stack-list mt-4">
+      {slots.map((slot) => (
+        <div className="stack-card" data-testid={`food-meal-slot-${slot.id}`} key={slot.id}>
+          <div className="stack-card-header">
+            <div className="flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <strong>{slot.title}</strong>
+                <span className="pill">{slot.slotName}</span>
+                <button
+                  className="btn btn-ghost btn-sm min-h-[44px] min-w-[44px]"
+                  type="button"
+                  onClick={() => setDeleteTarget({ kind: "meal-slot", id: slot.id, title: slot.title })}
+                >
+                  Trash
+                </button>
+              </div>
+              <div className="muted">{formatDateLabel(slot.date)}</div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                className="btn btn-ghost min-h-[44px]"
+                type="button"
+                onClick={() => {
+                  setActiveModuleTab("shopping");
+                  setShoppingMealFilterId(slot.id);
+                }}
+              >
+                Shopping {slot.shoppingOpenIngredientCount}/{slot.shoppingTotalIngredientCount}
+              </button>
+              <button
+                className="btn btn-primary min-h-[44px]"
+                data-testid={`food-meal-slot-cook-${slot.id}`}
+                type="button"
+                onClick={() => {
+                  setError(null);
+                  startTransition(() => {
+                    handleStartCooking({ mealPlanSlotId: slot.id }).catch((err: unknown) => {
+                      setError(err instanceof Error ? err.message : "Unable to start meal cooking.");
+                    });
+                  });
+                }}
+              >
+                Cook meal
+              </button>
+            </div>
+          </div>
+
+          <div className="stack-list mt-3">
+            {slot.recipes.map((recipe: any) => (
+              <div
+                className="flex min-h-[44px] items-center justify-between gap-3 rounded-box border border-base-300 p-3"
+                key={recipe.id}
+              >
+                <span>{recipe.role}: {recipe.title}</span>
+                <button
+                  className="btn btn-ghost btn-sm min-h-[44px] min-w-[44px]"
+                  type="button"
+                  onClick={() => {
+                    setError(null);
+                    startTransition(() => {
+                      handleRemoveRecipeFromMealPlanSlot(slot.id, recipe.recipeId, recipe.title).catch((err: unknown) => {
+                        setError(err instanceof Error ? err.message : "Unable to remove recipe.");
+                      });
+                    });
+                  }}
+                >
+                  Trash
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {slot.notes ? <div className="muted mt-3">{slot.notes}</div> : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function MealPlanningWorkspace() {
+  const { data, setActiveModuleTab } = useFoodHubContext();
+  const [planningTab, setPlanningTab] = useState<"day" | "upcoming">("day");
+  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().slice(0, 10));
+
+  const daySlots = useMemo(
+    () => data.upcomingMeals.filter((slot: { date: string }) => slot.date === selectedDate),
+    [data.upcomingMeals, selectedDate]
+  );
 
   return (
     <>
       <section className="grid">
         <article className="panel">
           <div className="eyebrow">Meal planning</div>
-          <h2>Plan meals, then review coverage separately</h2>
+          <h2>Review meals by day, then jump into shopping or cooking</h2>
           <SubTabs
             tabs={[
-              { id: "composer", label: "Plan meal" },
-              { id: "upcoming", label: "Upcoming meals" }
+              { id: "day", label: "Day view" },
+              { id: "upcoming", label: "Upcoming" }
             ]}
             activeTab={planningTab}
             onChange={setPlanningTab}
-            ariaLabel="Meal planning tabs"
+            ariaLabel="Meal planning views"
           />
         </article>
       </section>
 
-      <section className="grid food-section-grid">
-        {planningTab === "composer" ? (
+      <section className="grid gap-4">
+        {planningTab === "day" ? (
           <article className="panel" data-testid="food-meal-planning">
-            <div className="eyebrow">Meal planning</div>
-            <h2>Build a real meal, not just a single recipe slot</h2>
-            <div className="grid mt-3">
-              <div className="field">
-                <span>Date</span>
+            <div className="eyebrow">Day view</div>
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <h2>{formatDateLabel(selectedDate)}</h2>
+                <p className="muted mt-2">Meals are added from recipe cards and recipe detail views.</p>
+              </div>
+              <label className="form-control w-full max-w-xs">
+                <span className="label-text">Date</span>
                 <input
-                  aria-label="Meal date"
-                  data-testid={buildFieldTestId("food-meal", "date")}
+                  aria-label="Planning date"
+                  className="input input-bordered min-h-[44px]"
+                  data-testid="food-meal-day-date"
                   type="date"
-                  value={mealDate}
-                  onChange={(event) => setMealDate(event.target.value)}
+                  value={selectedDate}
+                  onChange={(event) => setSelectedDate(event.target.value)}
                 />
-              </div>
-              <div className="field">
-                <span>Slot</span>
-                <input
-                  aria-label="Meal slot"
-                  data-testid={buildFieldTestId("food-meal", "slot")}
-                  value={mealSlotName}
-                  onChange={(event) => setMealSlotName(event.target.value)}
-                />
-              </div>
-              <div className="field">
-                <span>Meal title</span>
-                <input
-                  aria-label="Meal title"
-                  data-testid={buildFieldTestId("food-meal", "title")}
-                  value={mealTitle}
-                  onChange={(event) => setMealTitle(event.target.value)}
-                  placeholder="Taco night"
-                />
-              </div>
-            </div>
-            <div className="field">
-              <span>Notes</span>
-              <input
-                aria-label="Meal notes"
-                data-testid={buildFieldTestId("food-meal", "notes")}
-                value={mealNotes}
-                onChange={(event) => setMealNotes(event.target.value)}
-              />
-            </div>
-            <div className="stack-list mt-3">
-              {mealRows.map((row: any, index: number) => (
-                <div className="stack-card" data-testid={`food-meal-row-${index}`} key={`meal-row-${index}`}>
-                  <div className="grid">
-                    <div className="field">
-                      <span>Recipe</span>
-                      <select
-                        aria-label={`Meal recipe ${index + 1}`}
-                        data-testid={`food-meal-recipe-${index}`}
-                        value={row.recipeId}
-                        onChange={(event) => setMealRows((current: any[]) => current.map((item, rowIndex) =>
-                          rowIndex === index ? { ...item, recipeId: event.target.value } : item))}
-                      >
-                        <option value="">Choose a recipe</option>
-                        {recipeLibrary.map((recipe: any) => (
-                          <option key={recipe.id} value={recipe.id}>{recipe.title}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="field">
-                      <span>Role</span>
-                      <select
-                        aria-label={`Meal role ${index + 1}`}
-                        data-testid={`food-meal-role-${index}`}
-                        value={row.role}
-                        onChange={(event) => setMealRows((current: any[]) => current.map((item, rowIndex) =>
-                          rowIndex === index ? { ...item, role: event.target.value } : item))}
-                      >
-                        <option value="Main">Main</option>
-                        <option value="Side">Side</option>
-                        <option value="Sauce">Sauce</option>
-                        <option value="Dessert">Dessert</option>
-                        <option value="Drink">Drink</option>
-                        <option value="Other">Other</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="action-row">
-              <button
-                className="pill-button"
-                type="button"
-                data-testid="food-meal-add-recipe"
-                onClick={() => setMealRows((current: any[]) => [...current, {
-                  recipeId: recipeLibrary[0]?.id ?? "",
-                  role: "Side"
-                }])}
-              >
-                + Add recipe to meal
-              </button>
-              <label className="checkbox-field">
-                <input
-                  aria-label="Draft missing shopping items"
-                  data-testid={buildFieldTestId("food-meal", "generate-shopping")}
-                  type="checkbox"
-                  checked={generateShopping}
-                  onChange={(event) => setGenerateShopping(event.target.checked)}
-                />
-                Draft missing shopping items
               </label>
             </div>
-            <div className="action-row">
-              <button
-                className="action-button"
-                data-testid="food-meal-save"
-                disabled={isPending || !mealDate || mealRows.every((row: any) => !row.recipeId)}
-                onClick={() => {
-                  setError(null);
-                  startTransition(() => {
-                    handlePlanMeal().catch((err: unknown) => {
-                      setError(err instanceof Error ? err.message : "Unable to plan meal.");
-                    });
-                  });
-                }}
-              >
-                Save meal
-              </button>
-            </div>
+
+            <SlotList
+              slots={daySlots}
+              emptyMessage="No meals are planned for this day yet. Add a recipe from Recipes to start planning."
+            />
+
+            {daySlots.length === 0 ? (
+              <div className="mt-4">
+                <button className="btn btn-primary min-h-[44px]" type="button" onClick={() => setActiveModuleTab("recipes")}>
+                  Browse recipes
+                </button>
+              </div>
+            ) : null}
           </article>
         ) : null}
 
         {planningTab === "upcoming" ? (
           <article className="panel" data-testid="food-meal-upcoming">
             <div className="eyebrow">Upcoming meals</div>
-            <h2>Track coverage and jump into shopping or cooking</h2>
-            {data.upcomingMeals.length > 0 ? (
-              <div className="stack-list mt-4">
-                {data.upcomingMeals.map((slot: any) => (
-                  <div className="stack-card" data-testid={`food-meal-slot-${slot.id}`} key={slot.id}>
-                    <div className="stack-card-header">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <strong>{slot.title}</strong>
-                          <button
-                            className="btn btn-ghost btn-sm min-h-[44px] min-w-[44px]"
-                            type="button"
-                            onClick={() => setDeleteTarget({ kind: "meal-slot", id: slot.id, title: slot.title })}
-                          >
-                            Trash
-                          </button>
-                        </div>
-                        <div className="muted">{formatDate(slot.date)} - {slot.slotName}</div>
-                      </div>
-                      <div className="action-row">
-                        <button
-                          className="pill-button"
-                          type="button"
-                          onClick={() => {
-                            setActiveModuleTab("shopping");
-                            setShoppingTab("active");
-                            setShoppingMealFilterId(slot.id);
-                          }}
-                        >
-                          Shopping {slot.shoppingOpenIngredientCount}/{slot.shoppingTotalIngredientCount}
-                        </button>
-                        <button
-                          className="pill-button"
-                          data-testid={`food-meal-slot-cook-${slot.id}`}
-                          onClick={() => {
-                            setError(null);
-                            startTransition(() => {
-                              handleStartCooking({ mealPlanSlotId: slot.id }).catch((err: unknown) => {
-                                setError(err instanceof Error ? err.message : "Unable to start meal cooking.");
-                              });
-                            });
-                          }}
-                        >
-                          Cook meal
-                        </button>
-                      </div>
-                    </div>
-                    <div className="stack-list">
-                      {slot.recipes.map((recipe: any) => (
-                        <div className="flex items-center justify-between gap-3 rounded-box border border-base-300 p-3" key={recipe.id}>
-                          <span>{recipe.role}: {recipe.title}</span>
-                          <button
-                            className="btn btn-ghost btn-sm min-h-[44px] min-w-[44px]"
-                            type="button"
-                            onClick={() => {
-                              setError(null);
-                              startTransition(() => {
-                                handleRemoveRecipeFromMealPlanSlot(slot.id, recipe.recipeId, recipe.title).catch((err: unknown) => {
-                                  setError(err instanceof Error ? err.message : "Unable to remove recipe.");
-                                });
-                              });
-                            }}
-                          >
-                            Trash
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                    {slot.notes ? <div className="muted">{slot.notes}</div> : null}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="muted mt-3">
-                Upcoming meals will appear here once you save a plan.
-              </p>
-            )}
+            <h2>Track the next meals and remove or cook them in place</h2>
+            <SlotList
+              slots={data.upcomingMeals}
+              emptyMessage="Upcoming meals will appear here once you add them from Recipes."
+            />
           </article>
         ) : null}
       </section>

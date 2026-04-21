@@ -181,6 +181,83 @@ public class FoodServiceTests
     }
 
     [Fact]
+    public async Task DeleteMealPlanSlotAsync_Removes_Slot_And_Cascades_Meal_Recipes()
+    {
+        await using var dbContext = CreateDbContext();
+        var nowUtc = new DateTimeOffset(2026, 4, 18, 12, 0, 0, TimeSpan.Zero);
+        var service = new FoodService(
+            dbContext,
+            new FakeHttpClientFactory(new HttpClient(new StubHttpHandler(string.Empty))));
+
+        var tacos = await CreateRecipeAsync(service, nowUtc, "Chicken Tacos", "Chicken", 1);
+        var rice = await CreateRecipeAsync(service, nowUtc, "Cilantro Rice", "Rice", 1);
+
+        var slot = await service.CreateMealPlanSlotAsync(
+            HouseholdId,
+            new CreateMealPlanSlotRequest(
+                RecipeId: null,
+                Date: new DateOnly(2026, 4, 18),
+                SlotName: "Dinner",
+                Title: "Taco night",
+                Notes: null,
+                GenerateShoppingList: false,
+                Recipes:
+                [
+                    new CreateMealPlanRecipeRequest(tacos.Id, "Main"),
+                    new CreateMealPlanRecipeRequest(rice.Id, "Side")
+                ]),
+            nowUtc,
+            CancellationToken.None);
+
+        var deleted = await service.DeleteMealPlanSlotAsync(HouseholdId, slot!.Id, CancellationToken.None);
+
+        Assert.True(deleted);
+        Assert.False(await dbContext.MealPlanSlots.AnyAsync(item => item.Id == slot.Id));
+        Assert.Empty(await dbContext.MealPlanRecipes.Where(item => item.MealPlanSlotId == slot.Id).ToListAsync());
+    }
+
+    [Fact]
+    public async Task RemoveRecipeFromMealPlanSlotAsync_Last_Recipe_Leaves_Empty_Slot()
+    {
+        await using var dbContext = CreateDbContext();
+        var nowUtc = new DateTimeOffset(2026, 4, 18, 12, 0, 0, TimeSpan.Zero);
+        var service = new FoodService(
+            dbContext,
+            new FakeHttpClientFactory(new HttpClient(new StubHttpHandler(string.Empty))));
+
+        var tacos = await CreateRecipeAsync(service, nowUtc, "Chicken Tacos", "Chicken", 1);
+
+        var slot = await service.CreateMealPlanSlotAsync(
+            HouseholdId,
+            new CreateMealPlanSlotRequest(
+                RecipeId: null,
+                Date: new DateOnly(2026, 4, 18),
+                SlotName: "Dinner",
+                Title: "Taco night",
+                Notes: null,
+                GenerateShoppingList: false,
+                Recipes:
+                [
+                    new CreateMealPlanRecipeRequest(tacos.Id, "Main")
+                ]),
+            nowUtc,
+            CancellationToken.None);
+
+        var removed = await service.RemoveRecipeFromMealPlanSlotAsync(
+            HouseholdId,
+            slot!.Id,
+            tacos.Id,
+            CancellationToken.None);
+
+        var persistedSlot = await dbContext.MealPlanSlots.SingleAsync(item => item.Id == slot.Id);
+
+        Assert.True(removed);
+        Assert.Null(persistedSlot.RecipeId);
+        Assert.Null(persistedSlot.RecipeTitleSnapshot);
+        Assert.Empty(await dbContext.MealPlanRecipes.Where(item => item.MealPlanSlotId == slot.Id).ToListAsync());
+    }
+
+    [Fact]
     public async Task StartCookingSessionAsync_ForMealSlot_Returns_Multiple_Recipes_And_TotalIngredients()
     {
         await using var dbContext = CreateDbContext();
@@ -421,7 +498,7 @@ public class FoodServiceTests
             HouseholdId,
             session.Id,
             ingredient.Id,
-            new UpdateCookingIngredientRequest(true, false, 1, "count", null),
+            new UpdateCookingIngredientRequest(true, false, null, 1, "count", null),
             nowUtc.AddMinutes(5),
             CancellationToken.None);
 
@@ -432,7 +509,7 @@ public class FoodServiceTests
             HouseholdId,
             session.Id,
             ingredient.Id,
-            new UpdateCookingIngredientRequest(true, false, 3, "count", null),
+            new UpdateCookingIngredientRequest(true, false, null, 3, "count", null),
             nowUtc.AddMinutes(10),
             CancellationToken.None);
 
@@ -441,6 +518,97 @@ public class FoodServiceTests
 
         var historyCount = await dbContext.PantryItemActivities.CountAsync(item => item.PantryItemId == pantryItem.Id);
         Assert.True(historyCount >= 2);
+    }
+
+    [Fact]
+    public async Task TransferShoppingListItemsToPantryAsync_Uses_Location_Overrides_When_Present()
+    {
+        await using var dbContext = CreateDbContext();
+        var nowUtc = new DateTimeOffset(2026, 4, 18, 12, 0, 0, TimeSpan.Zero);
+        var pantryLocationId = Guid.NewGuid();
+        var fridgeLocationId = Guid.NewGuid();
+
+        dbContext.PantryLocations.AddRange(
+            new PantryLocation
+            {
+                Id = pantryLocationId,
+                HouseholdId = HouseholdId,
+                Name = "Pantry",
+                SortOrder = 1,
+                CreatedAtUtc = nowUtc
+            },
+            new PantryLocation
+            {
+                Id = fridgeLocationId,
+                HouseholdId = HouseholdId,
+                Name = "Fridge",
+                SortOrder = 2,
+                CreatedAtUtc = nowUtc
+            });
+        await dbContext.SaveChangesAsync();
+
+        var service = new FoodService(
+            dbContext,
+            new FakeHttpClientFactory(new HttpClient(new StubHttpHandler(string.Empty))));
+
+        await service.CreatePantryItemAsync(
+            HouseholdId,
+            new CreatePantryItemRequest("Milk", fridgeLocationId, 2, "carton", null, null, null),
+            nowUtc,
+            CancellationToken.None);
+
+        var shoppingItem = await service.CreateShoppingListItemAsync(
+            HouseholdId,
+            new CreateShoppingListItemRequest("Milk", 1, "carton", null),
+            nowUtc.AddMinutes(1),
+            CancellationToken.None);
+
+        await service.UpdateShoppingListItemAsync(
+            HouseholdId,
+            shoppingItem.Id,
+            UserId,
+            new UpdateShoppingListItemRequest(
+                IsCompleted: true,
+                MoveToPantry: false,
+                State: "Purchased",
+                QuantityPurchased: 1,
+                Notes: null,
+                ClearNeedsReview: null,
+                ClaimForCurrentUser: null,
+                ClearClaim: null),
+            nowUtc.AddMinutes(2),
+            CancellationToken.None);
+
+        var shoppingListId = await dbContext.ShoppingLists
+            .Where(item => item.HouseholdId == HouseholdId && item.IsDefault)
+            .Select(item => item.Id)
+            .SingleAsync();
+
+        var response = await service.TransferShoppingListItemsToPantryAsync(
+            HouseholdId,
+            shoppingListId,
+            UserId,
+            new TransferToPantryRequest(
+                [shoppingItem.Id],
+                CompleteList: false,
+                ItemLocationOverrides: new Dictionary<Guid, Guid>
+                {
+                    [shoppingItem.Id] = fridgeLocationId
+                }),
+            nowUtc.AddMinutes(3),
+            CancellationToken.None);
+
+        var milkItems = await dbContext.PantryItems
+            .Where(item => item.HouseholdId == HouseholdId && item.IngredientName == "Milk")
+            .OrderBy(item => item.PantryLocationId)
+            .ToListAsync();
+
+        var fridgeMilk = Assert.Single(milkItems);
+
+        Assert.NotNull(response);
+        Assert.Equal(fridgeLocationId, fridgeMilk.PantryLocationId);
+        Assert.Equal(3, fridgeMilk.Quantity);
+        Assert.DoesNotContain(milkItems, item => item.PantryLocationId == pantryLocationId);
     }
 
     private static async Task<RecipeDetailResponse> CreateRecipeAsync(

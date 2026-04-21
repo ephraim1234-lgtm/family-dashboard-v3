@@ -44,7 +44,7 @@ export function AlertsPanel() {
     <BottomDrawer open={alertsOpen} onClose={() => setAlertsOpen(false)} title="Alerts" testId="food-alerts-panel">
       <div className="space-y-3">
         <Section title="Low stock" items={lowStockAlertItems} />
-        <Section title="Expiring soon" items={expiringAlertItems} />
+        <Section title="Expiring / expired" items={expiringAlertItems} />
         <Section title="Shopping needs review" items={needsReviewAlertItems} />
         <Section title="Meals missing ingredients" items={missingMealAlertItems} />
       </div>

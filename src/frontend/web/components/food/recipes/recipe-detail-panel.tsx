@@ -60,7 +60,7 @@ export function RecipeDetailPanel() {
           </p>
           <div className="grid grid-cols-2 gap-3 mt-4">
             <button
-              className="btn min-h-[44px]"
+              className="btn btn-primary min-h-[44px]"
               data-testid="food-recipe-add-to-meal"
               type="button"
               onClick={() => setPlannerOpen((current) => !current)}

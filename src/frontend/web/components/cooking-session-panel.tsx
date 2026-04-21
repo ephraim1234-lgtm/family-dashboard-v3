@@ -163,6 +163,15 @@ export function CookingSessionPanel({ sessionId }: { sessionId: string }) {
     window.localStorage.setItem("householdops:cooking-view", nextViewMode);
   }
 
+  function handleBackToFood() {
+    if (window.history.length > 1) {
+      router.back();
+      return;
+    }
+
+    router.push("/app/food");
+  }
+
   function beginIngredientEdit(ingredientId: string, ingredientName: string) {
     setEditingIngredientId(ingredientId);
     setEditingIngredientName(ingredientName);
@@ -301,7 +310,7 @@ export function CookingSessionPanel({ sessionId }: { sessionId: string }) {
       <section className="grid food-cooking-grid" data-testid="cooking-session-page">
         <article className="panel" data-testid="cooking-session-summary">
           <div className="mb-3 flex items-center justify-between gap-3">
-            <button className="btn btn-ghost min-h-[44px]" type="button" onClick={() => router.back()}>
+            <button className="btn btn-ghost min-h-[44px]" type="button" onClick={handleBackToFood}>
               Back
             </button>
             <button
@@ -651,9 +660,21 @@ export function CookingSessionPanel({ sessionId }: { sessionId: string }) {
               ? focusedRecipe.steps.filter((step) => step.position === focusedRecipe.currentStepIndex + 1)
               : focusedRecipe.steps).map((step) => (
               <div
-                className={`stack-card ${step.position === focusedRecipe.currentStepIndex + 1 ? "food-current-step-card" : ""} ${step.isCompleted ? "opacity-70" : ""}`}
+                className={`stack-card ${step.position === focusedRecipe.currentStepIndex + 1 ? "food-current-step-card" : ""} ${step.isCompleted ? "opacity-70" : ""} ${viewMode === "scroll" ? "cursor-pointer" : ""}`}
                 data-testid={`cooking-step-${step.id}`}
                 key={step.id}
+                onClick={() => {
+                  if (viewMode !== "scroll" || editingStepId === step.id) {
+                    return;
+                  }
+
+                  setError(null);
+                  startTransition(() => {
+                    patchStep(step.id, { isCompleted: !step.isCompleted }).catch((err: unknown) => {
+                      setError(err instanceof Error ? err.message : "Unable to update step.");
+                    });
+                  });
+                }}
               >
                 <div className="stack-card-header">
                   <div className="flex-1">
@@ -668,7 +689,8 @@ export function CookingSessionPanel({ sessionId }: { sessionId: string }) {
                         <button
                           className="btn btn-sm min-h-[44px] self-start"
                           type="button"
-                          onClick={() => {
+                          onClick={(event) => {
+                            event.stopPropagation();
                             setError(null);
                             startTransition(() => {
                               patchStep(step.id, { instruction: editingStepInstruction })
@@ -690,6 +712,7 @@ export function CookingSessionPanel({ sessionId }: { sessionId: string }) {
                     data-testid={`cooking-step-toggle-${step.id}`}
                     type="checkbox"
                     checked={step.isCompleted}
+                    onClick={(event) => event.stopPropagation()}
                     onChange={(event) => {
                       setError(null);
                       startTransition(() => {
@@ -704,14 +727,18 @@ export function CookingSessionPanel({ sessionId }: { sessionId: string }) {
                   <button
                     className="pill-button"
                     type="button"
-                    onClick={() => beginStepEdit(step.id, step.instruction)}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      beginStepEdit(step.id, step.instruction);
+                    }}
                   >
                     Edit text
                   </button>
                   <button
                     className="pill-button"
                     data-testid={`cooking-step-focus-${step.id}`}
-                    onClick={() => {
+                    onClick={(event) => {
+                      event.stopPropagation();
                       setError(null);
                       startTransition(() => {
                         patchStep(step.id, { makeCurrent: true }).catch((err: unknown) => {
@@ -726,7 +753,8 @@ export function CookingSessionPanel({ sessionId }: { sessionId: string }) {
                     <button
                       className="pill-button"
                       type="button"
-                      onClick={() => {
+                      onClick={(event) => {
+                        event.stopPropagation();
                         setError(null);
                         startTransition(() => {
                           patchStep(step.id, { isCompleted: true, makeCurrent: true }).catch((err: unknown) => {
