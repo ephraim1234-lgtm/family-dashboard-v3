@@ -11,6 +11,7 @@ test("creates a manual recipe and finds it again after reload", async ({ page, f
   await page.getByTestId("food-recipe-draft-title").fill(recipeTitle);
   await page.getByTestId("food-recipe-draft-summary").fill("Saved from the household recipe editor.");
   await page.getByTestId("food-recipe-draft-yield").fill("6 servings");
+  await page.getByTestId("food-recipe-draft-image-url").fill("https://example.com/manual-pancakes.jpg");
   await page.getByTestId("food-recipe-ingredient-name-0").fill("Flour");
   await page.getByTestId("food-recipe-ingredient-quantity-0").fill("2");
   await page.getByTestId("food-recipe-ingredient-unit-0").fill("cups");
@@ -32,6 +33,7 @@ test("creates a manual recipe and finds it again after reload", async ({ page, f
   await expect(recipeCard).toHaveCount(1);
   await recipeCard.getByRole("button", { name: recipeTitle }).click();
   await expect(page.getByTestId("food-recipe-detail")).toContainText(recipeTitle);
+  await expect(page.getByTestId("food-recipe-detail-image")).toBeVisible();
 });
 
 test("adds a shopping item and toggles it complete", async ({ page, foodApi }) => {

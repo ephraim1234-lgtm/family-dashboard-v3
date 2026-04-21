@@ -12,7 +12,7 @@ export function FoodActionBar() {
 
   return (
     <div className="fixed inset-x-0 bottom-24 z-50 flex justify-center md:hidden" data-testid="food-action-bar">
-      <div className="flex items-center gap-3 rounded-full border border-[color:var(--surface-line)] bg-[color:var(--surface-panel-strong)] px-3 py-2 shadow-xl backdrop-blur">
+      <div className="flex items-center gap-2 rounded-full border border-[color:var(--surface-line)] bg-[rgba(255,255,255,0.84)] px-3 py-2 shadow-xl backdrop-blur">
         <button
           aria-label="Cook"
           className="ui-button ui-button-ghost ui-button-sm ui-icon-button"

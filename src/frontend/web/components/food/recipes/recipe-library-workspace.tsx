@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @next/next/no-img-element */
 
 import { useState } from "react";
 import { OverflowMenu } from "@/components/ui";
@@ -54,7 +55,14 @@ export function RecipeLibraryWorkspace({ hideHeader = false }: { hideHeader?: bo
 
             return (
               <div className="stack-card" data-testid={`food-recipe-library-item-${recipe.id}`} key={recipe.id}>
-                <div className="stack-card-header">
+                <div className="stack-card-header gap-3">
+                  {recipe.imageUrl ? (
+                  <img
+                      alt={`${recipe.title} thumbnail`}
+                      className="h-16 w-16 rounded-xl object-cover"
+                      src={recipe.imageUrl}
+                    />
+                  ) : null}
                   <div className="flex-1">
                     <button
                       className="text-left"

@@ -1,6 +1,16 @@
 "use client";
 
-import { EmptyState, LoadingSpinner } from "@/components/ui";
+import {
+  ActionButton,
+  Badge,
+  Card,
+  EmptyState,
+  ListCard,
+  LoadingSpinner,
+  QuickActions,
+  SectionHeader,
+  StatCard
+} from "@/components/ui";
 import { useOverviewContext } from "./overview-context";
 
 export function TodayPanel() {
@@ -23,9 +33,9 @@ export function TodayPanel() {
   if (isLoading) {
     return (
       <section className="grid" aria-busy="true">
-        <article className="panel">
-          <LoadingSpinner label="Loading your household overview…" />
-        </article>
+        <Card>
+          <LoadingSpinner label="Loading your household overview..." />
+        </Card>
       </section>
     );
   }
@@ -35,193 +45,191 @@ export function TodayPanel() {
   }
 
   return (
-    <>
-      <section className="grid">
-        <article className="panel">
-          <div className="eyebrow">Today</div>
-          <h2>What matters now</h2>
+    <div className="grid gap-6">
+      <section className="grid gap-6 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,1fr)]">
+        <Card className="space-y-5">
+          <SectionHeader
+            eyebrow="Today"
+            title="What matters now"
+            description="A quick household snapshot for events, chores, and the reminders most likely to affect today."
+          />
 
-          {!hasTodayContent ? <EmptyState className="mt-8" message="Nothing scheduled for today. Enjoy the calm." /> : null}
+          <div className="grid gap-3 sm:grid-cols-3">
+            <StatCard label="Events today" value={data.todayEvents.length} />
+            <StatCard
+              label="Open chores"
+              tone={incompleteChores.length > 0 ? "warning" : "default"}
+              value={incompleteChores.length}
+            />
+            <StatCard
+              label="Pending reminders"
+              tone={data.pendingReminderCount > 0 ? "accent" : "default"}
+              value={data.pendingReminderCount}
+            />
+          </div>
 
-          {data.pendingReminderCount > 0 ? (
-            <p className="muted mt-8">
-              {data.pendingReminderCount} pending reminder
-              {data.pendingReminderCount !== 1 ? "s" : ""}
-            </p>
+          {!hasTodayContent ? (
+            <EmptyState message="Nothing scheduled for today. Enjoy the calm." />
           ) : null}
 
           {data.todayEvents.length > 0 ? (
-            <>
-              <div className="eyebrow mt-16">Events</div>
-              <div className="stack-list mt-8">
+            <div className="space-y-3">
+              <SectionHeader
+                eyebrow="Events"
+                title="Today's schedule"
+                titleAs="h3"
+                description="Keep the next plans visible without switching to the full agenda."
+              />
+              <div className="grid gap-3">
                 {data.todayEvents.map((event, index) => (
-                  <div className="stack-card" key={`${event.title}-${index}`}>
-                    <div className="stack-card-header">
-                      <div className="flex-1">
-                        <strong>{event.title}</strong>
-                        {!event.isAllDay && event.startsAtUtc ? (
-                          <div className="muted">
-                            {formatTime(event.startsAtUtc)}
-                            {event.endsAtUtc ? ` - ${formatTime(event.endsAtUtc)}` : ""}
-                          </div>
-                        ) : (
-                          <div className="muted">All day</div>
-                        )}
-                      </div>
-                      {event.isImported ? <span className="pill home-source-pill">Synced</span> : null}
-                    </div>
-                  </div>
+                  <ListCard
+                    key={`${event.title}-${index}`}
+                    title={event.title}
+                    description={!event.isAllDay && event.startsAtUtc
+                      ? `${formatTime(event.startsAtUtc)}${event.endsAtUtc ? ` - ${formatTime(event.endsAtUtc)}` : ""}`
+                      : "All day"}
+                    action={event.isImported ? <Badge>Synced</Badge> : null}
+                  />
                 ))}
               </div>
-            </>
+            </div>
           ) : null}
+        </Card>
+
+        <Card className="space-y-4">
+          <SectionHeader
+            eyebrow="Attention"
+            title="Keep the day moving"
+            titleAs="h3"
+            description="A short list of chores that still need a hand."
+          />
 
           {incompleteChores.length > 0 ? (
-            <>
-              <div className="eyebrow home-attention-label mt-16">Chores - needs attention</div>
-              <div className="stack-list mt-8">
-                {incompleteChores.slice(0, 4).map((chore) => (
-                  <div className="stack-card home-attention-card" key={chore.id}>
-                    <div className="stack-card-header">
-                      <div className="flex-1">
-                        <strong>{chore.title}</strong>
-                        {chore.assignedMemberName ? (
-                          <div className="muted text-sm">{chore.assignedMemberName}</div>
-                        ) : null}
-                      </div>
-                      <span className="pill pill-warning text-xs">Open</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : null}
-        </article>
+            <div className="grid gap-3">
+              {incompleteChores.slice(0, 4).map((chore) => (
+                <ListCard
+                  key={chore.id}
+                  tone="warning"
+                  eyebrow="Chore"
+                  title={chore.title}
+                  description={chore.assignedMemberName ?? "Ready for anyone in the household"}
+                  action={<Badge variant="warning">Open</Badge>}
+                />
+              ))}
+            </div>
+          ) : (
+            <EmptyState message="No chores need attention right now." />
+          )}
+        </Card>
       </section>
 
       {data.pendingReminders.length > 0 ? (
-        <>
-          <div className="section-spacer" />
-          <section className="grid">
-            <article className="panel">
-              <div className="eyebrow">Reminders</div>
-              <h2>Reminder triage</h2>
-              <p className="muted">
-                Dismiss or snooze pending reminders. Overdue reminders stay at the top until reviewed.
-              </p>
+        <Card className="space-y-5">
+          <SectionHeader
+            eyebrow="Reminders"
+            title="Reminder triage"
+            description="Dismiss or snooze pending reminders. Overdue reminders stay at the top until reviewed."
+          />
 
-              {overdueReminders.length > 0 ? (
-                <>
-                  <div className="eyebrow mt-16">Overdue reminders</div>
-                  <div className="stack-list mt-8">
-                    {overdueReminders.map((reminder) => (
-                      <div className="stack-card reminder-overdue-card" key={reminder.id}>
-                        <div className="stack-card-header">
-                          <div className="flex-1">
-                            <strong>{reminder.eventTitle}</strong>
-                            <div className="muted">
-                              Due {formatReminderDueLabel(reminder.dueAtUtc)} · {reminder.minutesBefore} min before event
-                            </div>
-                          </div>
-                          <span className="pill reminder-overdue-pill">
-                            {formatReminderTriageState(reminder.dueAtUtc)}
-                          </span>
-                        </div>
-                        <div className="action-row compact-action-row">
-                          <button className="action-button-secondary" onClick={() => handleSnoozeReminder(reminder.id, 60)}>
-                            Snooze 1h
-                          </button>
-                          <button className="action-button-secondary" onClick={() => handleSnoozeReminder(reminder.id, 1440)}>
-                            Snooze 1d
-                          </button>
-                          <button className="action-button-ghost" onClick={() => handleDismissReminder(reminder.id)}>
-                            Dismiss
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              ) : null}
+          {overdueReminders.length > 0 ? (
+            <div className="space-y-3">
+              <SectionHeader eyebrow="Overdue" title="Needs a decision" titleAs="h3" />
+              <div className="grid gap-3">
+                {overdueReminders.map((reminder) => (
+                  <ListCard
+                    key={reminder.id}
+                    tone="warning"
+                    title={reminder.eventTitle}
+                    description={`Due ${formatReminderDueLabel(reminder.dueAtUtc)} - ${reminder.minutesBefore} min before event`}
+                    meta={formatReminderTriageState(reminder.dueAtUtc)}
+                  >
+                    <QuickActions label="Quick actions">
+                      <ActionButton size="sm" variant="ghost" onClick={() => handleSnoozeReminder(reminder.id, 60)}>
+                        Snooze 1h
+                      </ActionButton>
+                      <ActionButton size="sm" variant="ghost" onClick={() => handleSnoozeReminder(reminder.id, 1440)}>
+                        Snooze 1d
+                      </ActionButton>
+                      <ActionButton size="sm" variant="outline" onClick={() => handleDismissReminder(reminder.id)}>
+                        Dismiss
+                      </ActionButton>
+                    </QuickActions>
+                  </ListCard>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
-              {upcomingReminders.length > 0 ? (
-                <>
-                  <div className="eyebrow mt-16">Upcoming reminders</div>
-                  <div className="stack-list mt-8">
-                    {upcomingReminders.map((reminder) => (
-                      <div className="stack-card" key={reminder.id}>
-                        <div className="stack-card-header">
-                          <div className="flex-1">
-                            <strong>{reminder.eventTitle}</strong>
-                            <div className="muted">
-                              Due {formatReminderDueLabel(reminder.dueAtUtc)} · {reminder.minutesBefore} min before event
-                            </div>
-                          </div>
-                          <span className="pill">{formatReminderTriageState(reminder.dueAtUtc)}</span>
-                        </div>
-                        <div className="action-row compact-action-row">
-                          <button className="action-button-secondary" onClick={() => handleSnoozeReminder(reminder.id, 60)}>
-                            Snooze 1h
-                          </button>
-                          <button className="action-button-secondary" onClick={() => handleSnoozeReminder(reminder.id, 1440)}>
-                            Snooze 1d
-                          </button>
-                          <button className="action-button-ghost" onClick={() => handleDismissReminder(reminder.id)}>
-                            Dismiss
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </>
-              ) : null}
-            </article>
-          </section>
-        </>
+          {upcomingReminders.length > 0 ? (
+            <div className="space-y-3">
+              <SectionHeader eyebrow="Upcoming" title="Still ahead" titleAs="h3" />
+              <div className="grid gap-3">
+                {upcomingReminders.map((reminder) => (
+                  <ListCard
+                    key={reminder.id}
+                    title={reminder.eventTitle}
+                    description={`Due ${formatReminderDueLabel(reminder.dueAtUtc)} - ${reminder.minutesBefore} min before event`}
+                    meta={formatReminderTriageState(reminder.dueAtUtc)}
+                  >
+                    <QuickActions label="Quick actions">
+                      <ActionButton size="sm" variant="ghost" onClick={() => handleSnoozeReminder(reminder.id, 60)}>
+                        Snooze 1h
+                      </ActionButton>
+                      <ActionButton size="sm" variant="ghost" onClick={() => handleSnoozeReminder(reminder.id, 1440)}>
+                        Snooze 1d
+                      </ActionButton>
+                      <ActionButton size="sm" variant="outline" onClick={() => handleDismissReminder(reminder.id)}>
+                        Dismiss
+                      </ActionButton>
+                    </QuickActions>
+                  </ListCard>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </Card>
       ) : null}
 
       {data.recentActivity.length > 0 ? (
-        <>
-          <div className="section-spacer" />
-          <section className="grid">
-            <article className="panel">
-              <div className="eyebrow">Household</div>
-              <h2>What changed recently</h2>
-              <div className="stack-list mt-12">
-                {data.recentActivity.map((item, index) => (
-                  <div className="stack-card" key={`${item.kind}-${item.occurredAtUtc}-${index}`}>
-                    <div className="stack-card-header">
-                      <div className="flex-1">
-                        <strong>{item.title}</strong>
-                        {item.detail ? <div className="muted">{item.detail}</div> : null}
-                        <div className="muted">
-                          {item.kind === "ChoreCompletion"
-                            ? `Completed by ${item.actorDisplayName}`
-                            : item.kind === "NoteCreated"
-                              ? `Note added by ${item.actorDisplayName}`
-                              : "Reminder fired"}
-                        </div>
-                      </div>
-                      <span className="pill text-xs">{formatRelativeTime(item.occurredAtUtc)}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </article>
-          </section>
-        </>
+        <Card className="space-y-4">
+          <SectionHeader
+            eyebrow="Household"
+            title="What changed recently"
+            description="A quick feed of chores, notes, and reminder activity across the household."
+          />
+          <div className="grid gap-3">
+            {data.recentActivity.map((item, index) => (
+              <ListCard
+                key={`${item.kind}-${item.occurredAtUtc}-${index}`}
+                title={item.title}
+                description={item.detail ?? (
+                  item.kind === "ChoreCompletion"
+                    ? `Completed by ${item.actorDisplayName}`
+                    : item.kind === "NoteCreated"
+                      ? `Note added by ${item.actorDisplayName}`
+                      : "Reminder fired"
+                )}
+                action={<Badge>{formatRelativeTime(item.occurredAtUtc)}</Badge>}
+                meta={item.detail
+                  ? (
+                    item.kind === "ChoreCompletion"
+                      ? `Completed by ${item.actorDisplayName}`
+                      : item.kind === "NoteCreated"
+                        ? `Note added by ${item.actorDisplayName}`
+                        : "Reminder fired"
+                  )
+                  : undefined}
+              />
+            ))}
+          </div>
+        </Card>
       ) : null}
 
       {error ? (
-        <>
-          <div className="section-spacer" />
-          <section className="grid">
-            <article className="panel">
-              <p className="error-text" role="alert">{error}</p>
-            </article>
-          </section>
-        </>
+        <Card>
+          <p className="error-text" role="alert">{error}</p>
+        </Card>
       ) : null}
-    </>
+    </div>
   );
 }

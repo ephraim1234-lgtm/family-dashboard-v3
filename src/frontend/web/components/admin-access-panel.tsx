@@ -1,6 +1,14 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import {
+  ActionButton,
+  Badge,
+  Card,
+  ListCard,
+  QuickActions,
+  SectionHeader
+} from "@/components/ui";
 
 type SessionState = {
   isAuthenticated: boolean;
@@ -64,11 +72,7 @@ export function AdminAccessPanel() {
 
     setAdminOverview(null);
 
-    if (adminResponse.status === 401) {
-      return;
-    }
-
-    if (adminResponse.status === 403) {
+    if (adminResponse.status === 401 || adminResponse.status === 403) {
       return;
     }
 
@@ -114,95 +118,69 @@ export function AdminAccessPanel() {
         : "Authentication required";
 
   return (
-    <section className="grid">
-      <article className="panel">
-        <div className="eyebrow">Admin Access</div>
-        <h2>Owner-gated overview</h2>
-        <p className="muted">
-          The admin shell uses the same persisted session model as the app
-          shell. It does not introduce a separate admin authentication path.
-        </p>
-        <div className="pill-row">
-          <span className="pill">
-            {session.isAuthenticated ? "Authenticated" : "Anonymous"}
-          </span>
-          <span className="pill">{accessLabel}</span>
+    <section className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.9fr)_minmax(0,1fr)]">
+      <Card className="space-y-4 ui-card-admin">
+        <SectionHeader
+          eyebrow="Admin access"
+          title="Owner-gated overview"
+          description="The admin shell uses the same persisted session model as the app shell. It does not introduce a separate admin authentication path."
+        />
+        <div className="flex flex-wrap gap-2">
+          <Badge variant="admin">{session.isAuthenticated ? "Authenticated" : "Anonymous"}</Badge>
+          <Badge variant={adminStatus === 200 ? "admin" : adminStatus === 403 ? "warning" : "default"}>
+            {accessLabel}
+          </Badge>
         </div>
-        <div className="action-row">
-          <button
-            className="action-button"
-            onClick={() => runAction("login")}
-            disabled={isPending}
-          >
-            Dev Login
-          </button>
-          <button
-            className="action-button action-button-secondary"
-            onClick={() => runAction("logout")}
-            disabled={isPending}
-          >
-            Log Out
-          </button>
-          <button
-            className="action-button action-button-ghost"
-            onClick={() => refresh()}
-            disabled={isPending}
-          >
-            Refresh Admin State
-          </button>
-        </div>
+        <QuickActions label="Session actions">
+          <ActionButton onClick={() => runAction("login")} disabled={isPending}>
+            Dev login
+          </ActionButton>
+          <ActionButton variant="secondary" onClick={() => runAction("logout")} disabled={isPending}>
+            Log out
+          </ActionButton>
+          <ActionButton variant="ghost" onClick={() => refresh()} disabled={isPending}>
+            Refresh admin state
+          </ActionButton>
+        </QuickActions>
         {error ? <p className="error-text">{error}</p> : null}
-      </article>
+      </Card>
 
-      <article className="panel">
-        <h2>Session context</h2>
-        <dl className="data-list">
-          <div>
-            <dt>User</dt>
-            <dd>{session.userId ?? "None"}</dd>
-          </div>
-          <div>
-            <dt>Household</dt>
-            <dd>{session.activeHouseholdId ?? "None"}</dd>
-          </div>
-          <div>
-            <dt>Role</dt>
-            <dd>{session.activeHouseholdRole ?? "None"}</dd>
-          </div>
-        </dl>
-      </article>
+      <Card className="space-y-4 ui-card-admin">
+        <SectionHeader eyebrow="Session" title="Current context" titleAs="h3" />
+        <div className="grid gap-3">
+          <ListCard title="User" description={session.userId ?? "None"} />
+          <ListCard title="Household" description={session.activeHouseholdId ?? "None"} />
+          <ListCard title="Role" description={session.activeHouseholdRole ?? "None"} />
+        </div>
+      </Card>
 
-      <article className="panel">
-        <h2>Admin overview</h2>
+      <Card className="space-y-4 ui-card-admin">
+        <SectionHeader eyebrow="Overview" title="Admin overview" titleAs="h3" />
         {adminStatus === 200 && adminOverview ? (
-          <>
-            <div className="pill-row">
+          <div className="space-y-4">
+            <div className="flex flex-wrap gap-2">
               {adminOverview.activeModuleAreas.map((area) => (
-                <span className="pill" key={area}>
+                <Badge key={area} variant="admin">
                   {area}
-                </span>
+                </Badge>
               ))}
             </div>
-            <div className="section-spacer" />
-            <ul className="plain-list">
+            <div className="grid gap-3">
               {adminOverview.notes.map((note) => (
-                <li key={note}>{note}</li>
+                <ListCard key={note} title={note} description="Admin overview note" />
               ))}
-            </ul>
-          </>
+            </div>
+          </div>
         ) : adminStatus === 403 ? (
           <p className="muted">
-            The session is authenticated, but the active household role is not
-            allowed to access the admin overview.
+            The session is authenticated, but the active household role is not allowed to access the admin overview.
           </p>
         ) : (
           <p className="muted">
-            Sign in with an owner-scoped development session to load the admin
-            overview.
+            Sign in with an owner-scoped development session to load the admin overview.
           </p>
         )}
-      </article>
+      </Card>
     </section>
   );
 }
-

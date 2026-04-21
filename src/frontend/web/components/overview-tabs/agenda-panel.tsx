@@ -1,6 +1,15 @@
 "use client";
 
-import { EmptyState } from "@/components/ui";
+import {
+  ActionButton,
+  Badge,
+  Card,
+  EmptyState,
+  ListCard,
+  QuickActions,
+  SectionHeader,
+  StatCard
+} from "@/components/ui";
 import { useOverviewContext } from "./overview-context";
 
 export function AgendaPanel() {
@@ -46,21 +55,26 @@ export function AgendaPanel() {
     .filter((event) => !event.isAllDay && event.startsAtUtc);
 
   return (
-    <>
-      <section className="grid">
-        <article className="panel">
-          <div className="eyebrow">Schedule</div>
-          <h2>Coming up</h2>
-          <p className="muted mt-8">
-            {data.upcomingEventCount} event
-            {data.upcomingEventCount !== 1 ? "s" : ""} in the next 7 days
-          </p>
+    <div className="grid gap-6">
+      <section className="grid gap-6 xl:grid-cols-[minmax(0,1.55fr)_minmax(340px,1fr)]">
+        <Card className="space-y-5">
+          <SectionHeader
+            eyebrow="Schedule"
+            title="Coming up"
+            description="The next seven days stay grouped in one calm view so the household can scan what is ahead."
+          />
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            <StatCard label="Next 7 days" value={data.upcomingEventCount} />
+            <StatCard label="Planned days" value={data.upcomingDays.length} />
+            <StatCard label="Timed events" value={timedUpcoming.length} />
+          </div>
 
           {data.upcomingDays.length === 0 ? (
-            <EmptyState className="mt-12" message="Nothing is scheduled for the next week yet." />
+            <EmptyState message="Nothing is scheduled for the next week yet." />
           ) : (
             <>
-              <div className="home-week-glance mt-14">
+              <div className="home-week-glance">
                 {data.upcomingDays.map((day) => (
                   <div className="home-week-day" key={day.date}>
                     <div className="home-week-day-label">{formatWeekdayShort(day.date)}</div>
@@ -69,67 +83,79 @@ export function AgendaPanel() {
                 ))}
               </div>
 
-              <div className="day-group-list mt-16">
+              <div className="grid gap-4">
                 {data.upcomingDays.map((day) => (
-                  <div className="day-group" key={day.date}>
-                    <div className="day-group-heading">{formatDayLabel(day.date)}</div>
-                    <div className="stack-list">
+                  <Card className="space-y-3 p-4" key={day.date}>
+                    <SectionHeader
+                      eyebrow="Day view"
+                      title={formatDayLabel(day.date)}
+                      titleAs="h3"
+                      actions={<Badge>{day.events.length} planned</Badge>}
+                    />
+                    <div className="grid gap-3">
                       {day.events.map((event, index) => (
-                        <div className="stack-card" key={`${day.date}-${index}`}>
-                          <div className="stack-card-header">
-                            <div className="flex-1">
-                              <strong>{event.title}</strong>
-                              {!event.isAllDay && event.startsAtUtc ? (
-                                <div className="muted">
-                                  {formatTime(event.startsAtUtc)}
-                                  {event.endsAtUtc ? ` - ${formatTime(event.endsAtUtc)}` : ""}
-                                </div>
-                              ) : (
-                                <div className="muted">All day</div>
-                              )}
-                            </div>
-                            {event.isImported ? <span className="pill home-source-pill">Synced</span> : null}
-                          </div>
-                        </div>
+                        <ListCard
+                          key={`${day.date}-${index}`}
+                          title={event.title}
+                          description={!event.isAllDay && event.startsAtUtc
+                            ? `${formatTime(event.startsAtUtc)}${event.endsAtUtc ? ` - ${formatTime(event.endsAtUtc)}` : ""}`
+                            : "All day"}
+                          action={event.isImported ? <Badge>Synced</Badge> : null}
+                        />
                       ))}
                     </div>
-                  </div>
+                  </Card>
                 ))}
               </div>
             </>
           )}
-        </article>
-      </section>
+        </Card>
 
-      <div className="section-spacer" />
-      <section className="grid">
-        <article className="panel">
-          <div className="eyebrow">Quick actions</div>
-          <h2>Add an event or reminder</h2>
+        <Card className="space-y-5">
+          <SectionHeader
+            eyebrow="Quick actions"
+            title="Add an event or reminder"
+            description="Keep event capture simple from the home view without changing the current forms or event behavior."
+          />
+
+          {!showEventForm && !showReminderForm ? (
+            <QuickActions label="Start with">
+              <ActionButton
+                variant="ghost"
+                onClick={() => {
+                  resetEventDraft();
+                  setShowEventForm(true);
+                }}
+              >
+                Add event
+              </ActionButton>
+              <ActionButton variant="ghost" onClick={() => setShowReminderForm(true)}>
+                Add reminder
+              </ActionButton>
+            </QuickActions>
+          ) : null}
 
           {showEventForm ? (
-            <div className="stack-list mt-12">
-              <div className="stack-card">
-                <div className="form-row">
-                  <label className="form-label">Event title *</label>
-                  <input
-                    className="form-input"
-                    value={eventTitle}
-                    onChange={(event) => setEventTitle(event.target.value)}
-                    placeholder="Event title"
-                  />
-                </div>
-                <div className="form-row">
-                  <label className="form-label">Description</label>
-                  <input
-                    className="form-input"
-                    value={eventDesc}
-                    onChange={(event) => setEventDesc(event.target.value)}
-                    placeholder="Optional"
-                  />
-                </div>
-                <div className="form-row">
-                  <label className="form-label">
+            <div className="grid gap-4">
+              <ListCard title="New household event" description="Add a one-time event with the same schedule logic already used in the workspace.">
+                <div className="grid gap-3">
+                  <label className="grid gap-2">
+                    <span className="text-sm font-medium text-[color:var(--text-strong)]">Event title *</span>
+                    <input
+                      value={eventTitle}
+                      onChange={(event) => setEventTitle(event.target.value)}
+                      placeholder="Event title"
+                    />
+                  </label>
+                  <label className="grid gap-2">
+                    <span className="text-sm font-medium text-[color:var(--text-strong)]">Description</span>
+                    <input
+                      value={eventDesc}
+                      onChange={(event) => setEventDesc(event.target.value)}
+                      placeholder="Optional"
+                    />
+                  </label>
+                  <label className="flex items-center gap-2 text-sm text-[color:var(--text)]">
                     <input
                       type="checkbox"
                       checked={eventAllDay}
@@ -143,168 +169,136 @@ export function AgendaPanel() {
                         }
                       }}
                     />
-                    {" "}All day
+                    All day
                   </label>
-                </div>
 
-                {eventAllDay ? (
-                  <div className="form-row">
-                    <label className="form-label">Date</label>
-                    <input
-                      className="form-input"
-                      type="date"
-                      value={eventAllDayDate}
-                      onChange={(event) => setEventAllDayDate(event.target.value)}
-                    />
-                  </div>
-                ) : (
-                  <>
-                    <div className="form-row">
-                      <label className="form-label">Starts</label>
+                  {eventAllDay ? (
+                    <label className="grid gap-2">
+                      <span className="text-sm font-medium text-[color:var(--text-strong)]">Date</span>
                       <input
-                        className="form-input"
-                        type="datetime-local"
-                        value={eventStart}
-                        onChange={(event) => setEventStart(event.target.value)}
+                        type="date"
+                        value={eventAllDayDate}
+                        onChange={(event) => setEventAllDayDate(event.target.value)}
                       />
-                    </div>
-                    <div className="pill-row scheduling-helper-row">
-                      <button className="pill-button" type="button" onClick={() => setEventEnd(applySuggestedEnd(eventStart, 30))} disabled={isPending || !eventStart}>
-                        End +30m
-                      </button>
-                      <button className="pill-button" type="button" onClick={() => setEventEnd(applySuggestedEnd(eventStart, 60))} disabled={isPending || !eventStart}>
-                        End +1h
-                      </button>
-                      <button className="pill-button" type="button" onClick={() => setEventEnd(applySuggestedEnd(eventStart, 120))} disabled={isPending || !eventStart}>
-                        End +2h
-                      </button>
-                    </div>
-                    <div className="form-row">
-                      <label className="form-label">Ends</label>
-                      <input
-                        className="form-input"
-                        type="datetime-local"
-                        value={eventEnd}
-                        onChange={(event) => setEventEnd(event.target.value)}
-                      />
-                    </div>
-                  </>
-                )}
+                    </label>
+                  ) : (
+                    <>
+                      <label className="grid gap-2">
+                        <span className="text-sm font-medium text-[color:var(--text-strong)]">Starts</span>
+                        <input
+                          type="datetime-local"
+                          value={eventStart}
+                          onChange={(event) => setEventStart(event.target.value)}
+                        />
+                      </label>
+                      <QuickActions label="Helpful end times">
+                        <ActionButton size="sm" variant="ghost" onClick={() => setEventEnd(applySuggestedEnd(eventStart, 30))} disabled={isPending || !eventStart}>
+                          End +30m
+                        </ActionButton>
+                        <ActionButton size="sm" variant="ghost" onClick={() => setEventEnd(applySuggestedEnd(eventStart, 60))} disabled={isPending || !eventStart}>
+                          End +1h
+                        </ActionButton>
+                        <ActionButton size="sm" variant="ghost" onClick={() => setEventEnd(applySuggestedEnd(eventStart, 120))} disabled={isPending || !eventStart}>
+                          End +2h
+                        </ActionButton>
+                      </QuickActions>
+                      <label className="grid gap-2">
+                        <span className="text-sm font-medium text-[color:var(--text-strong)]">Ends</span>
+                        <input
+                          type="datetime-local"
+                          value={eventEnd}
+                          onChange={(event) => setEventEnd(event.target.value)}
+                        />
+                      </label>
+                    </>
+                  )}
 
-                <p className="muted mt-8">
-                  {eventAllDay
-                    ? "All-day events use the selected local date and store it in UTC."
-                    : "Times use your current browser locale and are stored in UTC."}
-                </p>
+                  <p className="ui-text-muted text-sm">
+                    {eventAllDay
+                      ? "All-day events use the selected local date and store it in UTC."
+                      : "Times use your current browser locale and are stored in UTC."}
+                  </p>
 
-                {eventValidationIssues.length > 0 ? (
-                  <div className="scheduling-validation-list" aria-live="polite">
-                    {eventValidationIssues.map((issue) => (
-                      <div className="error-text" key={issue}>{issue}</div>
-                    ))}
-                  </div>
-                ) : null}
+                  {eventValidationIssues.length > 0 ? (
+                    <div className="grid gap-2" aria-live="polite">
+                      {eventValidationIssues.map((issue) => (
+                        <div className="error-text mt-0" key={issue}>{issue}</div>
+                      ))}
+                    </div>
+                  ) : null}
 
-                <div className="pill-row mt-8">
-                  <button
-                    className="action-button"
-                    onClick={handleAddEvent}
-                    disabled={isPending || eventValidationIssues.length > 0}
-                  >
-                    Add event
-                  </button>
-                  <button
-                    className="action-button-secondary"
-                    onClick={() => {
-                      setShowEventForm(false);
-                      resetEventDraft();
-                    }}
-                    disabled={isPending}
-                  >
-                    Cancel
-                  </button>
+                  <QuickActions label="Save or cancel">
+                    <ActionButton onClick={handleAddEvent} disabled={isPending || eventValidationIssues.length > 0}>
+                      Add event
+                    </ActionButton>
+                    <ActionButton
+                      variant="ghost"
+                      onClick={() => {
+                        setShowEventForm(false);
+                        resetEventDraft();
+                      }}
+                      disabled={isPending}
+                    >
+                      Cancel
+                    </ActionButton>
+                  </QuickActions>
                 </div>
-              </div>
+              </ListCard>
             </div>
           ) : null}
 
           {showReminderForm ? (
-            <div className="stack-list mt-12">
-              <div className="stack-card">
-                {timedUpcoming.length === 0 ? (
-                  <p className="muted">No upcoming timed events to attach a reminder to.</p>
-                ) : (
-                  <>
-                    <div className="form-row">
-                      <label className="form-label">Event *</label>
-                      <select
-                        className="form-input"
-                        value={reminderEventId}
-                        onChange={(event) => setReminderEventId(event.target.value)}
-                      >
-                        <option value="">Select an event…</option>
-                        {timedUpcoming.map((event) => (
-                          <option key={event.scheduledEventId} value={event.scheduledEventId}>
-                            {event.title} - {formatTime(event.startsAtUtc)}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="form-row">
-                      <label className="form-label">Minutes before *</label>
-                      <input
-                        className="form-input"
-                        type="number"
-                        min={1}
-                        max={10080}
-                        value={reminderMinutes}
-                        onChange={(event) => setReminderMinutes(event.target.value)}
-                      />
-                    </div>
-                    <div className="pill-row mt-8">
-                      <button
-                        className="action-button"
-                        onClick={handleAddReminder}
-                        disabled={isPending || !reminderEventId}
-                      >
-                        Schedule reminder
-                      </button>
-                      <button
-                        className="action-button-secondary"
-                        onClick={() => {
-                          setShowReminderForm(false);
-                          setReminderEventId("");
-                          setReminderMinutes("30");
-                        }}
-                        disabled={isPending}
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
+            <ListCard title="New reminder" description="Attach a reminder to one of the upcoming timed events already visible in the household agenda.">
+              {timedUpcoming.length === 0 ? (
+                <EmptyState message="No upcoming timed events are available for reminders yet." />
+              ) : (
+                <div className="grid gap-3">
+                  <label className="grid gap-2">
+                    <span className="text-sm font-medium text-[color:var(--text-strong)]">Event *</span>
+                    <select
+                      value={reminderEventId}
+                      onChange={(event) => setReminderEventId(event.target.value)}
+                    >
+                      <option value="">Select an event...</option>
+                      {timedUpcoming.map((event) => (
+                        <option key={event.scheduledEventId} value={event.scheduledEventId}>
+                          {event.title} - {formatTime(event.startsAtUtc)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="grid gap-2">
+                    <span className="text-sm font-medium text-[color:var(--text-strong)]">Minutes before *</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={10080}
+                      value={reminderMinutes}
+                      onChange={(event) => setReminderMinutes(event.target.value)}
+                    />
+                  </label>
+                  <QuickActions label="Save or cancel">
+                    <ActionButton onClick={handleAddReminder} disabled={isPending || !reminderEventId}>
+                      Schedule reminder
+                    </ActionButton>
+                    <ActionButton
+                      variant="ghost"
+                      onClick={() => {
+                        setShowReminderForm(false);
+                        setReminderEventId("");
+                        setReminderMinutes("30");
+                      }}
+                      disabled={isPending}
+                    >
+                      Cancel
+                    </ActionButton>
+                  </QuickActions>
+                </div>
+              )}
+            </ListCard>
           ) : null}
-
-          {!showEventForm && !showReminderForm ? (
-            <div className="action-row">
-              <button
-                className="action-button-secondary"
-                onClick={() => {
-                  resetEventDraft();
-                  setShowEventForm(true);
-                }}
-              >
-                + Event
-              </button>
-              <button className="action-button-secondary" onClick={() => setShowReminderForm(true)}>
-                + Reminder
-              </button>
-            </div>
-          ) : null}
-        </article>
+        </Card>
       </section>
-    </>
+    </div>
   );
 }

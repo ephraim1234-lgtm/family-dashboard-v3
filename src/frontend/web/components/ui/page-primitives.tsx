@@ -179,6 +179,75 @@ export function StatCard({
   );
 }
 
+type ListCardProps = HTMLAttributes<HTMLDivElement> & {
+  as?: "article" | "section" | "div";
+  eyebrow?: ReactNode;
+  title: ReactNode;
+  description?: ReactNode;
+  meta?: ReactNode;
+  action?: ReactNode;
+  tone?: "default" | "warning" | "accent" | "admin";
+};
+
+export function ListCard({
+  as: Component = "article",
+  className,
+  eyebrow,
+  title,
+  description,
+  meta,
+  action,
+  children,
+  tone = "default",
+  ...props
+}: ListCardProps) {
+  return (
+    <Component
+      className={cn(
+        "ui-list-card",
+        tone === "warning"
+          ? "ui-list-card-warning"
+          : tone === "accent"
+            ? "ui-list-card-accent"
+            : tone === "admin"
+              ? "ui-list-card-admin"
+              : null,
+        className
+      )}
+      {...props}
+    >
+      <div className="ui-list-card-header">
+        <div className="ui-list-card-copy">
+          {eyebrow ? <div className="eyebrow">{eyebrow}</div> : null}
+          <div className="ui-list-card-title">{title}</div>
+          {description ? <div className="ui-list-card-description">{description}</div> : null}
+          {meta ? <div className="ui-list-card-meta">{meta}</div> : null}
+        </div>
+        {action ? <div className="ui-list-card-action">{action}</div> : null}
+      </div>
+      {children ? <div className="ui-list-card-body">{children}</div> : null}
+    </Component>
+  );
+}
+
+type QuickActionsProps = HTMLAttributes<HTMLDivElement> & {
+  label?: ReactNode;
+};
+
+export function QuickActions({
+  label,
+  className,
+  children,
+  ...props
+}: QuickActionsProps) {
+  return (
+    <div className={cn("ui-quick-actions", className)} {...props}>
+      {label ? <div className="ui-quick-actions-label">{label}</div> : null}
+      <div className="ui-quick-actions-row">{children}</div>
+    </div>
+  );
+}
+
 type ActionButtonProps = Omit<ButtonProps, "className"> & {
   className?: string;
   href?: string;

@@ -84,6 +84,7 @@ public sealed class FoodIngredient
     public required string Name { get; set; }
     public required string NormalizedName { get; set; }
     public string? DefaultUnit { get; set; }
+    public string? DefaultImageUrl { get; set; }
     public DateTimeOffset CreatedAtUtc { get; set; }
 }
 
@@ -110,6 +111,7 @@ public sealed class PantryItem
     public string Status { get; set; } = "InStock";
     public DateTimeOffset? PurchasedAtUtc { get; set; }
     public DateTimeOffset? ExpiresAtUtc { get; set; }
+    public string? ImageUrlOverride { get; set; }
     public DateTimeOffset UpdatedAtUtc { get; set; }
 }
 
@@ -136,6 +138,7 @@ public sealed class Recipe
     public required string Title { get; set; }
     public string? Summary { get; set; }
     public string? Tags { get; set; }
+    public string? ImageUrl { get; set; }
     public DateTimeOffset CreatedAtUtc { get; set; }
     public DateTimeOffset UpdatedAtUtc { get; set; }
 }

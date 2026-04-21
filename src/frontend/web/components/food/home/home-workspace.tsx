@@ -5,7 +5,11 @@ import { RecipeLibraryWorkspace } from "../recipes/recipe-library-workspace";
 import { useFoodHubContext } from "../food-hub-context";
 import {
   ActionButton,
+  Badge,
+  Card,
   EmptyState,
+  ListCard,
+  QuickActions,
   SectionHeader,
   StatCard,
   StatusMessage
@@ -26,21 +30,18 @@ function HomeAttentionCard({
   onAction: () => void;
   tone?: "default" | "warning" | "accent";
 }) {
-  const toneClassName = tone === "warning"
-    ? "ui-inline-card-warning"
-    : tone === "accent"
-      ? "ui-inline-card-accent"
-      : "ui-inline-card";
-
   return (
-    <div className={`p-4 ${toneClassName}`}>
-      <div className="eyebrow">{eyebrow}</div>
-      <div className="mt-1 text-base font-semibold">{title}</div>
-      <p className="ui-text-muted mt-2 text-sm">{description}</p>
-      <ActionButton className="mt-3" size="sm" variant="ghost" onClick={onAction}>
-        {actionLabel}
-      </ActionButton>
-    </div>
+    <ListCard
+      eyebrow={eyebrow}
+      title={title}
+      description={description}
+      tone={tone}
+      action={
+        <ActionButton size="sm" variant="ghost" onClick={onAction}>
+          {actionLabel}
+        </ActionButton>
+      }
+    />
   );
 }
 
@@ -152,15 +153,15 @@ export function HomeWorkspace() {
       {lowStockBanner}
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.75fr)_minmax(0,1fr)]">
-        <article className="panel overflow-hidden" data-testid="food-home-overview">
+        <Card className="space-y-5 overflow-hidden" data-testid="food-home-overview">
           <SectionHeader
             actions={
-              <>
+              <QuickActions>
                 <ActionButton size="sm" onClick={handleQuickCook}>Cook now</ActionButton>
                 <ActionButton size="sm" variant="ghost" onClick={openRecipeLibrary}>Browse recipes</ActionButton>
                 <ActionButton size="sm" variant="ghost" onClick={() => openShoppingView()}>Open shopping</ActionButton>
                 <ActionButton size="sm" variant="ghost" onClick={() => openPantryView(false)}>Review pantry</ActionButton>
-              </>
+              </QuickActions>
             }
             description={todaysMeals.length > 0
               ? "See what is planned, spot any gaps, and jump straight into cooking or shopping."
@@ -169,7 +170,7 @@ export function HomeWorkspace() {
             title={todaysMeals.length > 0 ? "Keep food moving today" : "Get tonight lined up fast"}
           />
 
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             <StatCard label="Recipes ready" value={data.summary.recipeCount} />
             <StatCard label="Pantry items" value={data.summary.pantryItemCount} />
             <StatCard label="Open shopping items" tone={openShoppingCount > 0 ? "accent" : "default"} value={openShoppingCount} />
@@ -177,18 +178,13 @@ export function HomeWorkspace() {
             <StatCard label="Meals ahead" value={data.summary.upcomingMealCount} />
           </div>
 
-          <div className="ui-inline-card mt-5">
-            <div className="eyebrow">Tonight</div>
-            <div className="mt-1 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <div className="text-lg font-semibold">
-                  {data.tonightCookView?.title ?? (todaysMeals[0]?.title ?? "No dinner planned yet")}
-                </div>
-                <p className="ui-text-muted mt-2 text-sm">
-                  {data.tonightCookView?.reason ?? "Browse recipes, add one to the meal plan, and generate a shopping list without leaving Food."}
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
+          <ListCard
+            eyebrow="Tonight"
+            title={data.tonightCookView?.title ?? (todaysMeals[0]?.title ?? "No dinner planned yet")}
+            description={data.tonightCookView?.reason ?? "Browse recipes, add one to the meal plan, and generate a shopping list without leaving Food."}
+            tone="accent"
+            action={
+              <QuickActions>
                 {data.tonightCookView?.mealPlanSlotId ? (
                   <ActionButton
                     disabled={isPending}
@@ -214,19 +210,19 @@ export function HomeWorkspace() {
                     {data.tonightCookView.missingIngredientCount} missing
                   </ActionButton>
                 ) : null}
-              </div>
-            </div>
-          </div>
-        </article>
+              </QuickActions>
+            }
+          />
+        </Card>
 
-        <article className="panel" data-testid="food-home-attention">
+        <Card className="space-y-4" data-testid="food-home-attention">
           <SectionHeader
             description="The Home tab stays useful when it highlights the next thing worth doing, not every detail in the module."
             eyebrow="Needs attention"
             title="What to check next"
           />
 
-          <div className="mt-4 space-y-3">
+          <div className="space-y-3">
             {data.summary.lowStockCount > 0 ? (
               <HomeAttentionCard
                 eyebrow="Pantry"
@@ -281,11 +277,11 @@ export function HomeWorkspace() {
               />
             ) : null}
           </div>
-        </article>
+        </Card>
       </section>
 
       {todaysMeals.length > 0 ? (
-        <article className="panel" data-testid="food-home-today-section">
+        <Card className="space-y-4" data-testid="food-home-today-section">
           <SectionHeader
             actions={<ActionButton size="sm" variant="ghost" onClick={openMealsView}>Open meals</ActionButton>}
             description="Each meal card keeps the essentials visible: recipes, missing ingredients, and the fastest next action."
@@ -293,36 +289,34 @@ export function HomeWorkspace() {
             title="Meals ready to cook"
           />
 
-          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <div className="grid gap-4 lg:grid-cols-2">
             {todaysMeals.map((slot: any) => (
-              <div className="ui-inline-card" data-testid={`food-home-meal-${slot.id}`} key={slot.id}>
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="pill">{slot.slotName}</span>
-                  <span className={`pill ${slot.shoppingOpenIngredientCount > 0 ? "ui-pill-warning" : ""}`}>
-                    {slot.shoppingOpenIngredientCount > 0
-                      ? `${slot.shoppingOpenIngredientCount} missing`
-                      : "Pantry ready"}
-                  </span>
-                </div>
-
-                <h3 className="mt-3 text-lg font-semibold">{slot.title}</h3>
-                <p className="ui-text-muted mt-2 text-sm">
-                  {slot.shoppingOpenIngredientCount > 0
-                    ? `${slot.shoppingOpenIngredientCount} of ${slot.shoppingTotalIngredientCount} shopping item${slot.shoppingTotalIngredientCount === 1 ? "" : "s"} still need attention.`
-                    : "Ingredients are covered, so you can move straight into cooking mode."}
-                </p>
-
+              <ListCard
+                data-testid={`food-home-meal-${slot.id}`}
+                key={slot.id}
+                eyebrow={slot.slotName}
+                title={slot.title}
+                description={slot.shoppingOpenIngredientCount > 0
+                  ? `${slot.shoppingOpenIngredientCount} of ${slot.shoppingTotalIngredientCount} shopping item${slot.shoppingTotalIngredientCount === 1 ? "" : "s"} still need attention.`
+                  : "Ingredients are covered, so you can move straight into cooking mode."}
+                action={
+                  <Badge variant={slot.shoppingOpenIngredientCount > 0 ? "warning" : "default"}>
+                    {slot.shoppingOpenIngredientCount > 0 ? `${slot.shoppingOpenIngredientCount} missing` : "Pantry ready"}
+                  </Badge>
+                }
+                tone={slot.shoppingOpenIngredientCount > 0 ? "warning" : "default"}
+              >
                 {slot.recipes.length > 0 ? (
-                  <div className="pill-row mt-3">
+                  <div className="pill-row">
                     {slot.recipes.map((recipe: any) => (
                       <span className="pill" key={recipe.id}>{recipe.title}</span>
                     ))}
                   </div>
                 ) : null}
 
-                {slot.notes ? <p className="ui-text-muted mt-3 text-sm">{slot.notes}</p> : null}
+                {slot.notes ? <p className="ui-text-muted text-sm">{slot.notes}</p> : null}
 
-                <div className="mt-4 flex flex-wrap gap-2">
+                <QuickActions label="Next step">
                   <ActionButton
                     disabled={isPending}
                     size="sm"
@@ -340,14 +334,14 @@ export function HomeWorkspace() {
                   <ActionButton size="sm" variant="ghost" onClick={() => openShoppingView(slot.id)}>
                     {slot.shoppingOpenIngredientCount > 0 ? "Review shopping" : "Open shopping"}
                   </ActionButton>
-                </div>
-              </div>
+                </QuickActions>
+              </ListCard>
             ))}
           </div>
-        </article>
+        </Card>
       ) : (
         <section className="grid gap-4 lg:grid-cols-[minmax(0,0.95fr)_minmax(0,1.35fr)]">
-          <article className="panel" data-testid="food-home-empty-state">
+          <Card className="space-y-5" data-testid="food-home-empty-state">
             <SectionHeader
               description="Pick a recipe, import something new, or head to Meals to plan ahead before the day gets busy."
               eyebrow="Today"
@@ -363,23 +357,23 @@ export function HomeWorkspace() {
               />
             ) : null}
 
-            <div className="mt-5 flex flex-wrap gap-2">
+            <QuickActions label="Start with">
               <ActionButton size="sm" onClick={openRecipeLibrary}>Browse recipes</ActionButton>
               <ActionButton size="sm" variant="ghost" onClick={openRecipeImport}>Import recipe</ActionButton>
               <ActionButton size="sm" variant="ghost" onClick={openMealsView}>Open meals</ActionButton>
-            </div>
-          </article>
+            </QuickActions>
+          </Card>
 
-          <div className="panel" data-testid="food-home-recipes-preview">
+          <Card className="space-y-4" data-testid="food-home-recipes-preview">
             <SectionHeader
               description="Search the shared library, then turn a good recipe into a meal plan or a quick cook session."
               eyebrow="Recipe ideas"
               title="Find something everyone will actually eat"
             />
-            <div className="mt-4">
+            <div>
               <RecipeLibraryWorkspace hideHeader />
             </div>
-          </div>
+          </Card>
         </section>
       )}
     </section>

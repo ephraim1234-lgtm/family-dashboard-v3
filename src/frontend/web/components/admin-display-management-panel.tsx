@@ -2,6 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useState, useTransition } from "react";
+import {
+  ActionButton,
+  Badge,
+  Card,
+  ListCard,
+  QuickActions,
+  SectionHeader
+} from "@/components/ui";
 import { useAdminOwnerSession } from "./use-admin-owner-session";
 
 type DisplayDeviceSummary = {
@@ -50,8 +58,7 @@ export function AdminDisplayManagementPanel() {
   const { isOwner, isLoading: isSessionLoading } = useAdminOwnerSession();
   const [devices, setDevices] = useState<DisplayDeviceSummary[]>([]);
   const [savedPaths, setSavedPaths] = useState<Record<string, string>>({});
-  const [latestCreated, setLatestCreated] =
-    useState<CreateDisplayDeviceState>(null);
+  const [latestCreated, setLatestCreated] = useState<CreateDisplayDeviceState>(null);
   const [status, setStatus] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -215,93 +222,64 @@ export function AdminDisplayManagementPanel() {
   }
 
   return (
-    <section className="grid">
-      <article className="panel">
-        <div className="eyebrow">Display Management</div>
-        <h2>Owner-managed devices</h2>
-        <p className="muted">
-          Display artifacts are created through the owner-gated admin surface,
-          then accessed later through separate display tokens.
-        </p>
+    <section className="grid gap-4">
+      <Card className="space-y-4 ui-card-admin">
+        <SectionHeader
+          eyebrow="Display management"
+          title="Owner-managed devices"
+          description="Display artifacts are provisioned here, then accessed later through separate display tokens."
+        />
 
-        <div className="action-row">
-          <button
-            className="action-button"
-            onClick={createDevice}
-            disabled={isPending}
-          >
-            Provision Display Device
-          </button>
-          <button
-            className="action-button action-button-ghost"
-            onClick={handleRefresh}
-            disabled={isPending}
-          >
-            Refresh Devices
-          </button>
-        </div>
+        <QuickActions label="Provisioning actions">
+          <ActionButton onClick={createDevice} disabled={isPending}>
+            Provision display device
+          </ActionButton>
+          <ActionButton variant="ghost" onClick={handleRefresh} disabled={isPending}>
+            Refresh devices
+          </ActionButton>
+        </QuickActions>
 
         {error ? <p className="error-text">{error}</p> : null}
 
         {latestCreated ? (
-          <>
-            <div className="section-spacer" />
-            <dl className="data-list">
-              <div>
-                <dt>Latest device</dt>
-                <dd>{latestCreated.deviceName}</dd>
-              </div>
-              <div>
-                <dt>Presentation mode</dt>
-                <dd>{latestCreated.presentationMode}</dd>
-              </div>
-              <div>
-                <dt>Agenda density</dt>
-                <dd>{latestCreated.agendaDensityMode}</dd>
-              </div>
-              <div>
-                <dt>Access token</dt>
-                <dd>{latestCreated.accessToken}</dd>
-              </div>
-              <div>
-                <dt>Display path</dt>
-                <dd>
-                  <Link href={latestCreated.displayPath}>
-                    {latestCreated.displayPath}
-                  </Link>
-                </dd>
-              </div>
-            </dl>
-          </>
+          <div className="grid gap-3 md:grid-cols-2">
+            <ListCard title="Latest device" description={latestCreated.deviceName} tone="admin" />
+            <ListCard title="Presentation mode" description={latestCreated.presentationMode} tone="admin" />
+            <ListCard title="Agenda density" description={latestCreated.agendaDensityMode} tone="admin" />
+            <ListCard title="Access token" description={latestCreated.accessToken} tone="admin" />
+            <ListCard
+              title="Display path"
+              description={
+                <Link href={latestCreated.displayPath}>
+                  {latestCreated.displayPath}
+                </Link>
+              }
+              tone="admin"
+            />
+          </div>
         ) : null}
-      </article>
+      </Card>
 
-      <article className="panel">
-        <h2>Provisioned devices</h2>
-        <p className="muted">
-          Use one explicit presentation mode per device. Balanced keeps a fuller
-          agenda list visible; FocusNext puts more weight on the next timed item.
-        </p>
-        <p className="muted">
-          Agenda density stays separate and bounded. Comfortable keeps more space
-          around items; Dense surfaces more of the same projection frame.
-        </p>
+      <Card className="space-y-4 ui-card-admin">
+        <SectionHeader
+          eyebrow="Provisioned devices"
+          title="Adjust the display feel per device"
+          description="Balanced keeps a fuller agenda visible, Focus Next emphasizes the next timed item, and density stays separate."
+        />
+
         {status === 200 ? (
           devices.length > 0 ? (
-            <div className="stack-list">
+            <div className="grid gap-3">
               {devices.map((device) => (
-                <div className="stack-card" key={device.deviceId}>
-                  <div className="stack-card-header">
-                    <div>
-                      <strong>{device.deviceName}</strong>
-                      <div className="muted">
-                        Token hint {device.accessTokenHint} |{" "}
-                        {device.isActive ? "active" : "inactive"}
-                      </div>
-                    </div>
-                    <div className="pill-row">
-                      <span className="pill">{device.presentationMode}</span>
-                      <span className="pill">{device.agendaDensityMode}</span>
+                <ListCard
+                  key={device.deviceId}
+                  title={device.deviceName}
+                  description={`Token hint ${device.accessTokenHint} - ${device.isActive ? "active" : "inactive"}`}
+                  meta={`Created ${new Date(device.createdAtUtc).toLocaleDateString()}`}
+                  action={
+                    <div className="flex flex-wrap gap-2">
+                      <Badge variant="admin">{device.presentationMode}</Badge>
+                      <Badge variant="admin">{device.agendaDensityMode}</Badge>
                       {savedPaths[device.deviceId] ? (
                         <Link
                           href={savedPaths[device.deviceId]}
@@ -309,18 +287,19 @@ export function AdminDisplayManagementPanel() {
                           target="_blank"
                           rel="noopener noreferrer"
                         >
-                          Open Display ↗
+                          Open display
                         </Link>
                       ) : (
-                        <span className="pill muted" title="Reprovision this device to get a saved URL">
-                          URL not saved
-                        </span>
+                        <Badge>URL not saved</Badge>
                       )}
                     </div>
-                  </div>
-                  <div className="pill-row">
-                    <button
-                      className={`pill-button ${device.presentationMode === "Balanced" ? "pill-button-active" : ""}`}
+                  }
+                  tone="admin"
+                >
+                  <QuickActions label="Display options">
+                    <ActionButton
+                      size="sm"
+                      variant={device.presentationMode === "Balanced" ? "active" : "ghost"}
                       onClick={() =>
                         startTransition(() => {
                           updatePresentationMode(device.deviceId, "Balanced").catch(
@@ -337,9 +316,10 @@ export function AdminDisplayManagementPanel() {
                       disabled={isPending}
                     >
                       Balanced
-                    </button>
-                    <button
-                      className={`pill-button ${device.presentationMode === "FocusNext" ? "pill-button-active" : ""}`}
+                    </ActionButton>
+                    <ActionButton
+                      size="sm"
+                      variant={device.presentationMode === "FocusNext" ? "active" : "ghost"}
                       onClick={() =>
                         startTransition(() => {
                           updatePresentationMode(device.deviceId, "FocusNext").catch(
@@ -355,10 +335,11 @@ export function AdminDisplayManagementPanel() {
                       }
                       disabled={isPending}
                     >
-                      Focus Next
-                    </button>
-                    <button
-                      className={`pill-button ${device.agendaDensityMode === "Comfortable" ? "pill-button-active" : ""}`}
+                      Focus next
+                    </ActionButton>
+                    <ActionButton
+                      size="sm"
+                      variant={device.agendaDensityMode === "Comfortable" ? "active" : "ghost"}
                       onClick={() =>
                         startTransition(() => {
                           updateAgendaDensityMode(device.deviceId, "Comfortable").catch(
@@ -375,9 +356,10 @@ export function AdminDisplayManagementPanel() {
                       disabled={isPending}
                     >
                       Comfortable
-                    </button>
-                    <button
-                      className={`pill-button ${device.agendaDensityMode === "Dense" ? "pill-button-active" : ""}`}
+                    </ActionButton>
+                    <ActionButton
+                      size="sm"
+                      variant={device.agendaDensityMode === "Dense" ? "active" : "ghost"}
                       onClick={() =>
                         startTransition(() => {
                           updateAgendaDensityMode(device.deviceId, "Dense").catch(
@@ -394,9 +376,9 @@ export function AdminDisplayManagementPanel() {
                       disabled={isPending}
                     >
                       Dense
-                    </button>
-                  </div>
-                </div>
+                    </ActionButton>
+                  </QuickActions>
+                </ListCard>
               ))}
             </div>
           ) : (
@@ -410,13 +392,12 @@ export function AdminDisplayManagementPanel() {
           </p>
         ) : status === 403 ? (
           <p className="muted">
-            The current session is authenticated but not allowed to manage
-            display devices.
+            The current session is authenticated but not allowed to manage display devices.
           </p>
         ) : (
           <p className="muted">Loading display devices...</p>
         )}
-      </article>
+      </Card>
     </section>
   );
 }

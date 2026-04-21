@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { Badge, Card, ListCard, SectionHeader } from "@/components/ui";
 import { useAdminOwnerSession } from "./use-admin-owner-session";
 
 type ChoreInsightItem = {
@@ -44,45 +45,40 @@ export function AdminChoreInsightsPanel() {
   if (isSessionLoading || !isOwner) return null;
 
   return (
-    <section className="grid">
-      <article className="panel">
-        <div className="eyebrow">Admin</div>
-        <h2>Chore completion insights</h2>
-        {error ? <p className="error-text">{error}</p> : null}
+    <Card className="space-y-4 ui-card-admin">
+      <SectionHeader
+        eyebrow="Admin"
+        title="Chore completion insights"
+        description="Useful household activity context without drifting into analytics-heavy widgets."
+      />
+      {error ? <p className="error-text">{error}</p> : null}
 
-        {insights ? (
-          <>
-            <div className="pill-row mt-2 gap-2">
-              <span className="pill">{insights.totalCompletionsThisWeek} this week</span>
-              <span className="pill">{insights.totalCompletionsThisMonth} this month</span>
+      {insights ? (
+        <>
+          <div className="flex flex-wrap gap-2">
+            <Badge variant="admin">{insights.totalCompletionsThisWeek} this week</Badge>
+            <Badge variant="admin">{insights.totalCompletionsThisMonth} this month</Badge>
+          </div>
+
+          {insights.chores.length > 0 ? (
+            <div className="grid gap-3">
+              {insights.chores.map((c) => (
+                <ListCard
+                  key={c.choreId}
+                  title={c.title}
+                  description={`${c.completionsThisWeek} this week - ${c.completionsThisMonth} this month`}
+                  meta={c.lastCompletedByDisplayName ? `Last: ${c.lastCompletedByDisplayName}` : "No recent completion"}
+                  tone="admin"
+                />
+              ))}
             </div>
-
-            {insights.chores.length > 0 ? (
-              <div className="stack-list mt-3">
-                {insights.chores.map((c) => (
-                  <div className="stack-card" key={c.choreId}>
-                    <div className="stack-card-header">
-                      <div className="flex-1">
-                        <strong>{c.title}</strong>
-                        <div className="muted text-[0.8rem]">
-                          {c.completionsThisWeek} this week &middot; {c.completionsThisMonth} this month
-                          {c.lastCompletedByDisplayName
-                            ? ` · last: ${c.lastCompletedByDisplayName}`
-                            : null}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="muted mt-2">No active chores.</p>
-            )}
-          </>
-        ) : (
-          <p className="muted">Loading&hellip;</p>
-        )}
-      </article>
-    </section>
+          ) : (
+            <p className="muted">No active chores.</p>
+          )}
+        </>
+      ) : (
+        <p className="muted">Loading...</p>
+      )}
+    </Card>
   );
 }

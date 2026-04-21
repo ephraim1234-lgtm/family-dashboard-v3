@@ -7,7 +7,9 @@ public sealed record CreatePantryItemRequest(
     string? Unit,
     decimal? LowThreshold,
     DateTimeOffset? PurchasedAtUtc,
-    DateTimeOffset? ExpiresAtUtc);
+    DateTimeOffset? ExpiresAtUtc,
+    string? ImageUrlOverride,
+    string? IngredientDefaultImageUrl);
 
 public sealed record UpdatePantryItemRequest(
     Guid? PantryLocationId,
@@ -17,6 +19,8 @@ public sealed record UpdatePantryItemRequest(
     string? Status,
     DateTimeOffset? PurchasedAtUtc,
     DateTimeOffset? ExpiresAtUtc,
+    string? ImageUrlOverride,
+    string? IngredientDefaultImageUrl,
     string? Note);
 
 public sealed record CreateMealPlanRecipeRequest(Guid RecipeId, string? Role);

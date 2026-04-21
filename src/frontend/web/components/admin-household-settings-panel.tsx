@@ -180,7 +180,7 @@ export function AdminHouseholdSettingsPanel() {
 
         <div className="eyebrow mt-3">Time zone</div>
         <p className="muted mt-1">
-          Sets the household's local day boundary. Home agenda grouping, today
+          Sets the household&apos;s local day boundary. Home agenda grouping, today
           windows, and chore streaks use this zone.
         </p>
         <div className="form-stack mt-3">

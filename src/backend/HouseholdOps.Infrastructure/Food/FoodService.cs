@@ -32,6 +32,10 @@ public sealed class FoodService(
             .Select(item => new
             {
                 Item = item,
+                IngredientDefaultImageUrl = dbContext.FoodIngredients
+                    .Where(ingredient => ingredient.Id == item.IngredientId)
+                    .Select(ingredient => ingredient.DefaultImageUrl)
+                    .FirstOrDefault(),
                 LocationName = dbContext.PantryLocations
                     .Where(location => location.Id == item.PantryLocationId)
                     .Select(location => location.Name)
@@ -73,7 +77,7 @@ public sealed class FoodService(
         var activeSessionResponses = await BuildCookingSessionSummariesAsync(activeSessions, cancellationToken);
 
         var pantryResponses = pantryItems
-            .Select(item => ToPantryItemResponse(item.Item, item.LocationName))
+            .Select(item => ToPantryItemResponse(item.Item, item.LocationName, item.IngredientDefaultImageUrl))
             .ToList();
 
         var shoppingResponse = new ShoppingListResponse(
@@ -155,6 +159,7 @@ public sealed class FoodService(
                 sourceUri.Host.Replace("www.", "", StringComparison.OrdinalIgnoreCase),
                 null,
                 null,
+                null,
                 sourceUri.Host.Replace("www.", "", StringComparison.OrdinalIgnoreCase),
                 Array.Empty<RecipeEditableIngredientResponse>(),
                 Array.Empty<RecipeEditableStepResponse>(),
@@ -199,6 +204,7 @@ public sealed class FoodService(
             parsedImport.Title,
             parsedImport.Summary,
             parsedImport.YieldText,
+            parsedImport.ImageUrl,
             parsedImport.Ingredients,
             parsedImport.Steps,
             warnings);
@@ -233,7 +239,15 @@ public sealed class FoodService(
         DateTimeOffset nowUtc,
         CancellationToken cancellationToken)
     {
-        var content = ValidateRecipeContent(request.Title, request.Summary, request.YieldText, request.Tags, request.Notes, request.Ingredients, request.Steps);
+        var content = ValidateRecipeContent(
+            request.Title,
+            request.Summary,
+            request.YieldText,
+            request.ImageUrl,
+            request.Tags,
+            request.Notes,
+            request.Ingredients,
+            request.Steps);
 
         RecipeImportJob? importJob = null;
         if (request.ImportJobId is not null)
@@ -264,6 +278,7 @@ public sealed class FoodService(
             Title = content.Title,
             Summary = content.Summary,
             Tags = content.Tags,
+            ImageUrl = content.ImageUrl,
             CreatedAtUtc = nowUtc,
             UpdatedAtUtc = nowUtc
         };
@@ -339,7 +354,15 @@ public sealed class FoodService(
             return null;
         }
 
-        var content = ValidateRecipeContent(request.Title, request.Summary, request.YieldText, request.Tags, request.Notes, request.Ingredients, request.Steps);
+        var content = ValidateRecipeContent(
+            request.Title,
+            request.Summary,
+            request.YieldText,
+            request.ImageUrl,
+            request.Tags,
+            request.Notes,
+            request.Ingredients,
+            request.Steps);
 
         var currentRevision = await dbContext.RecipeRevisions
             .FirstAsync(item => item.Id == recipe.CurrentRevisionId.Value, cancellationToken);
@@ -370,6 +393,7 @@ public sealed class FoodService(
         recipe.Title = content.Title;
         recipe.Summary = content.Summary;
         recipe.Tags = content.Tags;
+        recipe.ImageUrl = content.ImageUrl;
         recipe.CurrentRevisionId = householdRevision.Id;
         recipe.UpdatedAtUtc = nowUtc;
 
@@ -432,6 +456,7 @@ public sealed class FoodService(
                 ?? throw new InvalidOperationException("Pantry location was not found.");
 
         var ingredient = await FindOrCreateIngredientAsync(householdId, ingredientName, request.Unit, nowUtc, cancellationToken);
+        ingredient.DefaultImageUrl = MergeImageUrl(ingredient.DefaultImageUrl, request.IngredientDefaultImageUrl);
         var pantryItem = new PantryItem
         {
             Id = Guid.NewGuid(),
@@ -445,6 +470,7 @@ public sealed class FoodService(
             LowThreshold = request.LowThreshold,
             PurchasedAtUtc = request.PurchasedAtUtc,
             ExpiresAtUtc = request.ExpiresAtUtc,
+            ImageUrlOverride = CleanImageUrl(request.ImageUrlOverride),
             UpdatedAtUtc = nowUtc
         };
 
@@ -464,7 +490,7 @@ public sealed class FoodService(
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        return ToPantryItemResponse(pantryItem, location.Name);
+        return ToPantryItemResponse(pantryItem, location.Name, ingredient.DefaultImageUrl);
     }
 
     public async Task<PantryItemResponse?> UpdatePantryItemAsync(
@@ -496,16 +522,28 @@ public sealed class FoodService(
         }
 
         var previousQuantity = pantryItem.Quantity;
+        FoodIngredient? ingredient = null;
+        if (pantryItem.IngredientId is not null)
+        {
+            ingredient = await dbContext.FoodIngredients
+                .FirstOrDefaultAsync(item => item.Id == pantryItem.IngredientId.Value, cancellationToken);
+        }
 
         pantryItem.Quantity = request.Quantity;
         pantryItem.Unit = CleanUnit(request.Unit);
         pantryItem.LowThreshold = request.LowThreshold;
         pantryItem.PurchasedAtUtc = request.PurchasedAtUtc;
         pantryItem.ExpiresAtUtc = request.ExpiresAtUtc;
+        pantryItem.ImageUrlOverride = CleanImageUrl(request.ImageUrlOverride);
         pantryItem.Status = string.IsNullOrWhiteSpace(request.Status)
             ? ComputePantryStatus(pantryItem.Quantity, pantryItem.LowThreshold)
             : request.Status.Trim();
         pantryItem.UpdatedAtUtc = nowUtc;
+
+        if (ingredient is not null)
+        {
+            ingredient.DefaultImageUrl = CleanImageUrl(request.IngredientDefaultImageUrl);
+        }
 
         var delta = previousQuantity is not null && request.Quantity is not null
             ? request.Quantity.Value - previousQuantity.Value
@@ -525,7 +563,7 @@ public sealed class FoodService(
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        return ToPantryItemResponse(pantryItem, location?.Name);
+        return ToPantryItemResponse(pantryItem, location?.Name, ingredient?.DefaultImageUrl);
     }
 
     public async Task<bool> DeletePantryItemAsync(
@@ -1860,6 +1898,7 @@ public sealed class FoodService(
                     recipe.Summary,
                     recipe.Tags,
                     revision?.YieldText,
+                    recipe.ImageUrl,
                     source?.SourceSiteName ?? source?.SourceTitle,
                     recipe.ImportedSourceRevisionId is not null,
                     recipe.CurrentRevisionId is not null && ingredientCounts.TryGetValue(recipe.CurrentRevisionId.Value, out var ingredientCount)
@@ -1975,6 +2014,7 @@ public sealed class FoodService(
             recipe.Tags,
             householdRevision.YieldText,
             householdRevision.Notes,
+            recipe.ImageUrl,
             source is null
                 ? null
                 : new RecipeSourceResponse(
@@ -2636,8 +2676,14 @@ public sealed class FoodService(
         return ingredient;
     }
 
-    private static PantryItemResponse ToPantryItemResponse(PantryItem item, string? locationName) =>
-        new(
+    private static PantryItemResponse ToPantryItemResponse(
+        PantryItem item,
+        string? locationName,
+        string? ingredientDefaultImageUrl)
+    {
+        var imageUrl = item.ImageUrlOverride ?? ingredientDefaultImageUrl;
+
+        return new PantryItemResponse(
             item.Id,
             item.IngredientId,
             item.PantryLocationId,
@@ -2649,7 +2695,11 @@ public sealed class FoodService(
             item.Status,
             item.PurchasedAtUtc,
             item.ExpiresAtUtc,
+            imageUrl,
+            item.ImageUrlOverride,
+            ingredientDefaultImageUrl,
             item.UpdatedAtUtc);
+    }
 
     private static ShoppingListItemResponse ToShoppingListItemResponse(ShoppingListItem item) =>
         new(
@@ -2685,10 +2735,33 @@ public sealed class FoodService(
         return $"{quantityText}{unitText}{ingredient.IngredientName}".Trim();
     }
 
+    private static string? CleanImageUrl(string? imageUrl)
+    {
+        if (string.IsNullOrWhiteSpace(imageUrl))
+        {
+            return null;
+        }
+
+        var candidate = imageUrl.Trim();
+        if (!Uri.TryCreate(candidate, UriKind.Absolute, out var uri)
+            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            throw new InvalidOperationException("Image URL must be a valid http or https URL.");
+        }
+
+        return uri.ToString();
+    }
+
+    private static string? MergeImageUrl(string? existingImageUrl, string? incomingImageUrl) =>
+        string.IsNullOrWhiteSpace(incomingImageUrl)
+            ? existingImageUrl
+            : CleanImageUrl(incomingImageUrl);
+
     private static RecipeContent ValidateRecipeContent(
         string? title,
         string? summary,
         string? yieldText,
+        string? imageUrl,
         string? tags,
         string? notes,
         IReadOnlyList<RecipeEditableIngredientRequest>? ingredients,
@@ -2722,6 +2795,7 @@ public sealed class FoodService(
             cleanTitle,
             string.IsNullOrWhiteSpace(summary) ? null : summary.Trim(),
             string.IsNullOrWhiteSpace(yieldText) ? null : yieldText.Trim(),
+            CleanImageUrl(imageUrl),
             string.IsNullOrWhiteSpace(tags) ? null : tags.Trim(),
             string.IsNullOrWhiteSpace(notes) ? null : notes.Trim(),
             ingredientRequests,
@@ -3454,6 +3528,7 @@ public sealed class FoodService(
         string Title,
         string? Summary,
         string? YieldText,
+        string? ImageUrl,
         string? Tags,
         string? Notes,
         IReadOnlyList<RecipeEditableIngredientRequest> Ingredients,

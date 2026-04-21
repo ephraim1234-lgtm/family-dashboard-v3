@@ -38,6 +38,9 @@ export function RecipesWorkspace() {
               size="sm"
               variant={recipeWorkspaceTab === "capture" ? "active" : "primary"}
               onClick={() => {
+                if (recipeWorkspaceTab === "capture") {
+                  return;
+                }
                 setRecipeWorkspaceTab("capture");
                 setImportUrl("");
                 setImportReview(null);

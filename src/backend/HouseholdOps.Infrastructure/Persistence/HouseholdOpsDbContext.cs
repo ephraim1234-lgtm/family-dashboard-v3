@@ -345,6 +345,7 @@ public sealed class HouseholdOpsDbContext(DbContextOptions<HouseholdOpsDbContext
             entity.Property(x => x.Name).HasMaxLength(200);
             entity.Property(x => x.NormalizedName).HasMaxLength(200);
             entity.Property(x => x.DefaultUnit).HasMaxLength(32);
+            entity.Property(x => x.DefaultImageUrl);
             entity.Property(x => x.CreatedAtUtc);
             entity.HasIndex(x => x.HouseholdId);
             entity.HasIndex(x => new { x.HouseholdId, x.NormalizedName })
@@ -385,6 +386,7 @@ public sealed class HouseholdOpsDbContext(DbContextOptions<HouseholdOpsDbContext
             entity.Property(x => x.Status).HasMaxLength(32);
             entity.Property(x => x.PurchasedAtUtc);
             entity.Property(x => x.ExpiresAtUtc);
+            entity.Property(x => x.ImageUrlOverride);
             entity.Property(x => x.UpdatedAtUtc);
             entity.HasIndex(x => x.HouseholdId);
             entity.HasIndex(x => new { x.HouseholdId, x.NormalizedIngredientName })
@@ -427,6 +429,7 @@ public sealed class HouseholdOpsDbContext(DbContextOptions<HouseholdOpsDbContext
             entity.Property(x => x.Title).HasMaxLength(200);
             entity.Property(x => x.Summary);
             entity.Property(x => x.Tags).HasMaxLength(400);
+            entity.Property(x => x.ImageUrl);
             entity.Property(x => x.CreatedAtUtc);
             entity.Property(x => x.UpdatedAtUtc);
             entity.HasIndex(x => x.HouseholdId);

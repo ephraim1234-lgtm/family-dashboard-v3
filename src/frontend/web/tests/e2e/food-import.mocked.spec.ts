@@ -16,6 +16,7 @@ test("imports a mocked recipe review into the editable draft workflow", async ({
         title: recipeTitle,
         summary: "Imported through a mocked family recipe page.",
         yieldText: "4 servings",
+        imageUrl: "https://example.com/imported-pasta.jpg",
         ingredients: [
           {
             ingredientName: "Tomatoes",
@@ -45,6 +46,8 @@ test("imports a mocked recipe review into the editable draft workflow", async ({
   await expect(page.getByTestId("food-import-review")).toContainText("Parsed");
   await expect(page.getByTestId("food-recipe-draft")).toContainText("Review imported recipe");
   await expect(page.getByTestId("food-recipe-draft-title")).toHaveValue(recipeTitle);
+  await expect(page.getByTestId("food-recipe-draft-image-url")).toHaveValue("https://example.com/imported-pasta.jpg");
+  await expect(page.getByTestId("food-recipe-image-preview")).toBeVisible();
   await expect(page.getByTestId("food-recipe-ingredient-name-0")).toHaveValue("Tomatoes");
   await expect(page.getByTestId("food-recipe-step-instruction-0")).toHaveValue("Mix everything together.");
 });

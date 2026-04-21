@@ -14,6 +14,9 @@ internal static partial class FoodRecipeImportParser
         var warnings = new List<string>();
         var sourceUri = new Uri(sourceUrl);
         var sourceSiteName = sourceUri.Host.Replace("www.", "", StringComparison.OrdinalIgnoreCase);
+        var fallbackImageUrl = NormalizeImageUrl(
+            ExtractMetaContent(html, "og:image") ?? ExtractMetaContent(html, "twitter:image"),
+            sourceUri);
 
         foreach (Match match in JsonLdScriptRegex().Matches(html))
         {
@@ -27,7 +30,7 @@ internal static partial class FoodRecipeImportParser
                     continue;
                 }
 
-                var payload = ParseRecipeNode(recipeNode.Value, sourceUrl, sourceSiteName);
+                var payload = ParseRecipeNode(recipeNode.Value, sourceUrl, sourceSiteName, fallbackImageUrl);
                 if (!string.IsNullOrWhiteSpace(payload.Title))
                 {
                     return payload;
@@ -45,6 +48,7 @@ internal static partial class FoodRecipeImportParser
             Title: ExtractMetaContent(html, "og:title") ?? sourceSiteName,
             Summary: ExtractMetaContent(html, "description"),
             YieldText: null,
+            ImageUrl: fallbackImageUrl,
             SourceSiteName: sourceSiteName,
             Ingredients: Array.Empty<RecipeEditableIngredientResponse>(),
             Steps: Array.Empty<RecipeEditableStepResponse>(),
@@ -60,11 +64,17 @@ internal static partial class FoodRecipeImportParser
                 JsonOptions));
     }
 
-    private static ParsedRecipeImport ParseRecipeNode(JsonElement recipeNode, string sourceUrl, string sourceSiteName)
+    private static ParsedRecipeImport ParseRecipeNode(
+        JsonElement recipeNode,
+        string sourceUrl,
+        string sourceSiteName,
+        string? fallbackImageUrl)
     {
+        var sourceUri = new Uri(sourceUrl);
         var title = ReadString(recipeNode, "name");
         var summary = ReadString(recipeNode, "description");
         var yieldText = ReadStringOrFirstArray(recipeNode, "recipeYield");
+        var imageUrl = ReadImageUrl(recipeNode, sourceUri) ?? fallbackImageUrl;
         var ingredientLines = ReadStringArray(recipeNode, "recipeIngredient");
         var stepTexts = ReadStepTexts(recipeNode);
 
@@ -112,6 +122,7 @@ internal static partial class FoodRecipeImportParser
             Title: title,
             Summary: summary,
             YieldText: yieldText,
+            ImageUrl: imageUrl,
             SourceSiteName: publisher,
             Ingredients: parsedIngredients,
             Steps: parsedSteps,
@@ -330,6 +341,29 @@ internal static partial class FoodRecipeImportParser
         };
     }
 
+    private static string? ReadImageUrl(JsonElement element, Uri sourceUri)
+    {
+        if (!element.TryGetProperty("image", out var property))
+        {
+            return null;
+        }
+
+        return NormalizeImageUrl(ReadImageProperty(property), sourceUri);
+    }
+
+    private static string? ReadImageProperty(JsonElement property) =>
+        property.ValueKind switch
+        {
+            JsonValueKind.String => property.GetString()?.Trim(),
+            JsonValueKind.Object => ReadString(property, "url")
+                ?? ReadString(property, "contentUrl")
+                ?? ReadString(property, "@id"),
+            JsonValueKind.Array => property.EnumerateArray()
+                .Select(ReadImageProperty)
+                .FirstOrDefault(value => !string.IsNullOrWhiteSpace(value)),
+            _ => null
+        };
+
     private static IReadOnlyList<string> ReadStringArray(JsonElement element, string propertyName)
     {
         if (!element.TryGetProperty(propertyName, out var property)
@@ -421,6 +455,28 @@ internal static partial class FoodRecipeImportParser
         return null;
     }
 
+    private static string? NormalizeImageUrl(string? candidate, Uri sourceUri)
+    {
+        if (string.IsNullOrWhiteSpace(candidate))
+        {
+            return null;
+        }
+
+        if (Uri.TryCreate(candidate.Trim(), UriKind.Absolute, out var absoluteUri)
+            && (absoluteUri.Scheme == Uri.UriSchemeHttp || absoluteUri.Scheme == Uri.UriSchemeHttps))
+        {
+            return absoluteUri.ToString();
+        }
+
+        if (Uri.TryCreate(sourceUri, candidate.Trim(), out var relativeUri)
+            && (relativeUri.Scheme == Uri.UriSchemeHttp || relativeUri.Scheme == Uri.UriSchemeHttps))
+        {
+            return relativeUri.ToString();
+        }
+
+        return null;
+    }
+
     [GeneratedRegex("<script[^>]*type=[\"']application/ld\\+json[\"'][^>]*>(?<json>.*?)</script>", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
     private static partial Regex JsonLdScriptRegex();
 
@@ -460,6 +516,7 @@ internal sealed record ParsedRecipeImport(
     string? Title,
     string? Summary,
     string? YieldText,
+    string? ImageUrl,
     string? SourceSiteName,
     IReadOnlyList<RecipeEditableIngredientResponse> Ingredients,
     IReadOnlyList<RecipeEditableStepResponse> Steps,

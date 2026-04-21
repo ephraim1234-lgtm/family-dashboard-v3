@@ -4,6 +4,7 @@ type RecipeInput = {
   title: string;
   summary?: string | null;
   yieldText?: string | null;
+  imageUrl?: string | null;
   tags?: string | null;
   notes?: string | null;
   ingredients?: Array<{
@@ -37,6 +38,8 @@ type PantryItemInput = {
   unit?: string | null;
   lowThreshold?: number | null;
   expiresAtUtc?: string | null;
+  imageUrlOverride?: string | null;
+  ingredientDefaultImageUrl?: string | null;
 };
 
 type ShoppingItemInput = {
@@ -121,6 +124,7 @@ export class FoodApi {
       title: input.title,
       summary: input.summary ?? null,
       yieldText: input.yieldText ?? "4 servings",
+      imageUrl: input.imageUrl ?? null,
       tags: input.tags ?? null,
       notes: input.notes ?? null,
       ingredients: (input.ingredients ?? [
@@ -174,7 +178,9 @@ export class FoodApi {
       quantity: input.quantity ?? null,
       unit: input.unit ?? null,
       lowThreshold: input.lowThreshold ?? null,
-      expiresAtUtc: input.expiresAtUtc ?? null
+      expiresAtUtc: input.expiresAtUtc ?? null,
+      imageUrlOverride: input.imageUrlOverride ?? null,
+      ingredientDefaultImageUrl: input.ingredientDefaultImageUrl ?? null
     });
 
     this.trackId("pantryItems", pantryItem.id);

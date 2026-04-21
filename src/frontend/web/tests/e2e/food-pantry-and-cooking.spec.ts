@@ -23,13 +23,17 @@ test("adds and updates a pantry item with search and low-stock filtering", async
 
   await page.getByTestId("food-pantry-detail").locator("select").nth(1).selectOption({ label: "Low" });
   await page.getByRole("spinbutton").first().fill("1");
+  await page.getByTestId("food-pantry-detail-ingredient-image-url").fill("https://example.com/yogurt-default.jpg");
+  await page.getByTestId("food-pantry-detail-image-url-override").fill("https://example.com/yogurt-item.jpg");
   await page.getByTestId("food-pantry-detail-note").fill("Used during QA run");
   await page.getByTestId("food-pantry-save").click();
 
   await expect(page.getByTestId("food-alert-success")).toContainText("Pantry item updated");
+  await expect(page.getByTestId("food-pantry-detail-image")).toBeVisible();
 
   await page.getByRole("button", { name: "Low Stock" }).click();
   await expect(pantryCard).toContainText(pantryItem);
+  await expect(pantryCard.getByRole("img")).toBeVisible();
 });
 
 test("adds a recipe to the meal plan and supports slot and recipe removals in planning", async ({ page, foodApi }) => {

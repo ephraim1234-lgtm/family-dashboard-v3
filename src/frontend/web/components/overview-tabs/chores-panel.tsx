@@ -1,6 +1,14 @@
 "use client";
 
-import { EmptyState } from "@/components/ui";
+import {
+  ActionButton,
+  Badge,
+  Card,
+  EmptyState,
+  ListCard,
+  SectionHeader,
+  StatCard
+} from "@/components/ui";
 import { useOverviewContext } from "./overview-context";
 
 export function ChoresPanel() {
@@ -20,119 +28,112 @@ export function ChoresPanel() {
   }
 
   return (
-    <>
-      <section className="grid">
-        <article className="panel">
-          <div className="eyebrow">Chores</div>
-          <h2>Today&apos;s chores</h2>
+    <div className="grid gap-6">
+      <section className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,1fr)]">
+        <Card className="space-y-5">
+          <SectionHeader
+            eyebrow="Chores"
+            title="Today's chores"
+            description="Stay focused on what is still open, who it belongs to, and the next quick action."
+          />
+
+          <div className="grid gap-3 sm:grid-cols-3">
+            <StatCard label="Open" tone={incompleteChores.length > 0 ? "warning" : "default"} value={incompleteChores.length} />
+            <StatCard label="Completed" value={doneChores.length} />
+            <StatCard label="Members active" value={data.memberChoreProgress.length} />
+          </div>
 
           {incompleteChores.length === 0 ? (
-            <EmptyState className="mt-8" message="No open chores right now." />
+            <EmptyState message="No open chores right now." />
           ) : (
-            <div className="stack-list mt-12">
+            <div className="grid gap-3">
               {incompleteChores.map((chore) => (
-                <div className="stack-card home-attention-card" key={chore.id}>
-                  <div className="stack-card-header">
-                    <div className="flex-1">
-                      <strong>{chore.title}</strong>
-                      {isOwner && members.length > 0 ? (
-                        <div className="mt-8">
-                          <select
-                            value={chore.assignedMembershipId ?? ""}
-                            onChange={(event) => handleReassign(
-                              chore.id,
-                              event.target.value === "" ? null : event.target.value
-                            )}
-                            disabled={isPending}
-                            className="text-sm"
-                            aria-label={`Reassign ${chore.title}`}
-                          >
-                            <option value="">Unassigned</option>
-                            {members.map((member) => (
-                              <option key={member.membershipId} value={member.membershipId}>
-                                {member.displayName}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      ) : chore.assignedMemberName ? (
-                        <div className="muted text-sm mt-8">{chore.assignedMemberName}</div>
-                      ) : null}
-                    </div>
-                    <button
-                      className="action-button"
+                <ListCard
+                  key={chore.id}
+                  tone="warning"
+                  title={chore.title}
+                  description={chore.assignedMemberName ?? "Unassigned"}
+                  action={
+                    <ActionButton
+                      size="sm"
                       onClick={() => handleComplete(chore.id)}
                       disabled={isPending}
                     >
                       Complete
-                    </button>
-                  </div>
-                </div>
+                    </ActionButton>
+                  }
+                >
+                  {isOwner && members.length > 0 ? (
+                    <label className="grid gap-2">
+                      <span className="text-sm font-medium text-[color:var(--text-strong)]">Assign to</span>
+                      <select
+                        value={chore.assignedMembershipId ?? ""}
+                        onChange={(event) => handleReassign(
+                          chore.id,
+                          event.target.value === "" ? null : event.target.value
+                        )}
+                        disabled={isPending}
+                        aria-label={`Reassign ${chore.title}`}
+                      >
+                        <option value="">Unassigned</option>
+                        {members.map((member) => (
+                          <option key={member.membershipId} value={member.membershipId}>
+                            {member.displayName}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
+                </ListCard>
               ))}
             </div>
           )}
-        </article>
+        </Card>
 
-        <article className="panel">
-          <div className="eyebrow">Progress</div>
-          <h2>Completed today</h2>
+        <Card className="space-y-4">
+          <SectionHeader
+            eyebrow="Progress"
+            title="Completed today"
+            titleAs="h3"
+            description="A quick read on what is already done."
+          />
 
           {doneChores.length === 0 ? (
-            <EmptyState className="mt-8" message="Nothing marked complete yet." />
+            <EmptyState message="Nothing marked complete yet." />
           ) : (
-            <div className="stack-list mt-12">
+            <div className="grid gap-3">
               {doneChores.map((chore) => (
-                <div className="stack-card" key={chore.id}>
-                  <div className="stack-card-header">
-                    <div className="flex-1">
-                      <strong>{chore.title}</strong>
-                      {chore.assignedMemberName ? (
-                        <div className="muted text-sm mt-8">{chore.assignedMemberName}</div>
-                      ) : null}
-                    </div>
-                    <span className="pill">Done</span>
-                  </div>
-                </div>
+                <ListCard
+                  key={chore.id}
+                  title={chore.title}
+                  description={chore.assignedMemberName ?? "Completed"}
+                  action={<Badge>Done</Badge>}
+                />
               ))}
             </div>
           )}
-        </article>
+        </Card>
       </section>
 
       {data.memberChoreProgress.length > 0 ? (
-        <>
-          <div className="section-spacer" />
-          <section className="grid">
-            <article className="panel">
-              <div className="eyebrow">Chores</div>
-              <h2>Member progress</h2>
-              <p className="muted mt-8">
-                Streaks reflect consecutive days with at least one completion.
-              </p>
-              <div className="stack-list mt-12">
-                {data.memberChoreProgress.map((member) => (
-                  <div className="stack-card" key={member.memberDisplayName}>
-                    <div className="stack-card-header">
-                      <div className="flex-1">
-                        <strong>{member.memberDisplayName}</strong>
-                      </div>
-                      <div className="pill-row flex-shrink-0">
-                        <span className="pill text-xs">
-                          {member.currentStreakDays} day
-                          {member.currentStreakDays !== 1 ? "s" : ""} streak
-                        </span>
-                        <span className="pill text-xs">
-                          {member.completionsThisWeek} this week
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </article>
-          </section>
-        </>
+        <Card className="space-y-4">
+          <SectionHeader
+            eyebrow="Chores"
+            title="Member progress"
+            description="Streaks reflect consecutive days with at least one completion."
+          />
+          <div className="grid gap-3 lg:grid-cols-2">
+            {data.memberChoreProgress.map((member) => (
+              <ListCard
+                key={member.memberDisplayName}
+                title={member.memberDisplayName}
+                meta={`${member.currentStreakDays} day${member.currentStreakDays !== 1 ? "s" : ""} streak`}
+                action={<Badge>{member.completionsThisWeek} this week</Badge>}
+              />
+            ))}
+          </div>
+        </Card>
       ) : null}
-    </>
+    </div>
   );
 }

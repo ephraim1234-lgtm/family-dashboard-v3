@@ -26,6 +26,9 @@ export type FoodPantryItem = {
   status: string;
   purchasedAtUtc: string | null;
   expiresAtUtc: string | null;
+  imageUrl: string | null;
+  imageUrlOverride: string | null;
+  ingredientDefaultImageUrl: string | null;
   updatedAtUtc: string;
 };
 
@@ -65,6 +68,7 @@ export type FoodRecipeSummary = {
   summary: string | null;
   tags: string | null;
   yieldText: string | null;
+  imageUrl: string | null;
   sourceLabel: string | null;
   hasImportedSource: boolean;
   ingredientCount: number;
@@ -105,6 +109,7 @@ export type FoodRecipeDetail = {
   tags: string | null;
   yieldText: string | null;
   notes: string | null;
+  imageUrl: string | null;
   source: {
     id: string;
     kind: string;
@@ -217,6 +222,21 @@ export type FoodDashboard = {
   activeCookingSessions: FoodCookingSessionSummary[];
 };
 
+export type FoodImportReview = {
+  importJobId: string;
+  status: string;
+  parserConfidence: number;
+  sourceUrl: string;
+  sourceSiteName: string | null;
+  title: string | null;
+  summary: string | null;
+  yieldText: string | null;
+  imageUrl: string | null;
+  ingredients: FoodRecipeIngredient[];
+  steps: FoodRecipeStep[];
+  warnings: string[];
+};
+
 async function readJson<T>(input: RequestInfo, init?: RequestInit): Promise<T> {
   const response = await fetch(input, {
     credentials: "same-origin",
@@ -248,6 +268,12 @@ async function send(input: RequestInfo, init?: RequestInit): Promise<void> {
 export const foodClient = {
   getDashboard() {
     return readJson<FoodDashboard>("/api/food/dashboard", { cache: "no-store" });
+  },
+  importRecipe(input: { url: string }) {
+    return readJson<FoodImportReview>("/api/food/recipe-imports", {
+      method: "POST",
+      body: JSON.stringify(input)
+    });
   },
   listRecipes(query?: string) {
     const search = query?.trim() ? `?query=${encodeURIComponent(query.trim())}` : "";

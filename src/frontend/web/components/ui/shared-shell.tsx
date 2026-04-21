@@ -11,7 +11,8 @@ function shellContext(pathname: string) {
     return {
       label: "Admin",
       title: "Household control center",
-      description: "Owner-facing workflows across scheduling, display, members, and operations."
+      description: "Owner-facing workflows across scheduling, display, members, and operations.",
+      accentLabel: "Owner tools"
     };
   }
 
@@ -19,14 +20,16 @@ function shellContext(pathname: string) {
     return {
       label: "Food",
       title: "Food hub",
-      description: "Recipes, pantry, meal planning, shopping, and cooking sessions."
+      description: "Recipes, pantry, meal planning, shopping, and cooking sessions.",
+      accentLabel: "Family meals"
     };
   }
 
   return {
     label: "Overview",
     title: "Household workspace",
-    description: "A member-friendly home for today, chores, notes, and agenda."
+    description: "A member-friendly home for today, chores, notes, and agenda.",
+    accentLabel: "Everyday rhythm"
   };
 }
 
@@ -38,48 +41,65 @@ export function AppShell({
   const pathname = usePathname();
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const context = shellContext(pathname);
+  const todayLabel = new Date().toLocaleDateString([], {
+    weekday: "long",
+    month: "short",
+    day: "numeric"
+  });
 
   return (
     <div className="app-shell">
-      <div className="mx-auto flex min-h-screen max-w-[1600px]">
-        <aside className="app-shell-sidebar sticky top-0 hidden h-screen w-80 shrink-0 px-6 py-6 xl:flex xl:flex-col">
-          <div className="space-y-2">
-            <div className="app-shell-kicker text-xs font-semibold uppercase tracking-[0.32em]">
-              {context.label}
-            </div>
-            <div className="text-2xl font-semibold tracking-tight">
-              {siteConfig.productName}
-            </div>
-            <p className="app-shell-copy text-sm leading-6">
-              {context.description}
-            </p>
-          </div>
-
-          <div className="mt-8">
-            <AppShellNav />
-          </div>
-
-          <div className="app-shell-footnote mt-auto space-y-3 rounded-[1.5rem] p-4">
-            <div>
-              <div className="app-shell-kicker text-xs font-semibold uppercase tracking-[0.28em]">
-                Foundation
+      <div className="mx-auto flex min-h-screen max-w-[1680px] gap-0 xl:px-6 xl:py-6">
+        <aside className="app-shell-sidebar hidden h-[calc(100vh-3rem)] w-[320px] shrink-0 xl:sticky xl:top-6 xl:flex xl:flex-col">
+          <div className="app-shell-sidebar-inner">
+            <div className="app-shell-brand-card">
+              <div className="app-shell-brand-mark" aria-hidden="true">
+                <span>H</span>
               </div>
-              <p className="app-shell-copy mt-2 text-sm">
-                Shared app and admin surfaces now use one neutral base theme for the TailAdmin migration.
-              </p>
+              <div className="space-y-1">
+                <div className="app-shell-kicker text-xs font-semibold uppercase tracking-[0.32em]">
+                  {context.accentLabel}
+                </div>
+                <div className="text-2xl font-semibold tracking-tight text-[color:var(--text-strong)]">
+                  {siteConfig.productName}
+                </div>
+                <p className="app-shell-copy text-sm leading-6">
+                  TailAdmin-inspired structure with a calmer, household-first tone.
+                </p>
+              </div>
+            </div>
+
+            <div className="app-shell-section">
+              <div className="app-shell-section-heading">Navigate</div>
+              <AppShellNav />
+            </div>
+
+            <div className="app-shell-footnote mt-auto">
+              <div className="app-shell-section-heading">Current space</div>
+              <div className="space-y-2">
+                <div className="text-base font-semibold text-[color:var(--text-strong)]">
+                  {context.title}
+                </div>
+                <p className="app-shell-copy text-sm">
+                  {context.description}
+                </p>
+              </div>
             </div>
           </div>
         </aside>
 
         <div className="flex min-h-screen min-w-0 flex-1 flex-col">
           <header className="app-shell-mobile-header sticky top-0 z-40 xl:hidden">
-            <div className="flex items-center justify-between gap-3 px-4 py-3 sm:px-6">
-              <div className="min-w-0">
-                <div className="app-shell-kicker text-xs font-semibold uppercase tracking-[0.28em]">
+            <div className="flex items-center justify-between gap-3 px-4 py-4 sm:px-6">
+              <div className="min-w-0 space-y-1">
+                <div className="app-shell-kicker text-[11px] font-semibold uppercase tracking-[0.28em]">
                   {context.label}
                 </div>
-                <div className="truncate text-lg font-semibold">
+                <div className="truncate text-lg font-semibold text-[color:var(--text-strong)]">
                   {context.title}
+                </div>
+                <div className="truncate text-xs text-[color:var(--text-muted)]">
+                  {todayLabel}
                 </div>
               </div>
               <Button
@@ -102,14 +122,20 @@ export function AppShell({
                 className="absolute inset-0 bg-[color:var(--overlay-backdrop)]"
                 onClick={() => setIsDrawerOpen(false)}
               />
-              <section className="app-shell-drawer relative ml-auto flex h-full w-full max-w-xs flex-col gap-6 px-5 py-5 shadow-2xl">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
+              <section className="app-shell-drawer relative ml-auto flex h-full w-full max-w-sm flex-col gap-6 p-5 shadow-2xl">
+                <div className="app-shell-brand-card">
+                  <div className="app-shell-brand-mark" aria-hidden="true">
+                    <span>H</span>
+                  </div>
+                  <div className="min-w-0">
                     <div className="app-shell-kicker text-xs font-semibold uppercase tracking-[0.28em]">
-                      {context.label}
+                      {context.accentLabel}
                     </div>
-                    <div className="mt-2 text-xl font-semibold">
+                    <div className="mt-2 text-xl font-semibold text-[color:var(--text-strong)]">
                       {siteConfig.productName}
+                    </div>
+                    <div className="mt-1 text-sm text-[color:var(--text-muted)]">
+                      {todayLabel}
                     </div>
                   </div>
                   <Button
@@ -121,33 +147,54 @@ export function AppShell({
                   </Button>
                 </div>
 
-                <AppShellNav onNavigate={() => setIsDrawerOpen(false)} />
+                <div className="space-y-3">
+                  <div className="app-shell-section-heading">Navigate</div>
+                  <AppShellNav onNavigate={() => setIsDrawerOpen(false)} />
+                </div>
 
-                <div className="app-shell-footnote mt-auto space-y-3 rounded-[1.5rem] p-4">
-                  <div className="app-shell-copy text-sm">
-                    Shared app and admin surfaces use one neutral base theme while the new layout system is introduced.
+                <div className="app-shell-footnote mt-auto">
+                  <div className="app-shell-section-heading">Current space</div>
+                  <div className="space-y-2">
+                    <div className="text-base font-semibold text-[color:var(--text-strong)]">
+                      {context.title}
+                    </div>
+                    <div className="text-sm text-[color:var(--text-muted)]">
+                      {context.description}
+                    </div>
                   </div>
                 </div>
               </section>
             </div>
           ) : null}
 
-          <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-4 py-6 sm:px-6 lg:px-8 xl:py-10">
-            <div className="mb-6 hidden items-start justify-between gap-6 xl:flex">
-              <div className="space-y-2">
+          <main className="flex min-w-0 flex-1 flex-col xl:py-6 xl:pr-6">
+            <div className="app-shell-topbar hidden xl:flex">
+              <div className="min-w-0 space-y-2">
                 <div className="app-shell-kicker text-xs font-semibold uppercase tracking-[0.32em]">
                   {context.label}
                 </div>
-                <h1 className="text-4xl font-semibold tracking-tight text-balance">
+                <h1 className="text-3xl font-semibold tracking-tight text-balance text-[color:var(--text-strong)] 2xl:text-4xl">
                   {context.title}
                 </h1>
                 <p className="app-shell-copy max-w-3xl text-sm leading-6 sm:text-base">
                   {context.description}
                 </p>
               </div>
+              <div className="app-shell-status-group">
+                <div className="app-shell-status-card">
+                  <div className="app-shell-status-label">Today</div>
+                  <div className="app-shell-status-value">{todayLabel}</div>
+                </div>
+                <div className="app-shell-status-card">
+                  <div className="app-shell-status-label">Design direction</div>
+                  <div className="app-shell-status-value">Calm family dashboard</div>
+                </div>
+              </div>
             </div>
 
-            <div className="min-w-0">{children}</div>
+            <div className="mx-auto flex w-full max-w-[1240px] flex-1 flex-col px-4 py-6 sm:px-6 lg:px-8 xl:px-0 xl:py-0">
+              <div className="min-w-0">{children}</div>
+            </div>
           </main>
         </div>
       </div>

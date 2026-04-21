@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @next/next/no-img-element */
 
 import { ActionButton, EmptyState, SectionHeader, SegmentedToggle } from "@/components/ui";
 import { useFoodHubContext } from "../food-hub-context";
@@ -30,6 +31,10 @@ export function PantryWorkspace() {
     setPantryEditPurchasedAt,
     pantryEditExpiresAt,
     setPantryEditExpiresAt,
+    pantryEditImageUrlOverride,
+    setPantryEditImageUrlOverride,
+    pantryEditIngredientDefaultImageUrl,
+    setPantryEditIngredientDefaultImageUrl,
     pantryEditNote,
     setPantryEditNote,
     handleUpdatePantryItem,
@@ -81,7 +86,14 @@ export function PantryWorkspace() {
         <div className="stack-list mt-4">
           {filteredPantryItems.map((item: any) => (
             <div className="stack-card food-row-shell" data-testid={`food-pantry-item-${item.id}`} key={item.id}>
-              <div className="stack-card-header">
+              <div className="stack-card-header gap-3">
+                {item.imageUrl ? (
+                <img
+                    alt={`${item.ingredientName} pantry item`}
+                    className="h-16 w-16 rounded-xl object-cover"
+                    src={item.imageUrl}
+                  />
+                ) : null}
                 <button className="min-h-[44px] text-left" type="button" onClick={() => setSelectedPantryItemId(item.id)}>
                   <strong>{item.ingredientName}</strong>
                   <div className="muted">
@@ -120,6 +132,15 @@ export function PantryWorkspace() {
         <article className="panel" data-testid="food-pantry-detail">
           <div className="eyebrow">Pantry detail</div>
           <h2>{selectedPantryItem.ingredientName}</h2>
+          {selectedPantryItem.imageUrl ? (
+            <div className="mt-3 overflow-hidden rounded-2xl" data-testid="food-pantry-detail-image">
+            <img
+                alt={`${selectedPantryItem.ingredientName} pantry preview`}
+                className="h-48 w-full object-cover"
+                src={selectedPantryItem.imageUrl}
+              />
+            </div>
+          ) : null}
           <div className="grid mt-4">
             <div className="field">
               <span>Location</span>
@@ -161,6 +182,24 @@ export function PantryWorkspace() {
               <span>Expires</span>
               <input type="date" value={pantryEditExpiresAt} onChange={(event) => setPantryEditExpiresAt(event.target.value)} />
             </div>
+          </div>
+          <div className="field">
+            <span>Shared ingredient image URL</span>
+            <input
+              data-testid="food-pantry-detail-ingredient-image-url"
+              value={pantryEditIngredientDefaultImageUrl}
+              onChange={(event) => setPantryEditIngredientDefaultImageUrl(event.target.value)}
+              placeholder="https://example.com/ingredient.jpg"
+            />
+          </div>
+          <div className="field">
+            <span>This pantry entry image URL</span>
+            <input
+              data-testid="food-pantry-detail-image-url-override"
+              value={pantryEditImageUrlOverride}
+              onChange={(event) => setPantryEditImageUrlOverride(event.target.value)}
+              placeholder="https://example.com/item.jpg"
+            />
           </div>
           <div className="field">
             <span>Note</span>

@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @next/next/no-img-element */
 
 import { useState } from "react";
 import { OverflowMenu } from "@/components/ui";
@@ -55,6 +56,15 @@ export function RecipeDetailPanel() {
       </div>
       {selectedRecipe ? (
         <>
+          {selectedRecipe.imageUrl ? (
+            <div className="mt-3 overflow-hidden rounded-2xl" data-testid="food-recipe-detail-image">
+            <img
+                alt={`${selectedRecipe.title} hero`}
+                className="h-56 w-full object-cover"
+                src={selectedRecipe.imageUrl}
+              />
+            </div>
+          ) : null}
           <p className="muted mt-2">
             {selectedRecipe.summary ?? "This household-owned recipe keeps imported source and default household edits separate."}
           </p>

@@ -4,9 +4,37 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const SHELL_TABS = [
-  { href: "/app", label: "Overview" },
-  { href: "/app/food", label: "Food" },
-  { href: "/admin", label: "Admin" }
+  {
+    href: "/app",
+    label: "Overview",
+    description: "Today, agenda, chores, and notes",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M4 6.75h16M4 12h16M4 17.25h10" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      </svg>
+    )
+  },
+  {
+    href: "/app/food",
+    label: "Food",
+    description: "Recipes, pantry, shopping, and cooking",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M7.5 4.75v6.5M10.5 4.75v6.5M9 11.25v8M15.25 4.75c1.8 2.6 1.8 5.9 0 8.5V19" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  },
+  {
+    href: "/admin",
+    label: "Admin",
+    description: "Household setup, devices, and scheduling",
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M12 4.75 5.75 7.5v4.1c0 3.35 2.45 6.44 6.25 7.65 3.8-1.21 6.25-4.3 6.25-7.65V7.5L12 4.75Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+        <path d="m9.75 12 1.5 1.5 3-3" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    )
+  }
 ] as const;
 
 export function AppShellNav({
@@ -34,8 +62,14 @@ export function AppShellNav({
             aria-current={isActive ? "page" : undefined}
             onClick={onNavigate}
           >
-            <span>{tab.label}</span>
-            <span className={isActive ? "shell-nav-link-mark-active" : "shell-nav-link-mark"}>
+            <span className="shell-nav-link-leading">
+              <span className="shell-nav-icon">{tab.icon}</span>
+              <span className="shell-nav-copy">
+                <span className="shell-nav-label">{tab.label}</span>
+                <span className="shell-nav-description">{tab.description}</span>
+              </span>
+            </span>
+            <span className={isActive ? "shell-nav-link-mark-active" : "shell-nav-link-mark"} aria-hidden="true">
               /
             </span>
           </Link>

@@ -14,6 +14,7 @@ import {
   LoadingSpinner,
   PageContainer,
   PageHeader,
+  StatCard,
   StatusMessage,
   SubTabs,
   useWorkspaceQueryState
@@ -62,10 +63,17 @@ function OverviewWorkspaceBody() {
       <PageHeader
         className="space-y-5"
         data-testid="overview-workspace"
-        description="Today, chores, notes, and agenda stay grouped in one member-facing workspace."
+        description="Today, chores, notes, and agenda stay grouped in one member-facing workspace with one calm layout language."
         eyebrow="Overview"
         title="Household at a glance"
       >
+        {data ? (
+          <div className="grid gap-3 lg:grid-cols-3">
+            <StatCard label="Today’s events" value={data.todayEvents.length} />
+            <StatCard label="Open chores" value={data.todayChores.filter((item) => !item.completedToday).length} />
+            <StatCard label="Pinned notes" value={data.pinnedNotes.length} />
+          </div>
+        ) : null}
         <SubTabs
           tabs={[...OVERVIEW_TABS]}
           activeTab={activeTab}
@@ -86,7 +94,7 @@ function OverviewWorkspaceBody() {
         </Card>
       )}
 
-      <section className="space-y-4">
+      <section className="grid gap-4 2xl:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
         <FoodSummaryPanel />
         <AuthStatusPanel />
       </section>

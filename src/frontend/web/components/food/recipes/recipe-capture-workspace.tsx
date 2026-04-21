@@ -1,4 +1,5 @@
 "use client";
+/* eslint-disable @next/next/no-img-element */
 
 import { useFoodHubContext } from "../food-hub-context";
 
@@ -122,6 +123,16 @@ export function RecipeCaptureWorkspace() {
                 />
               </div>
               <div className="field">
+                <span>Image URL</span>
+                <input
+                  aria-label="Recipe image URL"
+                  data-testid={buildFieldTestId("food-recipe-draft", "image-url")}
+                  value={recipeDraft.imageUrl}
+                  onChange={(event) => setRecipeDraft((current: any) => current ? { ...current, imageUrl: event.target.value } : current)}
+                  placeholder="https://example.com/recipe.jpg"
+                />
+              </div>
+              <div className="field">
                 <span>Tags</span>
                 <input
                   aria-label="Recipe tags"
@@ -131,6 +142,15 @@ export function RecipeCaptureWorkspace() {
                 />
               </div>
             </div>
+            {recipeDraft.imageUrl.trim() ? (
+              <div className="stack-card mt-3" data-testid="food-recipe-image-preview">
+              <img
+                  alt={`${recipeDraft.title || "Recipe"} preview`}
+                  className="h-40 w-full rounded-xl object-cover"
+                  src={recipeDraft.imageUrl}
+                />
+              </div>
+            ) : null}
             <div className="field">
               <span>Household notes</span>
               <input

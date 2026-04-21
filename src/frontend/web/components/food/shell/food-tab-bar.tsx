@@ -20,7 +20,7 @@ export function FoodTabBar() {
       data-testid="food-tab-bar"
     >
       <div
-        className="mx-auto flex w-full max-w-5xl gap-2 overflow-x-auto rounded-[1.5rem] border border-[color:var(--surface-line)] bg-[color:var(--surface-panel)] p-2 shadow-sm backdrop-blur [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="mx-auto flex w-full max-w-5xl gap-2 overflow-x-auto rounded-[1.75rem] border border-[color:var(--surface-line)] bg-[rgba(255,255,255,0.72)] p-2 shadow-[0_18px_40px_rgba(38,31,22,0.06)] backdrop-blur [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         role="tablist"
         aria-label="Food tabs"
       >
@@ -31,9 +31,9 @@ export function FoodTabBar() {
             <button
               key={tab.id}
               className={[
-                "min-h-[44px] shrink-0 rounded-full px-4 py-2 text-sm font-medium transition",
+                "min-h-[48px] shrink-0 rounded-full px-4 py-2 text-sm font-medium transition",
                 isActive
-                  ? "bg-[color:var(--text-strong)] text-white shadow-sm"
+                  ? "bg-[color:var(--accent-primary)] text-white shadow-sm"
                   : "text-[color:var(--text-muted)] hover:bg-[color:var(--surface-muted)] hover:text-[color:var(--text-strong)]"
               ].join(" ")}
               role="tab"

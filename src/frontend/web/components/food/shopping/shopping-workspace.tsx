@@ -3,7 +3,19 @@
 import { useState } from "react";
 import { ShoppingTripDetail } from "./shopping-trip-detail";
 import { useFoodHubContext } from "../food-hub-context";
-import { ActionButton, EmptyState, PageContainer, PageHeader, SectionHeader, SubTabs } from "@/components/ui";
+import {
+  ActionButton,
+  Badge,
+  Card,
+  EmptyState,
+  ListCard,
+  PageContainer,
+  PageHeader,
+  QuickActions,
+  SectionHeader,
+  StatCard,
+  SubTabs
+} from "@/components/ui";
 
 export function ShoppingWorkspace() {
   const {
@@ -36,7 +48,14 @@ export function ShoppingWorkspace() {
       <PageHeader
         eyebrow="Shopping workspace"
         title="Track purchases, review completed items, and confirm pantry transfer once"
+        description="The active list stays separate from trip history so shopping still feels calm on a phone."
       >
+        <div className="grid gap-3 lg:grid-cols-4">
+          <StatCard label="Open items" tone={activeShoppingItems.length > 0 ? "accent" : "default"} value={activeShoppingItems.length} />
+          <StatCard label="Purchased" value={purchasedCount} />
+          <StatCard label="History trips" value={data.shoppingHistory.length} />
+          <StatCard label="Grouped by" value={shoppingGroupMode === "aisle" ? "Aisle" : "Flat"} />
+        </div>
         <SubTabs
           tabs={[
             { id: "list", label: "Shop list" },
@@ -50,14 +69,15 @@ export function ShoppingWorkspace() {
 
       {shoppingWorkspaceTab === "list" ? (
         <section className="grid gap-4">
-          <article className="panel" data-testid="food-shopping-panel">
+          <Card className="space-y-4" data-testid="food-shopping-panel">
             <SectionHeader
-              actions={<span className="pill">{activeShoppingItems.length} open</span>}
+              actions={<Badge>{activeShoppingItems.length} open</Badge>}
               eyebrow="Shopping"
               title={data.shoppingList.name}
+              description="Handle the current list first, then sweep completed items into pantry transfer or cleanup."
             />
 
-            <div className="mt-3 flex flex-wrap gap-2">
+            <QuickActions label="View and bulk actions">
               <ActionButton
                 size="sm"
                 variant={shoppingGroupMode === "flat" ? "active" : "ghost"}
@@ -85,7 +105,7 @@ export function ShoppingWorkspace() {
                   });
                 }}
               >
-                Mark All Purchased
+                Mark all purchased
               </ActionButton>
               <ActionButton
                 disabled={purchasedShoppingItems.length === 0}
@@ -100,25 +120,25 @@ export function ShoppingWorkspace() {
                   });
                 }}
               >
-                Clear Completed
+                Clear completed
               </ActionButton>
-            </div>
+            </QuickActions>
 
             {shoppingMealFilterId ? (
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <span className="pill">Filtered to one meal</span>
+              <QuickActions label="Meal filter">
+                <Badge>Filtered to one meal</Badge>
                 <ActionButton size="sm" variant="ghost" onClick={() => setShoppingMealFilterId(null)}>
                   Clear filter
                 </ActionButton>
-              </div>
+              </QuickActions>
             ) : null}
 
-            <div className="stack-list mt-4">
+            <div className="grid gap-4">
               {shoppingGroupMode === "aisle"
                 ? shoppingItemsByAisle.map(([aisle, items]: [string, any[]]) => (
-                  <section key={aisle}>
-                    <div className="eyebrow mb-2">{aisle}</div>
-                    <div className="stack-list">
+                  <Card className="space-y-3 p-4" key={aisle}>
+                    <SectionHeader eyebrow="Aisle" title={aisle} titleAs="h3" />
+                    <div className="grid gap-3">
                       {items.map((item: any) => (
                         <ShoppingItemRow
                           item={item}
@@ -132,7 +152,7 @@ export function ShoppingWorkspace() {
                         />
                       ))}
                     </div>
-                  </section>
+                  </Card>
                 ))
                 : activeShoppingItems.map((item: any) => (
                   <ShoppingItemRow
@@ -148,67 +168,72 @@ export function ShoppingWorkspace() {
                 ))}
             </div>
 
+            {activeShoppingItems.length === 0 ? (
+              <EmptyState message="The active shopping list is clear for now." />
+            ) : null}
+
             {purchasedCount > 0 ? (
-              <div className="ui-inline-card mt-4 scroll-mb-48">
-                <div className="stack-card-header">
-                  <strong>{purchasedCount} items purchased</strong>
+              <ListCard
+                tone="accent"
+                title={`${purchasedCount} items purchased`}
+                description="Confirm pantry transfer once you are ready to finish the run."
+                action={
                   <ActionButton size="sm" onClick={() => setPostPurchaseOpen(true)}>
                     Confirm / Complete
                   </ActionButton>
-                </div>
-              </div>
+                }
+              />
             ) : null}
 
             {completedShoppingItems.length > 0 ? (
-              <details className="mt-4">
-                <summary className="muted">Purchased or skipped ({completedShoppingItems.length})</summary>
-                <div className="stack-list mt-3">
+              <Card className="space-y-3 p-4">
+                <SectionHeader
+                  eyebrow="Completed"
+                  title={`Purchased or skipped (${completedShoppingItems.length})`}
+                  titleAs="h3"
+                />
+                <div className="grid gap-3">
                   {completedShoppingItems.map((item: any) => (
-                    <div className="stack-card" key={`completed-${item.id}`}>
-                      <div className="stack-card-header">
-                        <div className="flex-1">
-                          <strong className={item.state === "Skipped" ? "opacity-60" : ""}>{item.ingredientName}</strong>
-                          <div className="muted">
-                            {formatQuantity(item.quantityPurchased ?? item.quantityNeeded, item.unit)}
-                          </div>
-                        </div>
-                        <span className={`pill ${item.state === "Skipped" ? "opacity-60" : ""}`}>{item.state}</span>
-                      </div>
-                    </div>
+                    <ListCard
+                      key={`completed-${item.id}`}
+                      title={item.ingredientName}
+                      description={formatQuantity(item.quantityPurchased ?? item.quantityNeeded, item.unit)}
+                      action={<Badge>{item.state}</Badge>}
+                    />
                   ))}
                 </div>
-              </details>
+              </Card>
             ) : null}
-          </article>
+          </Card>
         </section>
       ) : null}
 
       {shoppingWorkspaceTab === "history" ? (
         <section className="grid gap-4">
-          <article className="panel" data-testid="food-shopping-history">
+          <Card className="space-y-4" data-testid="food-shopping-history">
             <SectionHeader
               eyebrow="Trip history"
               title="Review completed trips without mixing them into the active list"
             />
-            <div className="stack-list mt-3.5">
+            <div className="grid gap-3">
               {data.shoppingHistory.map((trip: any) => (
-                <div className="stack-card" key={trip.id}>
-                  <div className="stack-card-header">
-                    <div>
-                      <strong>{trip.name}</strong>
-                      <div className="muted">{trip.itemsPurchasedCount}/{trip.totalItemCount} purchased</div>
-                    </div>
-                    <button className="ui-button ui-button-ghost ui-button-sm" type="button" onClick={() => setSelectedHistoryTripId(trip.id)}>
+                <ListCard
+                  key={trip.id}
+                  title={trip.name}
+                  description={`${trip.itemsPurchasedCount}/${trip.totalItemCount} purchased`}
+                  meta={trip.sourceMealTitles ?? "No linked meal titles"}
+                  action={
+                    <ActionButton size="sm" variant="ghost" onClick={() => setSelectedHistoryTripId(trip.id)}>
                       Open
-                    </button>
-                  </div>
-                </div>
+                    </ActionButton>
+                  }
+                />
               ))}
               {data.shoppingHistory.length === 0 ? (
                 <EmptyState message="Completed shopping trips will appear here once a list has been finished." />
               ) : null}
             </div>
-          </article>
+          </Card>
           {selectedHistoryTripId && historyTripQuery.data ? (
             <ShoppingTripDetail
               trip={historyTripQuery.data}
@@ -240,61 +265,56 @@ function ShoppingItemRow({
   startTransition: (callback: () => void) => void;
 }) {
   return (
-    <div className={`stack-card ${item.state === "NeedsReview" ? "stack-card-warning" : ""}`}>
-      <div className="stack-card-header">
-        <div>
-          <strong>{item.ingredientName}</strong>
-          <div className="muted">
-            {formatQuantity(item.quantityNeeded, item.unit)}
-            {item.sourceMealTitle ? ` - ${item.sourceMealTitle}` : ""}
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            className="ui-button ui-button-success ui-button-sm"
-            type="button"
-            onClick={() => {
-              setError(null);
-              startTransition(() => {
-                onBought(item, true).catch((err: unknown) => {
-                  setError(err instanceof Error ? err.message : "Unable to mark item purchased.");
-                });
+    <ListCard
+      tone={item.state === "NeedsReview" ? "warning" : "default"}
+      title={item.ingredientName}
+      description={`${formatQuantity(item.quantityNeeded, item.unit)}${item.sourceMealTitle ? ` - ${item.sourceMealTitle}` : ""}`}
+      action={item.state === "NeedsReview" ? <Badge variant="warning">Needs review</Badge> : null}
+    >
+      <QuickActions label="Shopping actions">
+        <ActionButton
+          size="sm"
+          variant="success"
+          onClick={() => {
+            setError(null);
+            startTransition(() => {
+              onBought(item, true).catch((err: unknown) => {
+                setError(err instanceof Error ? err.message : "Unable to mark item purchased.");
               });
-            }}
-          >
-            Bought
-          </button>
-          <button
-            className="ui-button ui-button-ghost ui-button-sm"
-            type="button"
-            onClick={() => {
-              setError(null);
-              startTransition(() => {
-                onSkipped(item).catch((err: unknown) => {
-                  setError(err instanceof Error ? err.message : "Unable to skip item.");
-                });
+            });
+          }}
+        >
+          Bought
+        </ActionButton>
+        <ActionButton
+          size="sm"
+          variant="ghost"
+          onClick={() => {
+            setError(null);
+            startTransition(() => {
+              onSkipped(item).catch((err: unknown) => {
+                setError(err instanceof Error ? err.message : "Unable to skip item.");
               });
-            }}
-          >
-            Didn&apos;t Buy
-          </button>
-          <button
-            className="ui-button ui-button-ghost ui-button-sm min-w-[44px]"
-            type="button"
-            onClick={() => {
-              setError(null);
-              startTransition(() => {
-                onDelete(item).catch((err: unknown) => {
-                  setError(err instanceof Error ? err.message : "Unable to delete shopping item.");
-                });
+            });
+          }}
+        >
+          Didn&apos;t buy
+        </ActionButton>
+        <ActionButton
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            setError(null);
+            startTransition(() => {
+              onDelete(item).catch((err: unknown) => {
+                setError(err instanceof Error ? err.message : "Unable to delete shopping item.");
               });
-            }}
-          >
-            Trash
-          </button>
-        </div>
-      </div>
-      {item.state === "NeedsReview" ? <div className="ui-badge ui-badge-warning">Needs review</div> : null}
-    </div>
+            });
+          }}
+        >
+          Remove
+        </ActionButton>
+      </QuickActions>
+    </ListCard>
   );
 }

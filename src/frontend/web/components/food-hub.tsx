@@ -23,6 +23,8 @@ import {
   Card,
   EmptyState,
   PageContainer,
+  PageHeader,
+  StatCard,
   StatusMessage,
   ConfirmDeleteModal,
   UndoToast,
@@ -54,6 +56,7 @@ type RecipeSummary = {
   summary: string | null;
   tags: string | null;
   yieldText: string | null;
+  imageUrl: string | null;
   sourceLabel: string | null;
   hasImportedSource: boolean;
   ingredientCount: number;
@@ -79,6 +82,9 @@ type PantryItem = {
   status: string;
   purchasedAtUtc: string | null;
   expiresAtUtc: string | null;
+  imageUrl: string | null;
+  imageUrlOverride: string | null;
+  ingredientDefaultImageUrl: string | null;
   updatedAtUtc: string;
 };
 
@@ -220,6 +226,7 @@ type RecipeDetail = {
   tags: string | null;
   yieldText: string | null;
   notes: string | null;
+  imageUrl: string | null;
   source: {
     id: string;
     kind: string;
@@ -243,6 +250,7 @@ type ImportReview = {
   title: string | null;
   summary: string | null;
   yieldText: string | null;
+  imageUrl: string | null;
   ingredients: RecipeIngredient[];
   steps: RecipeStep[];
   warnings: string[];
@@ -255,6 +263,7 @@ type RecipeDraft = {
   title: string;
   summary: string;
   yieldText: string;
+  imageUrl: string;
   tags: string;
   notes: string;
   ingredients: RecipeIngredient[];
@@ -322,6 +331,7 @@ function createRecipeDraft(mode: RecipeDraft["mode"], recipeId: string | null = 
     title: "",
     summary: "",
     yieldText: "",
+    imageUrl: "",
     tags: "",
     notes: "",
     ingredients: [emptyIngredient()],
@@ -337,6 +347,7 @@ function recipeToDraft(recipe: RecipeDetail): RecipeDraft {
     title: recipe.title,
     summary: recipe.summary ?? "",
     yieldText: recipe.householdDefaultRevision.yieldText ?? "",
+    imageUrl: recipe.imageUrl ?? "",
     tags: recipe.householdDefaultRevision.tags ?? recipe.tags ?? "",
     notes: recipe.householdDefaultRevision.notes ?? recipe.notes ?? "",
     ingredients: recipe.householdDefaultRevision.ingredients.length > 0
@@ -375,6 +386,8 @@ export function FoodHub() {
   const [pantryEditStatus, setPantryEditStatus] = useState("InStock");
   const [pantryEditPurchasedAt, setPantryEditPurchasedAt] = useState("");
   const [pantryEditExpiresAt, setPantryEditExpiresAt] = useState("");
+  const [pantryEditImageUrlOverride, setPantryEditImageUrlOverride] = useState("");
+  const [pantryEditIngredientDefaultImageUrl, setPantryEditIngredientDefaultImageUrl] = useState("");
   const [pantryEditNote, setPantryEditNote] = useState("");
 
   const [shoppingName, setShoppingName] = useState("");
@@ -731,6 +744,8 @@ export function FoodHub() {
     setPantryEditExpiresAt(
       selectedPantryItem.expiresAtUtc ? selectedPantryItem.expiresAtUtc.slice(0, 10) : ""
     );
+    setPantryEditImageUrlOverride(selectedPantryItem.imageUrlOverride ?? "");
+    setPantryEditIngredientDefaultImageUrl(selectedPantryItem.ingredientDefaultImageUrl ?? "");
     setPantryEditNote("");
   }, [selectedPantryItem]);
 
@@ -791,6 +806,7 @@ export function FoodHub() {
       title: review.title ?? "",
       summary: review.summary ?? "",
       yieldText: review.yieldText ?? "",
+      imageUrl: review.imageUrl ?? "",
       tags: "",
       notes: "",
       ingredients: review.ingredients.length > 0 ? review.ingredients : [emptyIngredient()],
@@ -824,19 +840,8 @@ export function FoodHub() {
   }
 
   async function handleImportRecipe() {
-    const response = await fetch("/api/food/recipe-imports", {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: importUrl.trim() })
-    });
-
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(text || `Import failed with ${response.status}.`);
-    }
-
-    beginImportReview((await response.json()) as ImportReview);
+    const review = await foodClient.importRecipe({ url: importUrl.trim() });
+    beginImportReview(review);
   }
 
   async function handleSaveRecipeDraft() {
@@ -847,6 +852,7 @@ export function FoodHub() {
       title: recipeDraft.title.trim(),
       summary: recipeDraft.summary.trim() || null,
       yieldText: recipeDraft.yieldText.trim() || null,
+      imageUrl: recipeDraft.imageUrl.trim() || null,
       tags: recipeDraft.tags.trim() || null,
       notes: recipeDraft.notes.trim() || null,
       ingredients: recipeDraft.ingredients.map((item) => ({
@@ -910,7 +916,9 @@ export function FoodHub() {
         quantity: null,
         unit: null,
         lowThreshold: null,
-        expiresAtUtc: null
+        expiresAtUtc: null,
+        imageUrlOverride: null,
+        ingredientDefaultImageUrl: null
       })
     });
 
@@ -943,6 +951,8 @@ export function FoodHub() {
         expiresAtUtc: pantryEditExpiresAt
           ? new Date(`${pantryEditExpiresAt}T12:00:00`).toISOString()
           : null,
+        imageUrlOverride: pantryEditImageUrlOverride.trim() || null,
+        ingredientDefaultImageUrl: pantryEditIngredientDefaultImageUrl.trim() || null,
         note: pantryEditNote.trim() || null
       })
     });
@@ -1094,7 +1104,9 @@ export function FoodHub() {
           unit: item.unit,
           lowThreshold: item.lowThreshold,
           purchasedAtUtc: item.purchasedAtUtc,
-          expiresAtUtc: item.expiresAtUtc
+          expiresAtUtc: item.expiresAtUtc,
+          imageUrlOverride: item.imageUrlOverride,
+          ingredientDefaultImageUrl: item.ingredientDefaultImageUrl
         })
       });
       await refreshAll();
@@ -1266,6 +1278,10 @@ export function FoodHub() {
     setPantryEditPurchasedAt,
     pantryEditExpiresAt,
     setPantryEditExpiresAt,
+    pantryEditImageUrlOverride,
+    setPantryEditImageUrlOverride,
+    pantryEditIngredientDefaultImageUrl,
+    setPantryEditIngredientDefaultImageUrl,
     pantryEditNote,
     setPantryEditNote,
     handleUpdatePantryItem,
@@ -1362,6 +1378,19 @@ export function FoodHub() {
           variant="success"
         />
       ) : null}
+
+      <PageHeader
+        eyebrow="Food"
+        title="Plan meals, shop smarter, and keep pantry momentum"
+        description="The food workspace keeps recipes, pantry, shopping, meals, and cooking in one household loop."
+      >
+        <div className="grid gap-3 lg:grid-cols-4">
+          <StatCard label="Recipes" value={data.summary.recipeCount} />
+          <StatCard label="Pantry items" value={data.summary.pantryItemCount} />
+          <StatCard label="Open shopping" tone={data.summary.shoppingItemCount > 0 ? "accent" : "default"} value={data.summary.shoppingItemCount} />
+          <StatCard label="Cooking now" tone={data.summary.activeCookingSessionCount > 0 ? "warning" : "default"} value={data.summary.activeCookingSessionCount} />
+        </div>
+      </PageHeader>
 
       <section className="grid">
         <FoodTabBar />

@@ -57,10 +57,77 @@ public class FoodServiceTests
 
         Assert.Equal("Sheet Pan Fajitas", review.Title);
         Assert.Equal("4 servings", review.YieldText);
+        Assert.Null(review.ImageUrl);
         Assert.Equal(3, review.Ingredients.Count);
         Assert.Equal("chicken breast", review.Ingredients[0].IngredientName);
         Assert.Equal(2, review.Steps.Count);
         Assert.Equal("Parsed", review.Status);
+    }
+
+    [Fact]
+    public async Task CreateRecipeImportAsync_Prefers_Schema_Image_And_Falls_Back_To_Meta_Image()
+    {
+        await using var dbContext = CreateDbContext();
+        var schemaHtml = """
+            <html>
+              <head>
+                <meta property="og:image" content="https://example.com/fallback.jpg" />
+                <script type="application/ld+json">
+                {
+                  "@context":"https://schema.org",
+                  "@type":"Recipe",
+                  "name":"Skillet Eggs",
+                  "image":"https://example.com/schema.jpg",
+                  "recipeIngredient":["2 eggs"],
+                  "recipeInstructions":[{"@type":"HowToStep","text":"Cook the eggs."}]
+                }
+                </script>
+              </head>
+            </html>
+            """;
+
+        var schemaService = new FoodService(
+            dbContext,
+            new FakeHttpClientFactory(new HttpClient(new StubHttpHandler(schemaHtml))));
+
+        var schemaReview = await schemaService.CreateRecipeImportAsync(
+            HouseholdId,
+            UserId,
+            new CreateRecipeImportRequest("https://example.com/skillet-eggs"),
+            DateTimeOffset.UtcNow,
+            CancellationToken.None);
+
+        Assert.Equal("https://example.com/schema.jpg", schemaReview.ImageUrl);
+
+        var fallbackHtml = """
+            <html>
+              <head>
+                <meta property="og:image" content="/images/fallback.jpg" />
+                <script type="application/ld+json">
+                {
+                  "@context":"https://schema.org",
+                  "@type":"Recipe",
+                  "name":"Toast",
+                  "recipeIngredient":["2 slices bread"],
+                  "recipeInstructions":[{"@type":"HowToStep","text":"Toast the bread."}]
+                }
+                </script>
+              </head>
+            </html>
+            """;
+
+        var fallbackService = new FoodService(
+            dbContext,
+            new FakeHttpClientFactory(new HttpClient(new StubHttpHandler(fallbackHtml))));
+
+        var fallbackReview = await fallbackService.CreateRecipeImportAsync(
+            HouseholdId,
+            UserId,
+            new CreateRecipeImportRequest("https://example.com/toast"),
+            DateTimeOffset.UtcNow,
+            CancellationToken.None);
+
+        Assert.Equal("https://example.com/images/fallback.jpg", fallbackReview.ImageUrl);
     }
 
     [Fact]
@@ -80,6 +147,7 @@ public class FoodServiceTests
                 Title: "Family Pancakes",
                 Summary: "Weekend breakfast",
                 YieldText: "4 servings",
+                ImageUrl: "https://example.com/pancakes.jpg",
                 Tags: "breakfast",
                 Notes: "Add vanilla",
                 Ingredients:
@@ -96,6 +164,7 @@ public class FoodServiceTests
             CancellationToken.None);
 
         Assert.Equal("Family Pancakes", recipe.Title);
+        Assert.Equal("https://example.com/pancakes.jpg", recipe.ImageUrl);
         Assert.Equal("Manual", recipe.Source?.Kind);
         Assert.Equal(2, recipe.HouseholdDefaultRevision.Ingredients.Count);
         Assert.Equal(2, recipe.RevisionCount);
@@ -120,6 +189,7 @@ public class FoodServiceTests
                 Title: "Family Chili",
                 Summary: "Weeknight favorite",
                 YieldText: "6 servings",
+                ImageUrl: "https://example.com/chili.jpg",
                 Tags: "dinner, favorite",
                 Notes: "Use smoked paprika",
                 Ingredients:
@@ -138,6 +208,7 @@ public class FoodServiceTests
         Assert.NotNull(updated);
         Assert.Equal(3, updated!.RevisionCount);
         Assert.Equal("Weeknight favorite", updated.Summary);
+        Assert.Equal("https://example.com/chili.jpg", updated.ImageUrl);
         Assert.Equal(2, updated.HouseholdDefaultRevision.Steps.Count);
         Assert.Equal(3, updated.HouseholdDefaultRevision.Ingredients[0].Quantity);
         Assert.Equal("cans", updated.HouseholdDefaultRevision.Ingredients[0].Unit);
@@ -358,6 +429,7 @@ public class FoodServiceTests
                 Title: "Garlic Toast",
                 Summary: null,
                 YieldText: "2 servings",
+                ImageUrl: null,
                 Tags: null,
                 Notes: null,
                 Ingredients:
@@ -438,6 +510,7 @@ public class FoodServiceTests
                 Title: "Other Household Soup",
                 Summary: null,
                 YieldText: "4 servings",
+                ImageUrl: null,
                 Tags: null,
                 Notes: null,
                 Ingredients:
@@ -491,6 +564,7 @@ public class FoodServiceTests
                 Title: "Chicken Tacos",
                 Summary: null,
                 YieldText: "4 servings",
+                ImageUrl: null,
                 Tags: null,
                 Notes: null,
                 Ingredients:
@@ -513,6 +587,7 @@ public class FoodServiceTests
                 Title: "Fresh Salsa",
                 Summary: null,
                 YieldText: "4 servings",
+                ImageUrl: null,
                 Tags: null,
                 Notes: null,
                 Ingredients:
@@ -725,7 +800,7 @@ public class FoodServiceTests
 
         await service.CreatePantryItemAsync(
             HouseholdId,
-            new CreatePantryItemRequest("Milk", fridgeLocationId, 2, "carton", null, null, null),
+            new CreatePantryItemRequest("Milk", fridgeLocationId, 2, "carton", null, null, null, null, null),
             nowUtc,
             CancellationToken.None);
 
@@ -783,6 +858,57 @@ public class FoodServiceTests
         Assert.DoesNotContain(milkItems, item => item.PantryLocationId == pantryLocationId);
     }
 
+    [Fact]
+    public async Task PantryItemResponses_Resolve_Ingredient_Default_And_Override_Image_Urls()
+    {
+        await using var dbContext = CreateDbContext();
+        var nowUtc = new DateTimeOffset(2026, 4, 18, 12, 0, 0, TimeSpan.Zero);
+        var service = new FoodService(
+            dbContext,
+            new FakeHttpClientFactory(new HttpClient(new StubHttpHandler(string.Empty))));
+
+        var created = await service.CreatePantryItemAsync(
+            HouseholdId,
+            new CreatePantryItemRequest(
+                "Bananas",
+                null,
+                6,
+                "count",
+                null,
+                null,
+                null,
+                null,
+                "https://example.com/banana-default.jpg"),
+            nowUtc,
+            CancellationToken.None);
+
+        Assert.Equal("https://example.com/banana-default.jpg", created.IngredientDefaultImageUrl);
+        Assert.Equal("https://example.com/banana-default.jpg", created.ImageUrl);
+        Assert.Null(created.ImageUrlOverride);
+
+        var updated = await service.UpdatePantryItemAsync(
+            HouseholdId,
+            created.Id,
+            new UpdatePantryItemRequest(
+                PantryLocationId: created.PantryLocationId,
+                Quantity: 5,
+                Unit: "count",
+                LowThreshold: null,
+                Status: "InStock",
+                PurchasedAtUtc: null,
+                ExpiresAtUtc: null,
+                ImageUrlOverride: "https://example.com/banana-item.jpg",
+                IngredientDefaultImageUrl: "https://example.com/banana-default-2.jpg",
+                Note: "Updated image links"),
+            nowUtc.AddMinutes(5),
+            CancellationToken.None);
+
+        Assert.NotNull(updated);
+        Assert.Equal("https://example.com/banana-item.jpg", updated!.ImageUrlOverride);
+        Assert.Equal("https://example.com/banana-default-2.jpg", updated.IngredientDefaultImageUrl);
+        Assert.Equal("https://example.com/banana-item.jpg", updated.ImageUrl);
+    }
+
     private static async Task<RecipeDetailResponse> CreateRecipeAsync(
         FoodService service,
         DateTimeOffset nowUtc,
@@ -798,6 +924,7 @@ public class FoodServiceTests
                 Title: title,
                 Summary: null,
                 YieldText: "4 servings",
+                ImageUrl: null,
                 Tags: null,
                 Notes: null,
                 Ingredients:

@@ -34,6 +34,7 @@ public sealed record RecipeSummaryResponse(
     string? Summary,
     string? Tags,
     string? YieldText,
+    string? ImageUrl,
     string? SourceLabel,
     bool HasImportedSource,
     int IngredientCount,
@@ -54,6 +55,9 @@ public sealed record PantryItemResponse(
     string Status,
     DateTimeOffset? PurchasedAtUtc,
     DateTimeOffset? ExpiresAtUtc,
+    string? ImageUrl,
+    string? ImageUrlOverride,
+    string? IngredientDefaultImageUrl,
     DateTimeOffset UpdatedAtUtc);
 
 public sealed record PantryItemActivityResponse(
