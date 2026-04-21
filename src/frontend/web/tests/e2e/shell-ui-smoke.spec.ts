@@ -5,8 +5,12 @@ test("renders shared shell tabs with the correct active state", async ({ page })
 
   await page.goto("/app");
   await expect(primaryNav.getByRole("link", { name: "Overview" })).toHaveAttribute("aria-current", "page");
+  await expect(primaryNav.getByRole("link", { name: "Calendar" })).not.toHaveAttribute("aria-current", "page");
   await expect(primaryNav.getByRole("link", { name: "Food" })).not.toHaveAttribute("aria-current", "page");
   await expect(primaryNav.getByRole("link", { name: "Admin" })).not.toHaveAttribute("aria-current", "page");
+
+  await page.goto("/app/calendar");
+  await expect(primaryNav.getByRole("link", { name: "Calendar" })).toHaveAttribute("aria-current", "page");
 
   await page.goto("/app/food");
   await expect(primaryNav.getByRole("link", { name: "Food" })).toHaveAttribute("aria-current", "page");
@@ -29,21 +33,21 @@ test("uses a neutral shell without theme switching", async ({ page }) => {
   await expect(page.locator("html")).not.toHaveAttribute("data-theme", /.+/);
 });
 
-test("loads overview workspace from the query string and preserves secondary panels", async ({ page }) => {
+test("maps legacy overview workspace links into the new command-center sections", async ({ page }) => {
   await page.goto("/app?workspace=agenda");
 
-  await expect(page.getByRole("tab", { name: "Agenda" })).toHaveAttribute("aria-selected", "true");
-  await expect(page.getByText("Add an event or reminder")).toBeVisible();
-  await expect(page.getByText("Pantry, planning, and cooking")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Family command center" })).toBeVisible();
+  await expect(page.getByTestId("upcoming-section")).toBeVisible();
+  await expect(page.getByText("Capture what the household just realized")).toBeVisible();
   await expect(page.getByText("Development session")).toBeVisible();
 
-  await page.getByRole("tab", { name: "Notes" }).click();
-  await expect(page).toHaveURL(/\/app\?workspace=notes/);
-  await expect(page.getByText("Add a note")).toBeVisible();
+  await page.goto("/app?workspace=notes");
+  await expect(page.getByTestId("household-board-section")).toBeVisible();
+  await expect(page.getByLabel("Note title")).toBeVisible();
 
   await page.reload();
   await expect(page).toHaveURL(/\/app\?workspace=notes/);
-  await expect(page.getByRole("tab", { name: "Notes" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByLabel("Note title")).toBeVisible();
 });
 
 test("switches through the admin workspace tabs with URL persistence", async ({ page }) => {
@@ -68,4 +72,11 @@ test("food hub still renders inside the shared shell", async ({ page }) => {
 
   await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();
   await expect(page.getByTestId("food-hub")).toBeVisible();
+});
+
+test("calendar surface renders inside the shared shell", async ({ page }) => {
+  await page.goto("/app/calendar");
+
+  await expect(page.getByRole("navigation", { name: "Primary" })).toBeVisible();
+  await expect(page.getByTestId("family-calendar-page")).toBeVisible();
 });

@@ -16,10 +16,10 @@ public static class DependencyInjection
     public static IEndpointRouteBuilder MapNotificationsModule(
         this IEndpointRouteBuilder app)
     {
-        var group = app.MapGroup("/api/notifications")
-            .RequireAuthorization("ActiveHouseholdOwner");
+        var readGroup = app.MapGroup("/api/notifications")
+            .RequireAuthorization();
 
-        group.MapGet("/reminders", async (
+        readGroup.MapGet("/reminders", async (
             IIdentityAccessService identityAccessService,
             IEventReminderService reminderService,
             CancellationToken cancellationToken) =>
@@ -37,6 +37,9 @@ public static class DependencyInjection
 
             return Results.Ok(response);
         });
+
+        var group = app.MapGroup("/api/notifications")
+            .RequireAuthorization("ActiveHouseholdOwner");
 
         group.MapPost("/reminders", async (
             CreateEventReminderRequest? request,

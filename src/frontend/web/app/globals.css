@@ -320,6 +320,178 @@ textarea {
   box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent-admin) 12%, transparent), var(--shadow-panel);
 }
 
+.family-calendar-page {
+  gap: 1.5rem;
+}
+
+.family-calendar-layout {
+  display: grid;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+.family-calendar-toolbar,
+.family-calendar-summary-row,
+.family-calendar-day-summary,
+.family-calendar-item-head,
+.family-calendar-drawer-stack,
+.family-calendar-quick-add,
+.family-calendar-rail {
+  display: flex;
+  gap: 0.75rem;
+}
+
+.family-calendar-summary-row,
+.family-calendar-item-head {
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.family-calendar-toolbar {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.family-calendar-range {
+  margin: 0;
+  font-size: clamp(1.5rem, 3vw, 2rem);
+  color: var(--text-strong);
+}
+
+.family-calendar-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+}
+
+.family-calendar-day-card {
+  display: flex;
+  min-height: 18rem;
+  flex-direction: column;
+  gap: 0.9rem;
+  border: 1px solid var(--surface-line);
+  border-radius: 1.5rem;
+  padding: 1rem;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(250, 247, 241, 0.78)),
+    color-mix(in oklab, var(--surface-panel) 94%, transparent);
+}
+
+.family-calendar-day-card-today {
+  border-color: color-mix(in oklab, var(--accent-primary) 32%, var(--surface-line));
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent-primary) 18%, transparent);
+}
+
+.family-calendar-day-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.family-calendar-day-title {
+  margin: 0.25rem 0 0;
+  font-size: 1.05rem;
+  color: var(--text-strong);
+}
+
+.family-calendar-item-list,
+.family-calendar-agenda {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.family-calendar-item-card {
+  appearance: none;
+  width: 100%;
+  text-align: left;
+  display: grid;
+  gap: 0.6rem;
+  position: relative;
+  z-index: 1;
+  border: 1px solid var(--surface-line);
+  border-radius: 1.1rem;
+  padding: 0.9rem;
+  background: rgba(255, 255, 255, 0.75);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.family-calendar-item-card:hover {
+  border-color: var(--surface-line-strong);
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.family-calendar-item-card-event {
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent-primary) 8%, transparent);
+}
+
+.family-calendar-item-card-reminder {
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent-warning) 14%, transparent);
+}
+
+.family-calendar-empty .ui-empty-state {
+  padding-inline: 0;
+}
+
+.family-calendar-today-card {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.family-calendar-quick-add,
+.family-calendar-drawer-stack {
+  flex-direction: column;
+}
+
+.family-calendar-rail {
+  flex-direction: column;
+}
+
+.family-calendar-agenda .stack-card,
+.family-calendar-rail .family-section {
+  min-width: 0;
+}
+
+.family-checkbox-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.family-calendar-day-summary {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.family-calendar-drawer-stack .stack-card {
+  margin-bottom: 0.25rem;
+}
+
+@media (min-width: 1100px) {
+  .family-calendar-layout {
+    grid-template-columns: minmax(0, 2fr) minmax(18rem, 24rem);
+  }
+}
+
+@media (max-width: 1200px) {
+  .family-calendar-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .family-calendar-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .family-calendar-summary-row,
+  .family-calendar-day-head {
+    flex-direction: column;
+  }
+}
+
 .ui-page-container {
   display: grid;
   gap: 1.5rem;
@@ -397,6 +569,152 @@ textarea {
   font-size: clamp(1.3rem, 3vw, 1.8rem);
   line-height: 1.1;
   font-weight: 600;
+}
+
+.family-command-center {
+  gap: 1.25rem;
+}
+
+.family-command-stack {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.family-section {
+  padding: 1.35rem;
+}
+
+.family-section-body {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+
+.family-hero-card {
+  display: grid;
+  gap: 1.25rem;
+  padding: clamp(1.2rem, 2vw, 1.75rem);
+  background:
+    radial-gradient(circle at top right, rgba(15, 118, 110, 0.18), transparent 36%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(247, 242, 233, 0.98));
+}
+
+.family-hero-kicker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  font-size: 0.78rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.family-hero-grid,
+.family-two-column-grid,
+.family-quick-add-grid {
+  display: grid;
+  gap: 1rem;
+}
+
+.family-hero-grid {
+  grid-template-columns: minmax(0, 1.6fr) minmax(280px, 0.9fr);
+}
+
+.family-hero-primary,
+.family-hero-secondary,
+.family-support-card {
+  border-radius: 1.4rem;
+  border: 1px solid color-mix(in oklab, var(--accent-primary) 18%, transparent);
+  background: rgba(255, 255, 255, 0.7);
+  padding: 1rem;
+}
+
+.family-hero-title {
+  margin: 0.4rem 0 0;
+  font-size: clamp(1.8rem, 4vw, 3rem);
+  line-height: 0.98;
+  color: var(--text-strong);
+}
+
+.family-hero-copy {
+  margin: 0.75rem 0 0;
+  max-width: 42rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.family-hero-chip-row,
+.family-meta-row,
+.family-lane-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.family-hero-chip-row {
+  margin-top: 1rem;
+}
+
+.family-hero-chip {
+  min-width: 180px;
+  padding: 0.8rem 0.95rem;
+  border-radius: 1rem;
+  border: 1px solid color-mix(in oklab, var(--accent-primary) 16%, transparent);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.family-next-time {
+  font-size: clamp(2rem, 4vw, 3.2rem);
+  font-weight: 600;
+  line-height: 0.95;
+  color: var(--accent-primary-strong);
+  margin: 0.35rem 0 0.45rem;
+}
+
+.family-summary-strip {
+  display: grid;
+  gap: 0.85rem;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.family-lane-grid,
+.family-upcoming-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+}
+
+.family-lane-card {
+  gap: 0.85rem;
+}
+
+.family-two-column-grid,
+.family-quick-add-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.family-board-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.family-board-actions {
+  display: flex;
+  flex-shrink: 0;
+  align-items: flex-start;
+}
+
+.family-checkbox-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-strong);
+}
+
+.family-checkbox-row input {
+  width: auto;
+  min-height: auto;
 }
 
 .ui-badge {
@@ -1894,6 +2212,21 @@ textarea {
 @media (max-width: 720px) {
   .page {
     padding: 24px 16px 44px;
+  }
+
+  .family-hero-grid,
+  .family-two-column-grid,
+  .family-quick-add-grid,
+  .family-board-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .family-hero-title {
+    font-size: 2rem;
+  }
+
+  .family-next-time {
+    font-size: 2.4rem;
   }
 
   .display-summary-grid {

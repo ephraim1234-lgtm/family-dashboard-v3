@@ -16,6 +16,15 @@ function shellContext(pathname: string) {
     };
   }
 
+  if (pathname.startsWith("/app/calendar")) {
+    return {
+      label: "Calendar",
+      title: "Family planning surface",
+      description: "Week-first household planning for local events, imported schedules, and reminders.",
+      accentLabel: "Family planning"
+    };
+  }
+
   if (pathname.startsWith("/app/food")) {
     return {
       label: "Food",
