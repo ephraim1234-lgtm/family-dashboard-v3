@@ -47,11 +47,11 @@ export function UndoToast({
   }
 
   return (
-    <div className="toast toast-bottom toast-center z-50">
-      <div className="alert shadow-lg">
+    <div className="ui-toast-shell z-50">
+      <div className="ui-alert shadow-lg">
         <span>{toast.message}</span>
         <button
-          className="btn btn-sm min-h-[44px]"
+          className="ui-button ui-button-sm"
           type="button"
           onClick={async () => {
             await toast.onUndo();

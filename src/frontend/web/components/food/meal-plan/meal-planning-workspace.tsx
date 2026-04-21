@@ -43,7 +43,7 @@ function SlotList({
                 <strong>{slot.title}</strong>
                 <span className="pill">{slot.slotName}</span>
                 <button
-                  className="btn btn-ghost btn-sm min-h-[44px] min-w-[44px]"
+                  className="ui-button ui-button-ghost ui-button-sm min-w-[44px]"
                   type="button"
                   onClick={() => setDeleteTarget({ kind: "meal-slot", id: slot.id, title: slot.title })}
                 >
@@ -54,7 +54,7 @@ function SlotList({
             </div>
             <div className="flex flex-wrap gap-2">
               <button
-                className="btn btn-ghost min-h-[44px]"
+                className="ui-button ui-button-ghost ui-button-sm"
                 type="button"
                 onClick={() => {
                   setActiveModuleTab("shopping");
@@ -64,7 +64,7 @@ function SlotList({
                 Shopping {slot.shoppingOpenIngredientCount}/{slot.shoppingTotalIngredientCount}
               </button>
               <button
-                className="btn btn-primary min-h-[44px]"
+                className="ui-button ui-button-primary ui-button-sm"
                 data-testid={`food-meal-slot-cook-${slot.id}`}
                 type="button"
                 onClick={() => {
@@ -84,12 +84,12 @@ function SlotList({
           <div className="stack-list mt-3">
             {slot.recipes.map((recipe: any) => (
               <div
-                className="flex min-h-[44px] items-center justify-between gap-3 rounded-box border border-base-300 p-3"
+                className="ui-inline-card flex min-h-[44px] items-center justify-between gap-3"
                 key={recipe.id}
               >
                 <span>{recipe.role}: {recipe.title}</span>
                 <button
-                  className="btn btn-ghost btn-sm min-h-[44px] min-w-[44px]"
+                  className="ui-button ui-button-ghost ui-button-sm min-w-[44px]"
                   type="button"
                   onClick={() => {
                     setError(null);
@@ -150,11 +150,10 @@ export function MealPlanningWorkspace() {
                 <h2>{formatDateLabel(selectedDate)}</h2>
                 <p className="muted mt-2">Meals are added from recipe cards and recipe detail views.</p>
               </div>
-              <label className="form-control w-full max-w-xs">
-                <span className="label-text">Date</span>
+              <label className="field w-full max-w-xs">
+                <span>Date</span>
                 <input
                   aria-label="Planning date"
-                  className="input input-bordered min-h-[44px]"
                   data-testid="food-meal-day-date"
                   type="date"
                   value={selectedDate}
@@ -170,7 +169,7 @@ export function MealPlanningWorkspace() {
 
             {daySlots.length === 0 ? (
               <div className="mt-4">
-                <button className="btn btn-primary min-h-[44px]" type="button" onClick={() => setActiveModuleTab("recipes")}>
+                <button className="ui-button ui-button-primary ui-button-sm" type="button" onClick={() => setActiveModuleTab("recipes")}>
                   Browse recipes
                 </button>
               </div>

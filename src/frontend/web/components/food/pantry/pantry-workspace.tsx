@@ -59,7 +59,7 @@ export function PantryWorkspace() {
             testId="food-pantry-location-tabs"
           />
           <button
-            className={`btn btn-sm min-h-[44px] ${pantryLowStockOnly ? "btn-active" : "btn-ghost"}`}
+            className={`ui-button ui-button-sm ${pantryLowStockOnly ? "ui-button-active" : "ui-button-ghost"}`}
             type="button"
             onClick={() => setPantryLowStockOnly((current: boolean) => !current)}
           >
@@ -70,7 +70,6 @@ export function PantryWorkspace() {
           <span>Search</span>
           <input
             aria-label="Pantry search"
-            className="input input-bordered min-h-[44px]"
             value={pantrySearch}
             onChange={(event) => setPantrySearch(event.target.value)}
             placeholder="Search pantry items"
@@ -90,7 +89,7 @@ export function PantryWorkspace() {
                 <div className="flex items-center gap-2">
                   <span className="pill">{item.status}</span>
                   <button
-                    className="btn btn-ghost btn-sm min-h-[44px] min-w-[44px]"
+                    className="ui-button ui-button-ghost ui-button-sm min-w-[44px]"
                     type="button"
                     disabled={isPending}
                     onClick={() => {

@@ -12,10 +12,10 @@ export function FoodActionBar() {
 
   return (
     <div className="fixed inset-x-0 bottom-24 z-50 flex justify-center md:hidden" data-testid="food-action-bar">
-      <div className="flex items-center gap-3 rounded-full border border-base-300 bg-base-100/95 px-3 py-2 shadow-xl backdrop-blur">
+      <div className="flex items-center gap-3 rounded-full border border-[color:var(--surface-line)] bg-[color:var(--surface-panel-strong)] px-3 py-2 shadow-xl backdrop-blur">
         <button
           aria-label="Cook"
-          className="btn btn-circle min-h-[44px] min-w-[44px]"
+          className="ui-button ui-button-ghost ui-button-sm ui-icon-button"
           title="Cook"
           type="button"
           onClick={handleQuickCook}
@@ -24,7 +24,7 @@ export function FoodActionBar() {
         </button>
         <button
           aria-label="Add to List"
-          className="btn btn-circle min-h-[44px] min-w-[44px]"
+          className="ui-button ui-button-ghost ui-button-sm ui-icon-button"
           title="Add to List"
           type="button"
           onClick={() => setAddToListOpen(true)}
@@ -33,7 +33,7 @@ export function FoodActionBar() {
         </button>
         <button
           aria-label="Add to Pantry"
-          className="btn btn-circle min-h-[44px] min-w-[44px]"
+          className="ui-button ui-button-ghost ui-button-sm ui-icon-button"
           title="Add to Pantry"
           type="button"
           onClick={() => setAddToPantryOpen(true)}
@@ -42,7 +42,7 @@ export function FoodActionBar() {
         </button>
         <button
           aria-label="Alerts"
-          className="btn btn-circle min-h-[44px] min-w-[44px]"
+          className="ui-button ui-button-ghost ui-button-sm ui-icon-button"
           title="Alerts"
           type="button"
           onClick={() => setAlertsOpen(true)}

@@ -10,14 +10,14 @@ export function Badge({
   ...props
 }: BadgeProps) {
   const classes = [
-    "badge rounded-full border px-3 py-3 text-xs font-medium uppercase tracking-[0.16em]",
+    "ui-badge",
     variant === "admin"
-      ? "border-secondary/20 bg-secondary/12 text-secondary"
+      ? "ui-badge-admin"
       : variant === "warning"
-        ? "border-warning/25 bg-warning/12 text-warning"
+        ? "ui-badge-warning"
         : variant === "danger"
-          ? "border-error/25 bg-error/12 text-error"
-          : "border-base-300/70 bg-base-200/70 text-base-content/70",
+          ? "ui-badge-danger"
+          : "ui-badge-default",
     className
   ].filter(Boolean).join(" ");
 

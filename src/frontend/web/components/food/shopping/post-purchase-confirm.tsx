@@ -26,18 +26,18 @@ export function PostPurchaseConfirm({
   }
 
   return (
-    <div className="modal modal-open" data-testid="food-post-purchase-confirm">
-      <div className="modal-box max-w-3xl">
+    <div className="ui-modal-backdrop" data-testid="food-post-purchase-confirm">
+      <div className="ui-modal-panel max-w-3xl">
         <h3 className="text-lg font-semibold">Add purchased items to pantry</h3>
-        <p className="mt-2 text-sm opacity-75">
+        <p className="ui-text-muted mt-2 text-sm">
           Purchased items are added to pantry in one pass after you confirm the destination for each line.
         </p>
         <div className="mt-4 space-y-3">
           {items.map((item) => (
-            <div className="rounded-box border border-base-300 p-3" key={item.id}>
+            <div className="ui-inline-card" key={item.id}>
               <div className="mb-2 flex items-center justify-between gap-3">
                 <strong>{item.ingredientName}</strong>
-                {item.conflictLabel ? <span className="badge badge-warning">{item.conflictLabel}</span> : null}
+                {item.conflictLabel ? <span className="ui-badge ui-badge-warning">{item.conflictLabel}</span> : null}
               </div>
               <SegmentedToggle
                 value={selectedLocations[item.id] ?? locationOptions[0]?.value ?? ""}
@@ -47,11 +47,11 @@ export function PostPurchaseConfirm({
             </div>
           ))}
         </div>
-        <div className="modal-action">
-          <button className="btn btn-ghost min-h-[44px]" type="button" onClick={onClose}>
+        <div className="ui-modal-actions">
+          <button className="ui-button ui-button-ghost ui-button-sm" type="button" onClick={onClose}>
             Cancel
           </button>
-          <button className="btn btn-primary min-h-[44px]" type="button" disabled={isPending} onClick={onConfirm}>
+          <button className="ui-button ui-button-primary ui-button-sm" type="button" disabled={isPending} onClick={onConfirm}>
             Add to Pantry
           </button>
         </div>

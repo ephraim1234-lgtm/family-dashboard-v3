@@ -9,10 +9,10 @@ export function LoadingSpinner({
 }: LoadingSpinnerProps) {
   return (
     <div
-      className={["flex items-center gap-3 text-sm text-base-content/70", className].filter(Boolean).join(" ")}
+      className={["flex items-center gap-3 text-sm ui-text-muted", className].filter(Boolean).join(" ")}
       aria-live="polite"
     >
-      <span className="loading loading-spinner loading-sm" aria-hidden="true" />
+      <span className="ui-spinner" aria-hidden="true" />
       <span>{label}</span>
     </div>
   );

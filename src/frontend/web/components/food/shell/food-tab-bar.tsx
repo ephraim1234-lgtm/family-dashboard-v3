@@ -20,7 +20,7 @@ export function FoodTabBar() {
       data-testid="food-tab-bar"
     >
       <div
-        className="mx-auto flex w-full max-w-5xl gap-2 overflow-x-auto rounded-[1.5rem] border border-base-300/70 bg-base-100/90 p-2 shadow-sm backdrop-blur [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="mx-auto flex w-full max-w-5xl gap-2 overflow-x-auto rounded-[1.5rem] border border-[color:var(--surface-line)] bg-[color:var(--surface-panel)] p-2 shadow-sm backdrop-blur [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         role="tablist"
         aria-label="Food tabs"
       >
@@ -33,8 +33,8 @@ export function FoodTabBar() {
               className={[
                 "min-h-[44px] shrink-0 rounded-full px-4 py-2 text-sm font-medium transition",
                 isActive
-                  ? "bg-base-content text-base-100 shadow-sm"
-                  : "text-base-content/68 hover:bg-base-200 hover:text-base-content"
+                  ? "bg-[color:var(--text-strong)] text-white shadow-sm"
+                  : "text-[color:var(--text-muted)] hover:bg-[color:var(--surface-muted)] hover:text-[color:var(--text-strong)]"
               ].join(" ")}
               role="tab"
               aria-selected={isActive}

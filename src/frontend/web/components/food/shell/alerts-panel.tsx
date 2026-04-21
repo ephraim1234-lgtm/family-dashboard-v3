@@ -11,16 +11,16 @@ function Section({
   items: Array<{ id: string; label: string; actionLabel: string; onAction: () => void }>;
 }) {
   return (
-    <details className="collapse collapse-arrow rounded-box border border-base-300 bg-base-100" open>
-      <summary className="collapse-title text-base font-medium">
+    <details className="ui-disclosure" open>
+      <summary className="ui-disclosure-summary text-base font-medium">
         {title} ({items.length})
       </summary>
-      <div className="collapse-content space-y-2">
+      <div className="ui-disclosure-body space-y-2">
         {items.length === 0 ? <p className="text-sm opacity-70">Nothing here right now.</p> : null}
         {items.map((item) => (
-          <div className="flex items-center justify-between gap-3 rounded-box border border-base-300 p-3" key={item.id}>
+          <div className="ui-inline-card flex items-center justify-between gap-3" key={item.id}>
             <span>{item.label}</span>
-            <button className="btn btn-sm min-h-[44px]" type="button" onClick={item.onAction}>
+            <button className="ui-button ui-button-sm" type="button" onClick={item.onAction}>
               {item.actionLabel}
             </button>
           </div>

@@ -62,21 +62,21 @@ export function ShoppingWorkspace() {
 
             <div className="mt-3 flex flex-wrap gap-2">
               <button
-                className={`btn min-h-[44px] ${shoppingGroupMode === "flat" ? "btn-active" : "btn-ghost"}`}
+                className={`ui-button ui-button-sm ${shoppingGroupMode === "flat" ? "ui-button-active" : "ui-button-ghost"}`}
                 type="button"
                 onClick={() => setShoppingGroupMode("flat")}
               >
                 Flat
               </button>
               <button
-                className={`btn min-h-[44px] ${shoppingGroupMode === "aisle" ? "btn-active" : "btn-ghost"}`}
+                className={`ui-button ui-button-sm ${shoppingGroupMode === "aisle" ? "ui-button-active" : "ui-button-ghost"}`}
                 type="button"
                 onClick={() => setShoppingGroupMode("aisle")}
               >
                 By aisle
               </button>
               <button
-                className="btn btn-ghost min-h-[44px]"
+                className="ui-button ui-button-ghost ui-button-sm"
                 type="button"
                 disabled={activeShoppingItems.length === 0}
                 onClick={() => {
@@ -91,7 +91,7 @@ export function ShoppingWorkspace() {
                 Mark All Purchased
               </button>
               <button
-                className="btn btn-ghost min-h-[44px]"
+                className="ui-button ui-button-ghost ui-button-sm"
                 type="button"
                 disabled={purchasedShoppingItems.length === 0}
                 onClick={() => {
@@ -110,7 +110,7 @@ export function ShoppingWorkspace() {
             {shoppingMealFilterId ? (
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <span className="pill">Filtered to one meal</span>
-                <button className="btn btn-ghost btn-sm min-h-[44px]" type="button" onClick={() => setShoppingMealFilterId(null)}>
+                <button className="ui-button ui-button-ghost ui-button-sm" type="button" onClick={() => setShoppingMealFilterId(null)}>
                   Clear filter
                 </button>
               </div>
@@ -152,10 +152,10 @@ export function ShoppingWorkspace() {
             </div>
 
             {purchasedCount > 0 ? (
-              <div className="mt-4 scroll-mb-48 rounded-box border border-base-300 p-4">
+              <div className="ui-inline-card mt-4 scroll-mb-48">
                 <div className="stack-card-header">
                   <strong>{purchasedCount} items purchased</strong>
-                  <button className="btn btn-primary min-h-[44px]" type="button" onClick={() => setPostPurchaseOpen(true)}>
+                  <button className="ui-button ui-button-primary ui-button-sm" type="button" onClick={() => setPostPurchaseOpen(true)}>
                     Confirm / Complete
                   </button>
                 </div>
@@ -199,7 +199,7 @@ export function ShoppingWorkspace() {
                       <strong>{trip.name}</strong>
                       <div className="muted">{trip.itemsPurchasedCount}/{trip.totalItemCount} purchased</div>
                     </div>
-                    <button className="btn btn-ghost min-h-[44px]" type="button" onClick={() => setSelectedHistoryTripId(trip.id)}>
+                    <button className="ui-button ui-button-ghost ui-button-sm" type="button" onClick={() => setSelectedHistoryTripId(trip.id)}>
                       Open
                     </button>
                   </div>
@@ -238,7 +238,7 @@ function ShoppingItemRow({
   startTransition: (callback: () => void) => void;
 }) {
   return (
-    <div className={`stack-card ${item.state === "NeedsReview" ? "border-warning/60" : ""}`}>
+    <div className={`stack-card ${item.state === "NeedsReview" ? "stack-card-warning" : ""}`}>
       <div className="stack-card-header">
         <div>
           <strong>{item.ingredientName}</strong>
@@ -249,7 +249,7 @@ function ShoppingItemRow({
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
-            className="btn btn-success btn-sm min-h-[44px]"
+            className="ui-button ui-button-success ui-button-sm"
             type="button"
             onClick={() => {
               setError(null);
@@ -263,7 +263,7 @@ function ShoppingItemRow({
             Bought
           </button>
           <button
-            className="btn btn-ghost btn-sm min-h-[44px]"
+            className="ui-button ui-button-ghost ui-button-sm"
             type="button"
             onClick={() => {
               setError(null);
@@ -277,7 +277,7 @@ function ShoppingItemRow({
             Didn&apos;t Buy
           </button>
           <button
-            className="btn btn-ghost btn-sm min-h-[44px] min-w-[44px]"
+            className="ui-button ui-button-ghost ui-button-sm min-w-[44px]"
             type="button"
             onClick={() => {
               setError(null);
@@ -292,7 +292,7 @@ function ShoppingItemRow({
           </button>
         </div>
       </div>
-      {item.state === "NeedsReview" ? <div className="badge badge-warning">Needs review</div> : null}
+      {item.state === "NeedsReview" ? <div className="ui-badge ui-badge-warning">Needs review</div> : null}
     </div>
   );
 }

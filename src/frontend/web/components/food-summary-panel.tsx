@@ -73,7 +73,7 @@ export function FoodSummaryPanel() {
       ) : null}
 
       <div>
-        <Link className="btn btn-primary min-h-[48px] rounded-full px-5" href="/app/food">
+        <Link className="ui-button ui-button-primary ui-button-md" href="/app/food">
           Open food hub
         </Link>
       </div>

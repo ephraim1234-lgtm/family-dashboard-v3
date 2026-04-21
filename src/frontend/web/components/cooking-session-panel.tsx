@@ -310,11 +310,11 @@ export function CookingSessionPanel({ sessionId }: { sessionId: string }) {
       <section className="grid food-cooking-grid" data-testid="cooking-session-page">
         <article className="panel" data-testid="cooking-session-summary">
           <div className="mb-3 flex items-center justify-between gap-3">
-            <button className="btn btn-ghost min-h-[44px]" type="button" onClick={handleBackToFood}>
+            <button className="ui-button ui-button-ghost ui-button-sm" type="button" onClick={handleBackToFood}>
               Back
             </button>
             <button
-              className="btn btn-outline min-h-[44px]"
+              className="ui-button ui-button-outline ui-button-sm"
               type="button"
               onClick={() => updateViewMode(viewMode === "step" ? "scroll" : "step")}
             >
@@ -512,13 +512,16 @@ export function CookingSessionPanel({ sessionId }: { sessionId: string }) {
 
       <section className="grid food-cooking-grid">
         <article className="panel" data-testid="cooking-ingredients-panel">
-          <div className="collapse collapse-arrow rounded-box border border-base-300 bg-base-100">
-            <input checked={ingredientsExpanded} onChange={() => setIngredientsExpanded((current) => !current)} type="checkbox" />
-            <div className="collapse-title p-0">
+          <details
+            className="ui-disclosure"
+            open={ingredientsExpanded}
+            onToggle={(event) => setIngredientsExpanded((event.currentTarget as HTMLDetailsElement).open)}
+          >
+            <summary className="ui-disclosure-summary p-0">
               <div className="eyebrow">Ingredients</div>
               <h2>{focusedRecipe.title}</h2>
-            </div>
-            <div className="collapse-content px-0">
+            </summary>
+            <div className="ui-disclosure-body px-0">
               <div className="stack-list mt-3">
                 {focusedRecipe.ingredients.map((ingredient) => (
               <div className="stack-card" data-testid={`cooking-ingredient-${ingredient.id}`} key={ingredient.id}>
@@ -541,12 +544,11 @@ export function CookingSessionPanel({ sessionId }: { sessionId: string }) {
                       {editingIngredientId === ingredient.id ? (
                         <div className="flex flex-wrap items-center gap-2">
                           <input
-                            className="input input-bordered input-sm min-h-[44px]"
                             value={editingIngredientName}
                             onChange={(event) => setEditingIngredientName(event.target.value)}
                           />
                           <button
-                            className="btn btn-sm min-h-[44px]"
+                            className="ui-button ui-button-sm"
                             type="button"
                             onClick={() => {
                               setError(null);
@@ -566,7 +568,7 @@ export function CookingSessionPanel({ sessionId }: { sessionId: string }) {
                         <div className="flex items-center gap-2">
                           <strong>{ingredient.ingredientName}</strong>
                           <button
-                            className="btn btn-ghost btn-xs min-h-[32px] min-w-[32px]"
+                            className="ui-button ui-button-ghost ui-button-xs"
                             type="button"
                             onClick={() => beginIngredientEdit(ingredient.id, ingredient.ingredientName)}
                           >
@@ -649,7 +651,7 @@ export function CookingSessionPanel({ sessionId }: { sessionId: string }) {
                 ))}
               </div>
             </div>
-          </div>
+          </details>
         </article>
 
         <article className="panel" data-testid="cooking-steps-panel">
@@ -682,12 +684,11 @@ export function CookingSessionPanel({ sessionId }: { sessionId: string }) {
                     {editingStepId === step.id ? (
                       <div className="mt-2 flex flex-col gap-2">
                         <input
-                          className="input input-bordered min-h-[44px]"
                           value={editingStepInstruction}
                           onChange={(event) => setEditingStepInstruction(event.target.value)}
                         />
                         <button
-                          className="btn btn-sm min-h-[44px] self-start"
+                          className="ui-button ui-button-sm self-start"
                           type="button"
                           onClick={(event) => {
                             event.stopPropagation();
@@ -780,16 +781,16 @@ export function CookingSessionPanel({ sessionId }: { sessionId: string }) {
         </article>
       </section>
       {showCompleteConfirm ? (
-        <div className="modal modal-open">
-          <div className="modal-box">
+        <div className="ui-modal-backdrop">
+          <div className="ui-modal-panel">
             <h3 className="text-lg font-semibold">Complete meal?</h3>
-            <p className="py-4 text-sm opacity-80">This will finish the cooking session and return to Food Home.</p>
-            <div className="modal-action">
-              <button className="btn btn-ghost min-h-[44px]" type="button" onClick={() => setShowCompleteConfirm(false)}>
+            <p className="ui-text-muted py-4 text-sm">This will finish the cooking session and return to Food Home.</p>
+            <div className="ui-modal-actions">
+              <button className="ui-button ui-button-ghost ui-button-sm" type="button" onClick={() => setShowCompleteConfirm(false)}>
                 Cancel
               </button>
               <button
-                className="btn btn-primary min-h-[44px]"
+                className="ui-button ui-button-primary ui-button-sm"
                 type="button"
                 disabled={isPending}
                 onClick={() => {

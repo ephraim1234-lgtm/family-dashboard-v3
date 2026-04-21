@@ -23,21 +23,21 @@ export function RecipesWorkspace() {
             <h2>Capture, browse, and maintain household recipes</h2>
             <div className="flex flex-wrap gap-2">
               <button
-                className={`btn min-h-[44px] ${recipeWorkspaceTab === "library" ? "btn-active" : "btn-ghost"}`}
+                className={`ui-button ui-button-sm ${recipeWorkspaceTab === "library" ? "ui-button-active" : "ui-button-ghost"}`}
                 type="button"
                 onClick={() => setRecipeWorkspaceTab("library")}
               >
                 Library
               </button>
               <button
-                className={`btn min-h-[44px] ${recipeWorkspaceTab === "detail" ? "btn-active" : "btn-ghost"}`}
+                className={`ui-button ui-button-sm ${recipeWorkspaceTab === "detail" ? "ui-button-active" : "ui-button-ghost"}`}
                 type="button"
                 onClick={() => setRecipeWorkspaceTab("detail")}
               >
                 Detail
               </button>
               <button
-                className={`btn min-h-[44px] ${recipeWorkspaceTab === "capture" ? "btn-active" : "btn-primary"}`}
+                className={`ui-button ui-button-sm ${recipeWorkspaceTab === "capture" ? "ui-button-active" : "ui-button-primary"}`}
                 type="button"
                 onClick={() => {
                   setRecipeWorkspaceTab("capture");

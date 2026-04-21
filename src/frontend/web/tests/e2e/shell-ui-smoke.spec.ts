@@ -23,15 +23,10 @@ test("keeps display kiosk-only without the shared shell", async ({ page }) => {
   await expect(page.getByText("Household control center")).toHaveCount(0);
 });
 
-test("persists the selected theme across reloads", async ({ page }) => {
+test("uses a neutral shell without theme switching", async ({ page }) => {
   await page.goto("/app");
-  await page.getByLabel("Choose theme").selectOption("retro");
-
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "retro");
-
-  await page.reload();
-
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "retro");
+  await expect(page.getByLabel("Choose theme")).toHaveCount(0);
+  await expect(page.locator("html")).not.toHaveAttribute("data-theme", /.+/);
 });
 
 test("loads overview workspace from the query string and preserves secondary panels", async ({ page }) => {

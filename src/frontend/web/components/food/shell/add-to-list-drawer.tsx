@@ -25,27 +25,27 @@ export function AddToListDrawer() {
   return (
     <BottomDrawer open={addToListOpen} onClose={() => setAddToListOpen(false)} title="Add to Shopping List" testId="food-add-to-list-drawer">
       <div className="space-y-3">
-        <label className="form-control">
-          <span className="label-text">Item</span>
-          <input className="input input-bordered min-h-[44px]" value={shoppingName} onChange={(event) => setShoppingName(event.target.value)} />
+        <label className="field">
+          <span>Item</span>
+          <input value={shoppingName} onChange={(event) => setShoppingName(event.target.value)} />
         </label>
         <div className="grid grid-cols-2 gap-3">
-          <label className="form-control">
-            <span className="label-text">Qty</span>
-            <input className="input input-bordered min-h-[44px]" type="number" value={shoppingQuantity} onChange={(event) => setShoppingQuantity(event.target.value)} />
+          <label className="field">
+            <span>Qty</span>
+            <input type="number" value={shoppingQuantity} onChange={(event) => setShoppingQuantity(event.target.value)} />
           </label>
-          <label className="form-control">
-            <span className="label-text">Unit</span>
-            <input className="input input-bordered min-h-[44px]" value={shoppingUnit} onChange={(event) => setShoppingUnit(event.target.value)} />
+          <label className="field">
+            <span>Unit</span>
+            <input value={shoppingUnit} onChange={(event) => setShoppingUnit(event.target.value)} />
           </label>
         </div>
-        <label className="form-control">
-          <span className="label-text">Notes</span>
-          <input className="input input-bordered min-h-[44px]" value={shoppingNotes} onChange={(event) => setShoppingNotes(event.target.value)} />
+        <label className="field">
+          <span>Notes</span>
+          <input value={shoppingNotes} onChange={(event) => setShoppingNotes(event.target.value)} />
         </label>
         {mergePreview?.willMerge ? <p className="text-sm opacity-70">This will merge into {mergePreview.existingItemName}.</p> : null}
         <button
-          className="btn btn-primary w-full min-h-[44px]"
+          className="ui-button ui-button-primary ui-button-sm ui-button-block"
           disabled={isPending || !shoppingName.trim()}
           type="button"
           onClick={() => {

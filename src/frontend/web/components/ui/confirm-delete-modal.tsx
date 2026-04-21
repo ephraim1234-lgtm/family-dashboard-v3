@@ -22,16 +22,16 @@ export function ConfirmDeleteModal({
   }
 
   return (
-    <div className="modal modal-open">
-      <div className="modal-box">
+    <div className="ui-modal-backdrop">
+      <div className="ui-modal-panel">
         <h3 className="text-lg font-semibold">{title}</h3>
-        <p className="py-4 text-sm opacity-80">{body}</p>
-        <div className="modal-action">
-          <button className="btn btn-ghost min-h-[44px]" type="button" onClick={onCancel}>
+        <p className="py-4 text-sm ui-text-muted">{body}</p>
+        <div className="ui-modal-actions">
+          <button className="ui-button ui-button-ghost ui-button-sm" type="button" onClick={onCancel}>
             Cancel
           </button>
           <button
-            className="btn btn-error min-h-[44px]"
+            className="ui-button ui-button-danger ui-button-sm"
             type="button"
             disabled={isPending}
             onClick={onConfirm}

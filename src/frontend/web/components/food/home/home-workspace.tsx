@@ -22,15 +22,15 @@ function HomeStat({
   tone?: "default" | "warning" | "accent";
 }) {
   const toneClassName = tone === "warning"
-    ? "border-warning/40 bg-warning/10"
+    ? "ui-inline-card-warning"
     : tone === "accent"
-      ? "border-primary/20 bg-primary/5"
-      : "border-base-300/70 bg-base-200/50";
+      ? "ui-inline-card-accent"
+      : "ui-inline-card";
 
   return (
-    <div className={`rounded-[1.25rem] border p-3 ${toneClassName}`}>
+    <div className={`p-3 ${toneClassName}`}>
       <div className="text-xl font-semibold tracking-tight">{value}</div>
-      <div className="mt-1 text-sm text-base-content/70">{label}</div>
+      <div className="ui-text-muted mt-1 text-sm">{label}</div>
     </div>
   );
 }
@@ -51,17 +51,17 @@ function HomeAttentionCard({
   tone?: "default" | "warning" | "accent";
 }) {
   const toneClassName = tone === "warning"
-    ? "border-warning/50 bg-warning/10"
+    ? "ui-inline-card-warning"
     : tone === "accent"
-      ? "border-primary/25 bg-primary/5"
-      : "border-base-300/70 bg-base-200/40";
+      ? "ui-inline-card-accent"
+      : "ui-inline-card";
 
   return (
-    <div className={`rounded-[1.25rem] border p-4 ${toneClassName}`}>
+    <div className={`p-4 ${toneClassName}`}>
       <div className="eyebrow">{eyebrow}</div>
       <div className="mt-1 text-base font-semibold">{title}</div>
-      <p className="mt-2 text-sm text-base-content/70">{description}</p>
-      <button className="btn btn-ghost btn-sm mt-3 min-h-[44px]" type="button" onClick={onAction}>
+      <p className="ui-text-muted mt-2 text-sm">{description}</p>
+      <button className="ui-button ui-button-ghost ui-button-sm mt-3" type="button" onClick={onAction}>
         {actionLabel}
       </button>
     </div>
@@ -106,14 +106,14 @@ export function HomeWorkspace() {
 
   const firstCookingSession = data.activeCookingSessions[0] ?? null;
   const lowStockBanner = !dismissedLowStock && data.summary.lowStockCount > 0 ? (
-    <article className="alert">
+    <article className="ui-alert ui-alert-warning">
       <div>
         <strong>{data.summary.lowStockCount} pantry items need attention soon.</strong>
         <div className="mt-1 text-sm opacity-80">Review low-stock staples before the next grocery run sneaks up on you.</div>
       </div>
       <div className="flex gap-2">
         <button
-          className="btn btn-sm min-h-[44px]"
+          className="ui-button ui-button-sm"
           type="button"
           onClick={() => {
             setPantryLowStockOnly(true);
@@ -122,7 +122,7 @@ export function HomeWorkspace() {
         >
           Review pantry
         </button>
-        <button className="btn btn-ghost btn-sm min-h-[44px]" type="button" onClick={() => setDismissedLowStock(true)}>
+        <button className="ui-button ui-button-ghost ui-button-sm" type="button" onClick={() => setDismissedLowStock(true)}>
           Dismiss
         </button>
       </div>
@@ -176,16 +176,16 @@ export function HomeWorkspace() {
             </div>
 
             <div className="flex flex-wrap gap-2">
-              <button className="btn btn-primary min-h-[44px]" type="button" onClick={handleQuickCook}>
+              <button className="ui-button ui-button-primary ui-button-sm" type="button" onClick={handleQuickCook}>
                 Cook now
               </button>
-              <button className="btn btn-ghost min-h-[44px]" type="button" onClick={openRecipeLibrary}>
+              <button className="ui-button ui-button-ghost ui-button-sm" type="button" onClick={openRecipeLibrary}>
                 Browse recipes
               </button>
-              <button className="btn btn-ghost min-h-[44px]" type="button" onClick={() => openShoppingView()}>
+              <button className="ui-button ui-button-ghost ui-button-sm" type="button" onClick={() => openShoppingView()}>
                 Open shopping
               </button>
-              <button className="btn btn-ghost min-h-[44px]" type="button" onClick={() => openPantryView(false)}>
+              <button className="ui-button ui-button-ghost ui-button-sm" type="button" onClick={() => openPantryView(false)}>
                 Review pantry
               </button>
             </div>
@@ -199,21 +199,21 @@ export function HomeWorkspace() {
             <HomeStat label="Meals ahead" value={data.summary.upcomingMealCount} />
           </div>
 
-          <div className="mt-5 rounded-[1.5rem] border border-base-300/70 bg-base-200/35 p-4">
+          <div className="ui-inline-card mt-5">
             <div className="eyebrow">Tonight</div>
             <div className="mt-1 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
               <div>
                 <div className="text-lg font-semibold">
                   {data.tonightCookView?.title ?? (todaysMeals[0]?.title ?? "No dinner planned yet")}
                 </div>
-                <p className="mt-2 text-sm text-base-content/70">
+                <p className="ui-text-muted mt-2 text-sm">
                   {data.tonightCookView?.reason ?? "Browse recipes, add one to the meal plan, and generate a shopping list without leaving Food."}
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
                 {data.tonightCookView?.mealPlanSlotId ? (
                   <button
-                    className="btn btn-primary btn-sm min-h-[44px]"
+                    className="ui-button ui-button-primary ui-button-sm"
                     disabled={isPending}
                     type="button"
                     onClick={() => {
@@ -228,12 +228,12 @@ export function HomeWorkspace() {
                     Start tonight
                   </button>
                 ) : (
-                  <button className="btn btn-primary btn-sm min-h-[44px]" type="button" onClick={openRecipeLibrary}>
+                  <button className="ui-button ui-button-primary ui-button-sm" type="button" onClick={openRecipeLibrary}>
                     Pick a recipe
                   </button>
                 )}
                 {data.tonightCookView?.missingIngredientCount ? (
-                  <button className="btn btn-ghost btn-sm min-h-[44px]" type="button" onClick={() => openShoppingView(data.tonightCookView?.mealPlanSlotId ?? null)}>
+                  <button className="ui-button ui-button-ghost ui-button-sm" type="button" onClick={() => openShoppingView(data.tonightCookView?.mealPlanSlotId ?? null)}>
                     {data.tonightCookView.missingIngredientCount} missing
                   </button>
                 ) : null}
@@ -296,7 +296,7 @@ export function HomeWorkspace() {
             ) : null}
 
             {data.summary.lowStockCount === 0 && needsReviewCount === 0 && openShoppingCount === 0 && !firstCookingSession && (!nextUpcomingMeal || todaysMeals.length > 0) ? (
-              <div className="rounded-[1.25rem] border border-base-300/70 bg-base-200/35 p-4 text-sm text-base-content/70">
+              <div className="ui-inline-card ui-text-muted text-sm">
                 Everything looks calm right now. Use Home for quick starts, then jump into Recipes, Meals, Pantry, or Shopping when you need detail.
               </div>
             ) : null}
@@ -312,17 +312,17 @@ export function HomeWorkspace() {
               <h2>Meals ready to cook</h2>
               <p className="muted mt-2">Each meal card keeps the essentials visible: recipes, missing ingredients, and the fastest next action.</p>
             </div>
-            <button className="btn btn-ghost min-h-[44px]" type="button" onClick={openMealsView}>
+            <button className="ui-button ui-button-ghost ui-button-sm" type="button" onClick={openMealsView}>
               Open meals
             </button>
           </div>
 
           <div className="mt-4 grid gap-4 lg:grid-cols-2">
             {todaysMeals.map((slot: any) => (
-              <div className="rounded-[1.5rem] border border-base-300/70 bg-base-100 p-4 shadow-sm" data-testid={`food-home-meal-${slot.id}`} key={slot.id}>
+              <div className="ui-inline-card" data-testid={`food-home-meal-${slot.id}`} key={slot.id}>
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="pill">{slot.slotName}</span>
-                  <span className={`pill ${slot.shoppingOpenIngredientCount > 0 ? "border-warning/50 bg-warning/10" : ""}`}>
+                  <span className={`pill ${slot.shoppingOpenIngredientCount > 0 ? "ui-pill-warning" : ""}`}>
                     {slot.shoppingOpenIngredientCount > 0
                       ? `${slot.shoppingOpenIngredientCount} missing`
                       : "Pantry ready"}
@@ -330,7 +330,7 @@ export function HomeWorkspace() {
                 </div>
 
                 <h3 className="mt-3 text-lg font-semibold">{slot.title}</h3>
-                <p className="mt-2 text-sm text-base-content/70">
+                <p className="ui-text-muted mt-2 text-sm">
                   {slot.shoppingOpenIngredientCount > 0
                     ? `${slot.shoppingOpenIngredientCount} of ${slot.shoppingTotalIngredientCount} shopping item${slot.shoppingTotalIngredientCount === 1 ? "" : "s"} still need attention.`
                     : "Ingredients are covered, so you can move straight into cooking mode."}
@@ -344,11 +344,11 @@ export function HomeWorkspace() {
                   </div>
                 ) : null}
 
-                {slot.notes ? <p className="mt-3 text-sm text-base-content/70">{slot.notes}</p> : null}
+                {slot.notes ? <p className="ui-text-muted mt-3 text-sm">{slot.notes}</p> : null}
 
                 <div className="mt-4 flex flex-wrap gap-2">
                   <button
-                    className="btn btn-primary min-h-[44px]"
+                    className="ui-button ui-button-primary ui-button-sm"
                     disabled={isPending}
                     type="button"
                     onClick={() => {
@@ -362,7 +362,7 @@ export function HomeWorkspace() {
                   >
                     Start cooking
                   </button>
-                  <button className="btn btn-ghost min-h-[44px]" type="button" onClick={() => openShoppingView(slot.id)}>
+                  <button className="ui-button ui-button-ghost ui-button-sm" type="button" onClick={() => openShoppingView(slot.id)}>
                     {slot.shoppingOpenIngredientCount > 0 ? "Review shopping" : "Open shopping"}
                   </button>
                 </div>
@@ -380,23 +380,23 @@ export function HomeWorkspace() {
             </p>
 
             {nextUpcomingMeal ? (
-              <div className="mt-4 rounded-[1.25rem] border border-base-300/70 bg-base-200/40 p-4">
+              <div className="ui-inline-card mt-4">
                 <div className="eyebrow">Up next</div>
                 <div className="mt-1 text-base font-semibold">{nextUpcomingMeal.title}</div>
-                <p className="mt-2 text-sm text-base-content/70">
+                <p className="ui-text-muted mt-2 text-sm">
                   {formatDateLabel(nextUpcomingMeal.date)} - {nextUpcomingMeal.slotName}
                 </p>
               </div>
             ) : null}
 
             <div className="mt-5 flex flex-wrap gap-2">
-              <button className="btn btn-primary min-h-[44px]" type="button" onClick={openRecipeLibrary}>
+              <button className="ui-button ui-button-primary ui-button-sm" type="button" onClick={openRecipeLibrary}>
                 Browse recipes
               </button>
-              <button className="btn btn-ghost min-h-[44px]" type="button" onClick={openRecipeImport}>
+              <button className="ui-button ui-button-ghost ui-button-sm" type="button" onClick={openRecipeImport}>
                 Import recipe
               </button>
-              <button className="btn btn-ghost min-h-[44px]" type="button" onClick={openMealsView}>
+              <button className="ui-button ui-button-ghost ui-button-sm" type="button" onClick={openMealsView}>
                 Open meals
               </button>
             </div>

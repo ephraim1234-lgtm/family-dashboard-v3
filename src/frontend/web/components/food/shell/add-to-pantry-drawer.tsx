@@ -21,9 +21,9 @@ export function AddToPantryDrawer() {
   return (
     <BottomDrawer open={addToPantryOpen} onClose={() => setAddToPantryOpen(false)} title="Add to Pantry" testId="food-add-to-pantry-drawer">
       <div className="space-y-4">
-        <label className="form-control">
-          <span className="label-text">Item</span>
-          <input className="input input-bordered min-h-[44px]" value={pantryName} onChange={(event) => setPantryName(event.target.value)} />
+        <label className="field">
+          <span>Item</span>
+          <input value={pantryName} onChange={(event) => setPantryName(event.target.value)} />
         </label>
         <SegmentedToggle
           value={quickPantryLocationId}
@@ -32,7 +32,7 @@ export function AddToPantryDrawer() {
           testId="food-pantry-location-toggle"
         />
         <button
-          className="btn btn-primary w-full min-h-[44px]"
+          className="ui-button ui-button-primary ui-button-sm ui-button-block"
           disabled={isPending || !pantryName.trim()}
           type="button"
           onClick={() => {

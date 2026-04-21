@@ -12,11 +12,14 @@ export function SegmentedToggle<TValue extends string>({
   testId?: string;
 }) {
   return (
-    <div className="join" data-testid={testId}>
+    <div className="ui-segmented-toggle" data-testid={testId}>
       {options.map((option) => (
         <button
           key={option.value}
-          className={`btn join-item min-h-[44px] ${value === option.value ? "btn-active" : "btn-ghost"}`}
+          className={[
+            "ui-segmented-toggle-option",
+            value === option.value ? "ui-segmented-toggle-option-active" : null
+          ].filter(Boolean).join(" ")}
           type="button"
           onClick={() => onChange(option.value)}
         >

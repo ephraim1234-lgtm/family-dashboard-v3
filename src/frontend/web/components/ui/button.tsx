@@ -16,15 +16,17 @@ export function Button({
   ...props
 }: ButtonProps) {
   const classes = [
-    "btn rounded-full border-base-300/70 font-medium normal-case shadow-none",
+    "ui-button",
     variant === "danger"
-      ? "btn-error"
+      ? "ui-button-danger"
       : variant === "admin"
-        ? "btn-secondary"
-        : `btn-${variant}`,
-    size === "sm"
-      ? "btn-sm min-h-[44px] px-4"
-      : "btn-md min-h-[48px] px-5",
+        ? "ui-button-admin"
+        : variant === "secondary"
+          ? "ui-button-secondary"
+          : variant === "ghost"
+            ? "ui-button-ghost"
+            : "ui-button-primary",
+    size === "sm" ? "ui-button-sm" : "ui-button-md",
     className
   ].filter(Boolean).join(" ");
 

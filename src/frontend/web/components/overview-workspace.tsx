@@ -43,13 +43,13 @@ function OverviewWorkspaceBody() {
   return (
     <section className="space-y-6">
       {error ? (
-        <div className="alert alert-error shadow-sm" aria-live="polite" role="alert">
+        <div className="ui-alert ui-alert-danger shadow-sm" aria-live="polite" role="alert">
           <span>{error}</span>
         </div>
       ) : null}
 
       {successMessage ? (
-        <div className="alert alert-success shadow-sm" aria-live="polite">
+        <div className="ui-alert ui-alert-success shadow-sm" aria-live="polite">
           <span>{successMessage}</span>
         </div>
       ) : null}

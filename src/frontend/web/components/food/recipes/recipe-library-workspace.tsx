@@ -116,14 +116,14 @@ export function RecipeLibraryWorkspace({ hideHeader = false }: { hideHeader?: bo
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-3">
                   <button
-                    className="btn btn-primary min-h-[44px]"
+                    className="ui-button ui-button-primary ui-button-sm"
                     type="button"
                     onClick={() => setPlannerOpenId((current) => current === recipe.id ? null : recipe.id)}
                   >
                     Add to Meal Plan
                   </button>
                   <button
-                    className="btn btn-primary min-h-[44px]"
+                    className="ui-button ui-button-primary ui-button-sm"
                     data-testid={`food-recipe-library-cook-${recipe.id}`}
                     disabled={isPending}
                     type="button"
@@ -140,10 +140,10 @@ export function RecipeLibraryWorkspace({ hideHeader = false }: { hideHeader?: bo
                   </button>
                 </div>
                 {plannerOpen ? (
-                  <div className="mt-3 grid gap-3 rounded-box border border-base-300 p-3">
+                  <div className="ui-inline-card mt-3 grid gap-3">
                     <div className="grid grid-cols-2 gap-3">
-                      <input className="input input-bordered min-h-[44px]" type="date" value={plannedDate} onChange={(event) => setPlannedDate(event.target.value)} />
-                      <select className="select select-bordered min-h-[44px]" value={plannedSlot} onChange={(event) => setPlannedSlot(event.target.value)}>
+                      <input type="date" value={plannedDate} onChange={(event) => setPlannedDate(event.target.value)} />
+                      <select value={plannedSlot} onChange={(event) => setPlannedSlot(event.target.value)}>
                         <option>Breakfast</option>
                         <option>Lunch</option>
                         <option>Dinner</option>
@@ -151,7 +151,7 @@ export function RecipeLibraryWorkspace({ hideHeader = false }: { hideHeader?: bo
                       </select>
                     </div>
                     <button
-                      className="btn btn-primary min-h-[44px]"
+                      className="ui-button ui-button-primary ui-button-sm"
                       disabled={isPending || !plannedDate}
                       type="button"
                       onClick={() => {

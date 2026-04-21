@@ -10,7 +10,5 @@ export * from "./overflow-menu";
 export * from "./segmented-toggle";
 export * from "./shared-shell";
 export * from "./sub-tabs";
-export * from "./theme-switcher";
 export * from "./undo-toast";
-export * from "./use-theme";
 export * from "./workspace-query-state";
