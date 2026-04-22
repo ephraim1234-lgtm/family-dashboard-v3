@@ -50,6 +50,12 @@ export type CalendarEventItem = CalendarItemBase & {
   displayDate: string | null;
   spanState: CalendarDaySpanState;
   spanLabel: string | null;
+  isReadOnly: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+  canCreateReminder: boolean;
+  canManageReminders: boolean;
+  reminderEligibilityReason: string | null;
 };
 
 export type CalendarReminderItem = CalendarItemBase & {
@@ -62,6 +68,10 @@ export type CalendarReminderItem = CalendarItemBase & {
   firedAtUtc: string | null;
   dueLabel: string;
   detailLabel: string;
+  isReadOnly: boolean;
+  canDismiss: boolean;
+  canSnooze: boolean;
+  canDelete: boolean;
 };
 
 export type CalendarDayEntry = CalendarEventItem | CalendarReminderItem;
@@ -341,8 +351,8 @@ export function getUtcStartOfLocalDate(
   return new Date(guess).toISOString();
 }
 
-export function getCalendarAccessState(isOwner: boolean, isImported: boolean): CalendarAccessState {
-  return isOwner && !isImported ? "editable" : "read-only";
+export function getCalendarAccessState(item: Pick<UpcomingEventItem, "canEdit">): CalendarAccessState {
+  return item.canEdit ? "editable" : "read-only";
 }
 
 export function getCalendarBusyLabel(itemCount: number) {
@@ -447,11 +457,11 @@ function buildEventSpanLabel(item: CalendarEventItem) {
 export function buildCalendarEventItem(
   event: UpcomingEventItem,
   seriesItem: ScheduledEventSeriesItem | null,
-  isOwner: boolean,
+  _isOwner: boolean,
   timeZone = DEFAULT_TIME_ZONE,
   now = new Date()
 ): CalendarEventItem {
-  const accessState = getCalendarAccessState(isOwner, event.isImported);
+  const accessState = getCalendarAccessState(event);
   const startsAtMs = event.startsAtUtc
     ? new Date(event.startsAtUtc).getTime()
     : Number.POSITIVE_INFINITY;
@@ -531,7 +541,13 @@ export function buildCalendarEventItem(
     localEndDate,
     displayDate: localStartDate,
     spanState: localStartDate && localEndDate && localStartDate !== localEndDate ? "start" : "single",
-    spanLabel: null
+    spanLabel: null,
+    isReadOnly: event.isReadOnly,
+    canEdit: event.canEdit,
+    canDelete: event.canDelete,
+    canCreateReminder: event.canCreateReminder,
+    canManageReminders: event.canManageReminders,
+    reminderEligibilityReason: event.reminderEligibilityReason
   };
 
   return {
@@ -542,7 +558,7 @@ export function buildCalendarEventItem(
 
 export function buildCalendarReminderItem(
   reminder: EventReminderItem,
-  isOwner: boolean,
+  _isOwner: boolean,
   timeZone = DEFAULT_TIME_ZONE,
   now = new Date()
 ): CalendarReminderItem {
@@ -559,13 +575,17 @@ export function buildCalendarReminderItem(
     kind: "reminder",
     sourceLabel: "household",
     urgencyState: getReminderUrgencyState({ dueAtUtc: reminder.dueAtUtc }, now),
-    accessState: isOwner ? "editable" : "read-only",
+    accessState: reminder.isReadOnly ? "read-only" : "editable",
     dueAtUtc: reminder.dueAtUtc,
     minutesBefore: reminder.minutesBefore,
     status: reminder.status,
     firedAtUtc: reminder.firedAtUtc,
     dueLabel: formatReminderDueLabelInTimeZone(reminder.dueAtUtc, timeZone),
-    detailLabel: `${reminder.minutesBefore} min before`
+    detailLabel: `${reminder.minutesBefore} min before`,
+    isReadOnly: reminder.isReadOnly,
+    canDismiss: reminder.canDismiss,
+    canSnooze: reminder.canSnooze,
+    canDelete: reminder.canDelete
   };
 }
 

@@ -12,6 +12,10 @@ type ReminderItem = {
   status: string;
   firedAtUtc: string | null;
   createdAtUtc: string;
+  isReadOnly: boolean;
+  canDismiss: boolean;
+  canSnooze: boolean;
+  canDelete: boolean;
 };
 
 type ReminderListResponse = {
@@ -236,34 +240,42 @@ export function AdminRemindersPanel() {
                         <span className="pill">
                           Due {new Date(r.dueAtUtc).toLocaleString()}
                         </span>
-                        <button
-                          className="action-button action-button-ghost"
-                          onClick={() => handleSnooze(r.id, 60)}
-                          disabled={isPending}
-                        >
-                          Snooze 1h
-                        </button>
-                        <button
-                          className="action-button action-button-ghost"
-                          onClick={() => handleSnooze(r.id, 1440)}
-                          disabled={isPending}
-                        >
-                          Snooze 1d
-                        </button>
-                        <button
-                          className="action-button"
-                          onClick={() => handleDismiss(r.id)}
-                          disabled={isPending}
-                        >
-                          Dismiss
-                        </button>
-                        <button
-                          className="action-button action-button-secondary"
-                          onClick={() => handleDelete(r.id)}
-                          disabled={isPending}
-                        >
-                          Delete
-                        </button>
+                        {r.canSnooze ? (
+                          <button
+                            className="action-button action-button-ghost"
+                            onClick={() => handleSnooze(r.id, 60)}
+                            disabled={isPending}
+                          >
+                            Snooze 1h
+                          </button>
+                        ) : null}
+                        {r.canSnooze ? (
+                          <button
+                            className="action-button action-button-ghost"
+                            onClick={() => handleSnooze(r.id, 1440)}
+                            disabled={isPending}
+                          >
+                            Snooze 1d
+                          </button>
+                        ) : null}
+                        {r.canDismiss ? (
+                          <button
+                            className="action-button"
+                            onClick={() => handleDismiss(r.id)}
+                            disabled={isPending}
+                          >
+                            Dismiss
+                          </button>
+                        ) : null}
+                        {r.canDelete ? (
+                          <button
+                            className="action-button action-button-secondary"
+                            onClick={() => handleDelete(r.id)}
+                            disabled={isPending}
+                          >
+                            Delete
+                          </button>
+                        ) : null}
                       </div>
                     </div>
                   </div>
@@ -293,34 +305,42 @@ export function AdminRemindersPanel() {
                         <span className="pill">
                           Due {new Date(r.dueAtUtc).toLocaleString()}
                         </span>
-                        <button
-                          className="action-button action-button-ghost"
-                          onClick={() => handleSnooze(r.id, 60)}
-                          disabled={isPending}
-                        >
-                          Snooze 1h
-                        </button>
-                        <button
-                          className="action-button action-button-ghost"
-                          onClick={() => handleSnooze(r.id, 1440)}
-                          disabled={isPending}
-                        >
-                          Snooze 1d
-                        </button>
-                        <button
-                          className="action-button"
-                          onClick={() => handleDismiss(r.id)}
-                          disabled={isPending}
-                        >
-                          Dismiss
-                        </button>
-                        <button
-                          className="action-button action-button-secondary"
-                          onClick={() => handleDelete(r.id)}
-                          disabled={isPending}
-                        >
-                          Delete
-                        </button>
+                        {r.canSnooze ? (
+                          <button
+                            className="action-button action-button-ghost"
+                            onClick={() => handleSnooze(r.id, 60)}
+                            disabled={isPending}
+                          >
+                            Snooze 1h
+                          </button>
+                        ) : null}
+                        {r.canSnooze ? (
+                          <button
+                            className="action-button action-button-ghost"
+                            onClick={() => handleSnooze(r.id, 1440)}
+                            disabled={isPending}
+                          >
+                            Snooze 1d
+                          </button>
+                        ) : null}
+                        {r.canDismiss ? (
+                          <button
+                            className="action-button"
+                            onClick={() => handleDismiss(r.id)}
+                            disabled={isPending}
+                          >
+                            Dismiss
+                          </button>
+                        ) : null}
+                        {r.canDelete ? (
+                          <button
+                            className="action-button action-button-secondary"
+                            onClick={() => handleDelete(r.id)}
+                            disabled={isPending}
+                          >
+                            Delete
+                          </button>
+                        ) : null}
                       </div>
                     </div>
                   </div>
@@ -381,13 +401,15 @@ export function AdminRemindersPanel() {
                       <span className="pill">
                         Due {new Date(r.dueAtUtc).toLocaleString()}
                       </span>
-                      <button
-                        className="action-button action-button-secondary"
-                        onClick={() => handleDelete(r.id)}
-                        disabled={isPending}
-                      >
-                        Delete
-                      </button>
+                      {r.canDelete ? (
+                        <button
+                          className="action-button action-button-secondary"
+                          onClick={() => handleDelete(r.id)}
+                          disabled={isPending}
+                        >
+                          Delete
+                        </button>
+                      ) : null}
                     </div>
                   </div>
                 </div>

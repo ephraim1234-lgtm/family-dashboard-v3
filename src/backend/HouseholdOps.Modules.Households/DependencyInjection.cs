@@ -198,7 +198,15 @@ public static class DependencyInjection
                 return Results.Unauthorized();
             }
 
-            var result = await homeService.GetHomeAsync(householdId, cancellationToken);
+            var isOwner = string.Equals(
+                session.ActiveHouseholdRole,
+                "Owner",
+                StringComparison.Ordinal);
+
+            var result = await homeService.GetHomeAsync(
+                householdId,
+                isOwner,
+                cancellationToken);
             return Results.Ok(result);
         });
 

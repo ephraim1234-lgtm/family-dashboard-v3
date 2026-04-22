@@ -315,6 +315,14 @@ export function normalizeDisplayAgendaItem(
     startsAtUtc: item.startsAtUtc,
     endsAtUtc: item.endsAtUtc,
     isAllDay: item.isAllDay,
+    isReadOnly: true,
+    canEdit: false,
+    canDelete: false,
+    canCreateReminder: false,
+    canManageReminders: false,
+    reminderEligibilityReason: item.isImported
+      ? "Imported calendar events are read-only and cannot have local reminders."
+      : null,
     description: item.description,
     isImported: item.isImported,
     sourceKind: item.sourceKind,
@@ -377,6 +385,10 @@ export function buildDisplayViewModel(snapshot: DisplaySnapshot, now = new Date(
     ownerDisplay: createHouseholdOwnerDisplay(),
     dueAtUtc: reminder.dueAtUtc,
     minutesBefore: reminder.minutesBefore,
+    isReadOnly: true,
+    canDismiss: false,
+    canSnooze: false,
+    canDelete: false,
     dueLabel: formatDisplayDateTime(reminder.dueAtUtc, timeZone),
     leadLabel: formatReminderLeadLabel(reminder.minutesBefore),
     triageLabel: formatReminderTriageState(reminder.dueAtUtc, now)

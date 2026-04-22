@@ -21,6 +21,12 @@ export type UpcomingEventItem = {
   googleSyncError: string | null;
   googleTargetDisplayName: string | null;
   lastGoogleSyncSucceededAtUtc: string | null;
+  isReadOnly: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+  canCreateReminder: boolean;
+  canManageReminders: boolean;
+  reminderEligibilityReason: string | null;
 };
 
 export type UpcomingEventsResponse = {
@@ -50,6 +56,12 @@ export type ScheduledEventSeriesItem = {
   lastGoogleSyncSucceededAtUtc: string | null;
   nextOccurrenceStartsAtUtc: string | null;
   createdAtUtc: string;
+  isReadOnly: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+  canCreateReminder: boolean;
+  canManageReminders: boolean;
+  reminderEligibilityReason: string | null;
 };
 
 export type ScheduledEventSeriesListResponse = {
@@ -65,6 +77,10 @@ export type EventReminderItem = {
   status: string;
   firedAtUtc: string | null;
   createdAtUtc: string;
+  isReadOnly: boolean;
+  canDismiss: boolean;
+  canSnooze: boolean;
+  canDelete: boolean;
 };
 
 export type EventReminderListResponse = {

@@ -1,11 +1,13 @@
 using HouseholdOps.Infrastructure.Persistence;
+using HouseholdOps.Modules.Notifications;
 using HouseholdOps.Modules.Scheduling;
 using Microsoft.EntityFrameworkCore;
 
 namespace HouseholdOps.Infrastructure.Scheduling;
 
 public sealed class ImportedScheduledEventSyncService(
-    HouseholdOpsDbContext dbContext) : IImportedScheduledEventSyncService
+    HouseholdOpsDbContext dbContext,
+    IEventReminderService eventReminderService) : IImportedScheduledEventSyncService
 {
     public async Task<ImportedScheduledEventSyncResult> SyncAsync(
         Guid householdId,
@@ -32,6 +34,7 @@ public sealed class ImportedScheduledEventSyncService(
 
         var createdCount = 0;
         var updatedCount = 0;
+        var updatedEventIds = new List<Guid>();
 
         foreach (var imported in incomingBySourceId.Values)
         {
@@ -46,6 +49,7 @@ public sealed class ImportedScheduledEventSyncService(
                 existing.WeeklyDaysMask = imported.WeeklyDaysMask;
                 existing.RecursUntilUtc = imported.RecursUntilUtc;
                 existing.LastImportedAtUtc = syncedAtUtc;
+                updatedEventIds.Add(existing.Id);
                 updatedCount++;
                 continue;
             }
@@ -81,6 +85,13 @@ public sealed class ImportedScheduledEventSyncService(
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
+        await eventReminderService.RemoveEventRemindersAsync(
+            householdId,
+            updatedEventIds
+                .Concat(removed.Select(item => item.Id))
+                .Distinct()
+                .ToArray(),
+            cancellationToken);
 
         return new ImportedScheduledEventSyncResult(
             createdCount,
@@ -107,7 +118,15 @@ public sealed class ImportedScheduledEventSyncService(
             return;
         }
 
+        var existingEventIds = existingEvents
+            .Select(item => item.Id)
+            .ToArray();
+
         dbContext.ScheduledEvents.RemoveRange(existingEvents);
         await dbContext.SaveChangesAsync(cancellationToken);
+        await eventReminderService.RemoveEventRemindersAsync(
+            householdId,
+            existingEventIds,
+            cancellationToken);
     }
 }

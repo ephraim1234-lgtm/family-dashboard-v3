@@ -46,7 +46,92 @@ async function freezeClientDate(page: Page, isoDate: string) {
   }, isoDate);
 }
 
-function buildHomeResponse(): HomeResponse {
+function getReminderEligibilityReason(args: {
+  role: SessionRole;
+  isImported: boolean;
+  isAllDay: boolean;
+  startsAtUtc: string | null;
+  isRecurring: boolean;
+}) {
+  if (args.isImported) {
+    return "Imported calendar events are read-only and cannot have local reminders.";
+  }
+
+  if (args.isAllDay) {
+    return "All-day events cannot have reminders in this slice.";
+  }
+
+  if (!args.startsAtUtc) {
+    return "Reminders require an event with a specific start time.";
+  }
+
+  if (args.isRecurring) {
+    return "Recurring events cannot have reminders in this cleanup pass.";
+  }
+
+  return args.role === "Owner"
+    ? null
+    : "Only household owners can manage reminders.";
+}
+
+function buildEventCapabilities(args: {
+  role: SessionRole;
+  isImported: boolean;
+  isAllDay: boolean;
+  startsAtUtc: string | null;
+  isRecurring: boolean;
+}) {
+  const canEdit = args.role === "Owner" && !args.isImported;
+  const reminderEligibilityReason = getReminderEligibilityReason(args);
+  const canManageReminders = reminderEligibilityReason === null;
+
+  return {
+    isReadOnly: !canEdit,
+    canEdit,
+    canDelete: canEdit,
+    canCreateReminder: canManageReminders,
+    canManageReminders,
+    reminderEligibilityReason
+  };
+}
+
+function buildReminderCapabilities(role: SessionRole, status: string) {
+  if (role !== "Owner") {
+    return {
+      isReadOnly: true,
+      canDismiss: false,
+      canSnooze: false,
+      canDelete: false
+    };
+  }
+
+  if (status === "Pending") {
+    return {
+      isReadOnly: false,
+      canDismiss: true,
+      canSnooze: true,
+      canDelete: true
+    };
+  }
+
+  if (status === "Dismissed") {
+    return {
+      isReadOnly: false,
+      canDismiss: false,
+      canSnooze: false,
+      canDelete: true
+    };
+  }
+
+  return {
+    isReadOnly: true,
+    canDismiss: false,
+    canSnooze: false,
+    canDelete: false
+  };
+}
+
+function buildHomeResponse(role: SessionRole): HomeResponse {
   return {
     todayEvents: [
       {
@@ -77,7 +162,14 @@ function buildHomeResponse(): HomeResponse {
             startsAtUtc: "2026-04-20T14:30:00.000Z",
             endsAtUtc: "2026-04-20T15:00:00.000Z",
             isAllDay: false,
-            isImported: false
+            isImported: false,
+            ...buildEventCapabilities({
+              role,
+              isImported: false,
+              isAllDay: false,
+              startsAtUtc: "2026-04-20T14:30:00.000Z",
+              isRecurring: false
+            })
           }
         ]
       }
@@ -87,7 +179,8 @@ function buildHomeResponse(): HomeResponse {
         id: "rem-home",
         eventTitle: "Morning dropoff",
         minutesBefore: 20,
-        dueAtUtc: "2026-04-20T14:10:00.000Z"
+        dueAtUtc: "2026-04-20T14:10:00.000Z",
+        ...buildReminderCapabilities(role, "Pending")
       }
     ],
     memberChoreProgress: [],
@@ -111,6 +204,7 @@ async function mockCalendarRoutes(page: Page, role: SessionRole = "Owner") {
     googleSyncError: string | null;
     googleTargetDisplayName: string | null;
     lastGoogleSyncSucceededAtUtc: string | null;
+    isRecurring: boolean;
   }> = [
     {
       id: "evt-local",
@@ -125,7 +219,8 @@ async function mockCalendarRoutes(page: Page, role: SessionRole = "Owner") {
       googleSyncStatus: null,
       googleSyncError: null,
       googleTargetDisplayName: null,
-      lastGoogleSyncSucceededAtUtc: null
+      lastGoogleSyncSucceededAtUtc: null,
+      isRecurring: false
     },
     {
       id: "evt-imported",
@@ -140,7 +235,8 @@ async function mockCalendarRoutes(page: Page, role: SessionRole = "Owner") {
       googleSyncStatus: null,
       googleSyncError: null,
       googleTargetDisplayName: null,
-      lastGoogleSyncSucceededAtUtc: null
+      lastGoogleSyncSucceededAtUtc: null,
+      isRecurring: false
     },
     {
       id: "evt-next",
@@ -155,7 +251,8 @@ async function mockCalendarRoutes(page: Page, role: SessionRole = "Owner") {
       googleSyncStatus: null,
       googleSyncError: null,
       googleTargetDisplayName: null,
-      lastGoogleSyncSucceededAtUtc: null
+      lastGoogleSyncSucceededAtUtc: null,
+      isRecurring: false
     }
   ];
 
@@ -167,10 +264,10 @@ async function mockCalendarRoutes(page: Page, role: SessionRole = "Owner") {
       isAllDay: false,
       startsAtUtc: "2026-04-20T14:30:00.000Z",
       endsAtUtc: "2026-04-20T15:00:00.000Z",
-      isRecurring: true,
-      recurrencePattern: "Weekly",
-      recurrenceSummary: "Weekly on Monday",
-      weeklyDays: ["Monday"],
+      isRecurring: false,
+      recurrencePattern: "None",
+      recurrenceSummary: "One-time",
+      weeklyDays: [],
       recursUntilUtc: null,
       isImported: false,
       sourceKind: null,
@@ -197,7 +294,7 @@ async function mockCalendarRoutes(page: Page, role: SessionRole = "Owner") {
     }
   ];
 
-  const homeResponse = buildHomeResponse();
+  const homeResponse = buildHomeResponse(role);
 
   await page.route("**/api/auth/session", async (route) => {
     await route.fulfill({
@@ -251,7 +348,16 @@ async function mockCalendarRoutes(page: Page, role: SessionRole = "Owner") {
       body: JSON.stringify({
         windowStartUtc: startUtc,
         windowEndUtc: new Date(end).toISOString(),
-        items
+        items: items.map((item) => ({
+          ...item,
+          ...buildEventCapabilities({
+            role,
+            isImported: item.isImported,
+            isAllDay: item.isAllDay,
+            startsAtUtc: item.startsAtUtc,
+            isRecurring: item.isRecurring
+          })
+        }))
       })
     });
   });
@@ -260,7 +366,20 @@ async function mockCalendarRoutes(page: Page, role: SessionRole = "Owner") {
     await route.fulfill({
       status: role === "Owner" ? 200 : 403,
       contentType: "application/json",
-      body: role === "Owner" ? JSON.stringify({ items: seriesItems }) : JSON.stringify({ items: [] })
+      body: role === "Owner"
+        ? JSON.stringify({
+            items: seriesItems.map((item) => ({
+              ...item,
+              ...buildEventCapabilities({
+                role,
+                isImported: item.isImported,
+                isAllDay: item.isAllDay,
+                startsAtUtc: item.startsAtUtc,
+                isRecurring: item.isRecurring
+              })
+            }))
+          })
+        : JSON.stringify({ items: [] })
     });
   });
 
@@ -269,7 +388,12 @@ async function mockCalendarRoutes(page: Page, role: SessionRole = "Owner") {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ items: reminders })
+        body: JSON.stringify({
+          items: reminders.map((item) => ({
+            ...item,
+            ...buildReminderCapabilities(role, item.status)
+          }))
+        })
       });
       return;
     }
@@ -279,6 +403,24 @@ async function mockCalendarRoutes(page: Page, role: SessionRole = "Owner") {
       minutesBefore: number;
     };
     const matchingEvent = agendaItems.find((item) => item.id === body.scheduledEventId);
+    const matchingEventCapabilities = matchingEvent
+      ? buildEventCapabilities({
+          role,
+          isImported: matchingEvent.isImported,
+          isAllDay: matchingEvent.isAllDay,
+          startsAtUtc: matchingEvent.startsAtUtc,
+          isRecurring: matchingEvent.isRecurring
+        })
+      : null;
+
+    if (!matchingEvent || !matchingEventCapabilities?.canCreateReminder) {
+      await route.fulfill({
+        status: 400,
+        body: matchingEventCapabilities?.reminderEligibilityReason ?? "This event cannot receive reminders."
+      });
+      return;
+    }
+
     reminders = [
       {
         id: "rem-new",
@@ -325,7 +467,7 @@ async function mockCalendarRoutes(page: Page, role: SessionRole = "Owner") {
       startsAtUtc: string | null;
       endsAtUtc: string | null;
     };
-    agendaItems = [
+        agendaItems = [
       {
         id: "evt-new",
         title: body.title,
@@ -339,7 +481,8 @@ async function mockCalendarRoutes(page: Page, role: SessionRole = "Owner") {
         googleSyncStatus: null,
         googleSyncError: null,
         googleTargetDisplayName: null,
-        lastGoogleSyncSucceededAtUtc: null
+        lastGoogleSyncSucceededAtUtc: null,
+        isRecurring: false
       },
       ...agendaItems
     ];

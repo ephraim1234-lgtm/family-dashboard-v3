@@ -1,6 +1,7 @@
 using HouseholdOps.Infrastructure.Notifications;
 using HouseholdOps.Infrastructure.Persistence;
 using HouseholdOps.Modules.Households;
+using HouseholdOps.Modules.Integrations;
 using HouseholdOps.Modules.Notifications;
 using HouseholdOps.Modules.Notifications.Contracts;
 using HouseholdOps.Modules.Scheduling;
@@ -68,6 +69,50 @@ public class EventReminderServiceTests
 
         Assert.Equal(EventReminderMutationStatus.ValidationFailed, result.Status);
         Assert.NotNull(result.Error);
+    }
+
+    [Fact]
+    public async Task CreateReminder_WithRecurringEvent_ReturnsValidationError()
+    {
+        await using var dbContext = CreateDbContext();
+        var scheduledEvent = AddEvent(
+            dbContext,
+            "Medication",
+            isAllDay: false,
+            startsAt: new DateTimeOffset(2026, 4, 15, 9, 0, 0, TimeSpan.Zero),
+            recurrencePattern: EventRecurrencePattern.Daily);
+
+        var service = new EventReminderService(dbContext);
+        var result = await service.CreateReminderAsync(
+            HouseholdId,
+            new CreateEventReminderRequest(scheduledEvent.Id, MinutesBefore: 15),
+            CreatedAtUtc,
+            CancellationToken.None);
+
+        Assert.Equal(EventReminderMutationStatus.ValidationFailed, result.Status);
+        Assert.Equal("Recurring events cannot have reminders in this cleanup pass.", result.Error);
+    }
+
+    [Fact]
+    public async Task CreateReminder_WithImportedEvent_ReturnsValidationError()
+    {
+        await using var dbContext = CreateDbContext();
+        var scheduledEvent = AddEvent(
+            dbContext,
+            "Imported practice",
+            isAllDay: false,
+            startsAt: new DateTimeOffset(2026, 4, 15, 9, 0, 0, TimeSpan.Zero),
+            sourceKind: EventSourceKinds.GoogleCalendarIcs);
+
+        var service = new EventReminderService(dbContext);
+        var result = await service.CreateReminderAsync(
+            HouseholdId,
+            new CreateEventReminderRequest(scheduledEvent.Id, MinutesBefore: 15),
+            CreatedAtUtc,
+            CancellationToken.None);
+
+        Assert.Equal(EventReminderMutationStatus.ValidationFailed, result.Status);
+        Assert.Equal("Imported calendar events are read-only and cannot have local reminders.", result.Error);
     }
 
     [Fact]
@@ -210,7 +255,162 @@ public class EventReminderServiceTests
     }
 
     [Fact]
-    public async Task DeleteReminder_RemovesIt_AndReturnsFalseForMissing()
+    public async Task FireDueReminders_RemovesOrphanedReminderWithoutFiring()
+    {
+        await using var dbContext = CreateDbContext();
+        dbContext.EventReminders.Add(new EventReminder
+        {
+            HouseholdId = HouseholdId,
+            ScheduledEventId = Guid.NewGuid(),
+            EventTitle = "Legacy orphan",
+            MinutesBefore = 15,
+            DueAtUtc = CreatedAtUtc,
+            Status = EventReminderStatuses.Pending,
+            CreatedAtUtc = CreatedAtUtc.AddMinutes(-5)
+        });
+        await dbContext.SaveChangesAsync();
+
+        var service = new EventReminderService(dbContext);
+        var firedCount = await service.FireDueRemindersAsync(
+            CreatedAtUtc,
+            CancellationToken.None);
+
+        Assert.Equal(0, firedCount);
+        Assert.Empty(dbContext.EventReminders);
+    }
+
+    [Fact]
+    public async Task ReconcileEventReminders_WithUpdatedTimedEvent_ResetsReminderSchedule()
+    {
+        await using var dbContext = CreateDbContext();
+        var scheduledEvent = AddEvent(
+            dbContext,
+            "Dentist",
+            isAllDay: false,
+            startsAt: new DateTimeOffset(2026, 4, 15, 14, 0, 0, TimeSpan.Zero));
+
+        dbContext.EventReminders.Add(new EventReminder
+        {
+            HouseholdId = HouseholdId,
+            ScheduledEventId = scheduledEvent.Id,
+            EventTitle = scheduledEvent.Title,
+            MinutesBefore = 30,
+            DueAtUtc = scheduledEvent.StartsAtUtc!.Value.AddMinutes(-30),
+            Status = EventReminderStatuses.Fired,
+            FiredAtUtc = scheduledEvent.StartsAtUtc.Value.AddMinutes(-30),
+            CreatedAtUtc = CreatedAtUtc
+        });
+        await dbContext.SaveChangesAsync();
+
+        scheduledEvent.Title = "Dentist follow-up";
+        scheduledEvent.StartsAtUtc = new DateTimeOffset(2026, 4, 16, 16, 0, 0, TimeSpan.Zero);
+        await dbContext.SaveChangesAsync();
+
+        var service = new EventReminderService(dbContext);
+        await service.ReconcileEventRemindersAsync(
+            HouseholdId,
+            scheduledEvent.Id,
+            CancellationToken.None);
+
+        var reminder = await dbContext.EventReminders.SingleAsync();
+        Assert.Equal("Dentist follow-up", reminder.EventTitle);
+        Assert.Equal(new DateTimeOffset(2026, 4, 16, 15, 30, 0, TimeSpan.Zero), reminder.DueAtUtc);
+        Assert.Equal(EventReminderStatuses.Pending, reminder.Status);
+        Assert.Null(reminder.FiredAtUtc);
+    }
+
+    [Fact]
+    public async Task ReconcileEventReminders_WithUnsupportedEvent_RemovesReminder()
+    {
+        await using var dbContext = CreateDbContext();
+        var scheduledEvent = AddEvent(
+            dbContext,
+            "Field day",
+            isAllDay: false,
+            startsAt: new DateTimeOffset(2026, 4, 15, 14, 0, 0, TimeSpan.Zero));
+
+        dbContext.EventReminders.Add(new EventReminder
+        {
+            HouseholdId = HouseholdId,
+            ScheduledEventId = scheduledEvent.Id,
+            EventTitle = scheduledEvent.Title,
+            MinutesBefore = 30,
+            DueAtUtc = scheduledEvent.StartsAtUtc!.Value.AddMinutes(-30),
+            Status = EventReminderStatuses.Pending,
+            CreatedAtUtc = CreatedAtUtc
+        });
+        await dbContext.SaveChangesAsync();
+
+        scheduledEvent.IsAllDay = true;
+        await dbContext.SaveChangesAsync();
+
+        var service = new EventReminderService(dbContext);
+        await service.ReconcileEventRemindersAsync(
+            HouseholdId,
+            scheduledEvent.Id,
+            CancellationToken.None);
+
+        Assert.Empty(dbContext.EventReminders);
+    }
+
+    [Fact]
+    public async Task ListRemindersAsync_UsesOwnerAwareCapabilities_AndPrunesInvalidRows()
+    {
+        await using var dbContext = CreateDbContext();
+        var scheduledEvent = AddEvent(
+            dbContext,
+            "Errand",
+            isAllDay: false,
+            startsAt: new DateTimeOffset(2026, 4, 15, 9, 0, 0, TimeSpan.Zero));
+
+        dbContext.EventReminders.AddRange(
+            new EventReminder
+            {
+                HouseholdId = HouseholdId,
+                ScheduledEventId = scheduledEvent.Id,
+                EventTitle = scheduledEvent.Title,
+                MinutesBefore = 10,
+                DueAtUtc = scheduledEvent.StartsAtUtc!.Value.AddMinutes(-10),
+                Status = EventReminderStatuses.Pending,
+                CreatedAtUtc = CreatedAtUtc
+            },
+            new EventReminder
+            {
+                HouseholdId = HouseholdId,
+                ScheduledEventId = Guid.NewGuid(),
+                EventTitle = "Legacy imported",
+                MinutesBefore = 15,
+                DueAtUtc = CreatedAtUtc.AddMinutes(15),
+                Status = EventReminderStatuses.Pending,
+                CreatedAtUtc = CreatedAtUtc
+            });
+        await dbContext.SaveChangesAsync();
+
+        var service = new EventReminderService(dbContext);
+        var ownerList = await service.ListRemindersAsync(
+            HouseholdId,
+            isOwner: true,
+            CancellationToken.None);
+        var memberList = await service.ListRemindersAsync(
+            HouseholdId,
+            isOwner: false,
+            CancellationToken.None);
+
+        var ownerReminder = Assert.Single(ownerList.Items);
+        Assert.True(ownerReminder.CanDismiss);
+        Assert.True(ownerReminder.CanSnooze);
+        Assert.True(ownerReminder.CanDelete);
+
+        var memberReminder = Assert.Single(memberList.Items);
+        Assert.True(memberReminder.IsReadOnly);
+        Assert.False(memberReminder.CanDismiss);
+        Assert.False(memberReminder.CanSnooze);
+        Assert.False(memberReminder.CanDelete);
+        Assert.Single(dbContext.EventReminders);
+    }
+
+    [Fact]
+    public async Task DeleteReminder_RemovesIt_AndReturnsNotFoundForMissing()
     {
         await using var dbContext = CreateDbContext();
         var eventStart = new DateTimeOffset(2026, 4, 15, 9, 0, 0, TimeSpan.Zero);
@@ -228,8 +428,8 @@ public class EventReminderServiceTests
         var notFound = await service.DeleteReminderAsync(
             HouseholdId, created.Reminder.Id, CancellationToken.None);
 
-        Assert.True(deleted);
-        Assert.False(notFound);
+        Assert.Equal(EventReminderMutationStatus.Succeeded, deleted.Status);
+        Assert.Equal(EventReminderMutationStatus.NotFound, notFound.Status);
         Assert.Empty(dbContext.EventReminders);
     }
 
@@ -254,7 +454,9 @@ public class EventReminderServiceTests
         HouseholdOpsDbContext dbContext,
         string title,
         bool isAllDay,
-        DateTimeOffset? startsAt)
+        DateTimeOffset? startsAt,
+        EventRecurrencePattern recurrencePattern = EventRecurrencePattern.None,
+        string? sourceKind = null)
     {
         var scheduledEvent = new ScheduledEvent
         {
@@ -263,6 +465,8 @@ public class EventReminderServiceTests
             Title = title,
             IsAllDay = isAllDay,
             StartsAtUtc = startsAt,
+            RecurrencePattern = recurrencePattern,
+            SourceKind = sourceKind,
             CreatedAtUtc = CreatedAtUtc
         };
         dbContext.ScheduledEvents.Add(scheduledEvent);

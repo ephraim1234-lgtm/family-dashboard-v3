@@ -20,6 +20,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\backend\HouseholdOps.Infrastructure\HouseholdOps.Infrastructure.csproj" />
     <ProjectReference Include="..\..\src\backend\HouseholdOps.Modules.Display\HouseholdOps.Modules.Display.csproj" />
+    <ProjectReference Include="..\..\src\backend\HouseholdOps.Modules.Integrations\HouseholdOps.Modules.Integrations.csproj" />
+    <ProjectReference Include="..\..\src\backend\HouseholdOps.Modules.Notifications\HouseholdOps.Modules.Notifications.csproj" />
     <ProjectReference Include="..\..\src\backend\HouseholdOps.Modules.Scheduling\HouseholdOps.Modules.Scheduling.csproj" />
   </ItemGroup>
 

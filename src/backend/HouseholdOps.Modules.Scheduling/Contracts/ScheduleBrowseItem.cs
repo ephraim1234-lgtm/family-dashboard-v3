@@ -11,4 +11,10 @@ public sealed record ScheduleBrowseItem(
     string RecurrencePattern,
     string RecurrenceSummary,
     bool IsImported,
-    string? SourceKind);
+    string? SourceKind,
+    bool IsReadOnly,
+    bool CanEdit,
+    bool CanDelete,
+    bool CanCreateReminder,
+    bool CanManageReminders,
+    string? ReminderEligibilityReason);

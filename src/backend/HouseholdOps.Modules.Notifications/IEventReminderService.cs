@@ -6,6 +6,7 @@ public interface IEventReminderService
 {
     Task<EventReminderListResponse> ListRemindersAsync(
         Guid householdId,
+        bool isOwner,
         CancellationToken cancellationToken);
 
     Task<EventReminderMutationResult> CreateReminderAsync(
@@ -14,7 +15,7 @@ public interface IEventReminderService
         DateTimeOffset createdAtUtc,
         CancellationToken cancellationToken);
 
-    Task<bool> DeleteReminderAsync(
+    Task<EventReminderMutationResult> DeleteReminderAsync(
         Guid householdId,
         Guid reminderId,
         CancellationToken cancellationToken);
@@ -29,6 +30,21 @@ public interface IEventReminderService
         Guid reminderId,
         int snoozeMinutes,
         DateTimeOffset nowUtc,
+        CancellationToken cancellationToken);
+
+    Task ReconcileEventRemindersAsync(
+        Guid householdId,
+        Guid scheduledEventId,
+        CancellationToken cancellationToken);
+
+    Task RemoveEventRemindersAsync(
+        Guid householdId,
+        Guid scheduledEventId,
+        CancellationToken cancellationToken);
+
+    Task RemoveEventRemindersAsync(
+        Guid householdId,
+        IReadOnlyCollection<Guid> scheduledEventIds,
         CancellationToken cancellationToken);
 
     Task<int> FireDueRemindersAsync(

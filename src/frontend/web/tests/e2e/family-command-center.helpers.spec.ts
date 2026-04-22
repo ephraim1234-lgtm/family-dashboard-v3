@@ -95,7 +95,13 @@ test("selects happening-now and next-up items from the home payload", () => {
             startsAtUtc: "2026-04-21T18:00:00.000Z",
             endsAtUtc: "2026-04-21T19:00:00.000Z",
             isAllDay: false,
-            isImported: false
+            isImported: false,
+            isReadOnly: false,
+            canEdit: true,
+            canDelete: true,
+            canCreateReminder: true,
+            canManageReminders: true,
+            reminderEligibilityReason: null
           }
         ]
       }

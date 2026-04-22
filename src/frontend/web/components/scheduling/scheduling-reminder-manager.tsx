@@ -6,6 +6,8 @@ import {
 
 type SchedulingReminderManagerProps = {
   isAllDay: boolean;
+  canManageReminders: boolean;
+  reminderEligibilityReason: string | null;
   isPending: boolean;
   reminderMinutesBefore: number;
   onReminderMinutesChange: (value: number) => void;
@@ -17,6 +19,8 @@ type SchedulingReminderManagerProps = {
 
 export function SchedulingReminderManager({
   isAllDay,
+  canManageReminders,
+  reminderEligibilityReason,
   isPending,
   reminderMinutesBefore,
   onReminderMinutesChange,
@@ -29,11 +33,11 @@ export function SchedulingReminderManager({
     <div className="reminder-section">
       <div className="eyebrow">Event reminders</div>
       <p className="muted">
-        Reminders fire before the event starts. All-day events are not supported.
+        Reminders fire before the event starts for local, timed, one-time events.
       </p>
-      {isAllDay ? (
+      {reminderEligibilityReason ? (
         <p className="muted">
-          Switch this series back to a timed event if you need reminders.
+          {reminderEligibilityReason}
         </p>
       ) : null}
 
@@ -46,7 +50,7 @@ export function SchedulingReminderManager({
             max={10080}
             value={reminderMinutesBefore}
             onChange={(event) => onReminderMinutesChange(Number(event.target.value))}
-            disabled={isPending}
+            disabled={isPending || !canManageReminders}
           />
         </label>
         <div className="pill-row reminder-preset-row">
@@ -55,7 +59,7 @@ export function SchedulingReminderManager({
               key={preset}
               className={`pill-button${reminderMinutesBefore === preset ? " pill-button-active" : ""}`}
               onClick={() => onReminderMinutesChange(preset)}
-              disabled={isPending}
+              disabled={isPending || !canManageReminders}
               type="button"
             >
               {preset < 60
@@ -69,7 +73,7 @@ export function SchedulingReminderManager({
         <button
           className="action-button"
           onClick={onAddReminder}
-          disabled={isPending || isAllDay}
+          disabled={isPending || isAllDay || !canManageReminders}
           type="button"
         >
           {isPending ? "Saving..." : "Add Reminder"}
@@ -94,7 +98,7 @@ export function SchedulingReminderManager({
                   <button
                     className="action-button action-button-secondary"
                     onClick={() => onDeleteReminder(reminder.id)}
-                    disabled={isPending}
+                    disabled={isPending || !reminder.canDelete}
                     type="button"
                   >
                     Remove

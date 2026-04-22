@@ -119,7 +119,13 @@ function createHomeResponse(): HomeResponse {
             startsAtUtc: "2026-04-21T18:00:00.000Z",
             endsAtUtc: "2026-04-21T19:00:00.000Z",
             isAllDay: false,
-            isImported: false
+            isImported: false,
+            isReadOnly: false,
+            canEdit: true,
+            canDelete: true,
+            canCreateReminder: true,
+            canManageReminders: true,
+            reminderEligibilityReason: null
           }
         ]
       },
@@ -132,7 +138,13 @@ function createHomeResponse(): HomeResponse {
             startsAtUtc: "2026-04-22T00:00:00.000Z",
             endsAtUtc: "2026-04-22T23:59:00.000Z",
             isAllDay: true,
-            isImported: true
+            isImported: true,
+            isReadOnly: true,
+            canEdit: false,
+            canDelete: false,
+            canCreateReminder: false,
+            canManageReminders: false,
+            reminderEligibilityReason: "Imported calendar events are read-only and cannot have local reminders."
           }
         ]
       }
@@ -142,13 +154,21 @@ function createHomeResponse(): HomeResponse {
         id: "rem-1",
         eventTitle: "Morning meds",
         minutesBefore: 30,
-        dueAtUtc: "2026-04-20T13:45:00.000Z"
+        dueAtUtc: "2026-04-20T13:45:00.000Z",
+        isReadOnly: false,
+        canDismiss: true,
+        canSnooze: true,
+        canDelete: true
       },
       {
         id: "rem-2",
         eventTitle: "Choir recital",
         minutesBefore: 20,
-        dueAtUtc: "2026-04-21T17:40:00.000Z"
+        dueAtUtc: "2026-04-21T17:40:00.000Z",
+        isReadOnly: false,
+        canDismiss: true,
+        canSnooze: true,
+        canDelete: true
       }
     ],
     memberChoreProgress: [
@@ -274,7 +294,13 @@ async function mockOverviewRoutes(page: Page) {
               startsAtUtc: "2026-04-21T20:00:00.000Z",
               endsAtUtc: "2026-04-21T21:00:00.000Z",
               isAllDay: false,
-              isImported: false
+              isImported: false,
+              isReadOnly: false,
+              canEdit: true,
+              canDelete: true,
+              canCreateReminder: true,
+              canManageReminders: true,
+              reminderEligibilityReason: null
             },
             ...homeResponse.upcomingDays[0].events
           ]
@@ -308,7 +334,11 @@ async function mockOverviewRoutes(page: Page) {
           id: "rem-new",
           eventTitle: matchingEvent?.title ?? "New reminder",
           minutesBefore: requestBody.minutesBefore,
-          dueAtUtc: "2026-04-21T19:40:00.000Z"
+          dueAtUtc: "2026-04-21T19:40:00.000Z",
+          isReadOnly: false,
+          canDismiss: true,
+          canSnooze: true,
+          canDelete: true
         },
         ...homeResponse.pendingReminders
       ]

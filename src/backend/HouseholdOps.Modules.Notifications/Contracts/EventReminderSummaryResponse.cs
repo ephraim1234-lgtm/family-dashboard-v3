@@ -8,4 +8,8 @@ public sealed record EventReminderSummaryResponse(
     DateTimeOffset DueAtUtc,
     string Status,
     DateTimeOffset? FiredAtUtc,
-    DateTimeOffset CreatedAtUtc);
+    DateTimeOffset CreatedAtUtc,
+    bool IsReadOnly,
+    bool CanDismiss,
+    bool CanSnooze,
+    bool CanDelete);

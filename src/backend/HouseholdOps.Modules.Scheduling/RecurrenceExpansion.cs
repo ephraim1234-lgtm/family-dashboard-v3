@@ -126,6 +126,12 @@ public static class RecurrenceExpansion
                     null,
                     null,
                     null,
+                    null,
+                    false,
+                    false,
+                    false,
+                    false,
+                    false,
                     null));
                 }
             }
@@ -155,6 +161,12 @@ public static class RecurrenceExpansion
             null,
             null,
             null,
+            null,
+            false,
+            false,
+            false,
+            false,
+            false,
             null);
     }
 

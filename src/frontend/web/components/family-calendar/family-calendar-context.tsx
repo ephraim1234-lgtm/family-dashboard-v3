@@ -540,6 +540,13 @@ export function FamilyCalendarProvider({
       return;
     }
 
+    if (!selectedDetail.item.canCreateReminder) {
+      throw new Error(
+        selectedDetail.item.reminderEligibilityReason
+          ?? "This event cannot receive reminders."
+      );
+    }
+
     const response = await fetch("/api/notifications/reminders", {
       method: "POST",
       credentials: "same-origin",

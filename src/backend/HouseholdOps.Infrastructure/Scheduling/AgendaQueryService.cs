@@ -1,4 +1,5 @@
 using HouseholdOps.Infrastructure.Persistence;
+using HouseholdOps.Modules.Notifications;
 using HouseholdOps.Modules.Integrations;
 using HouseholdOps.Modules.Scheduling;
 using HouseholdOps.Modules.Scheduling.Contracts;
@@ -35,27 +36,37 @@ public sealed class AgendaQueryService(HouseholdOpsDbContext dbContext) : IAgend
             .SelectMany(e => RecurrenceExpansion.ExpandIntoWindow(
                 e,
                 request.WindowStartUtc,
-                request.WindowEndUtc))
-            .Select(item =>
+                request.WindowEndUtc)
+                .Select(item => (ScheduledEvent: e, ExpandedItem: item)))
+            .Select(entry =>
             {
-                var syncInfo = localSyncInfo.TryGetValue(item.Id, out var info)
+                var syncInfo = localSyncInfo.TryGetValue(entry.ExpandedItem.Id, out var info)
                     ? info
                     : null;
+                var capabilities = ScheduleItemPolicy.BuildEventCapabilities(
+                    entry.ScheduledEvent,
+                    request.IsOwner);
 
                 return new UpcomingEventItem(
-                    item.Id,
-                    item.Title,
-                    item.Description,
-                    item.IsAllDay,
-                    item.StartsAtUtc,
-                    item.EndsAtUtc,
-                    item.IsImported,
-                    item.SourceKind,
+                    entry.ExpandedItem.Id,
+                    entry.ExpandedItem.Title,
+                    entry.ExpandedItem.Description,
+                    entry.ExpandedItem.IsAllDay,
+                    entry.ExpandedItem.StartsAtUtc,
+                    entry.ExpandedItem.EndsAtUtc,
+                    entry.ExpandedItem.IsImported,
+                    entry.ExpandedItem.SourceKind,
                     syncInfo is not null,
                     syncInfo?.SyncStatus,
                     syncInfo?.LastError,
                     syncInfo?.TargetDisplayName,
-                    syncInfo?.LastSucceededAtUtc);
+                    syncInfo?.LastSucceededAtUtc,
+                    capabilities.IsReadOnly,
+                    capabilities.CanEdit,
+                    capabilities.CanDelete,
+                    capabilities.CanCreateReminder,
+                    capabilities.CanManageReminders,
+                    capabilities.ReminderEligibilityReason);
             })
             .OrderBy(e => e.StartsAtUtc)
             .ToList();
@@ -123,21 +134,32 @@ public sealed class ScheduleBrowseQueryService(
                 e,
                 request.WindowStartUtc,
                 request.WindowEndUtc)
-                .Select(item => new ScheduleBrowseItem(
-                    e.Id,
-                    item.Title,
-                    item.Description,
-                    item.IsAllDay,
-                    item.StartsAtUtc,
-                    item.EndsAtUtc,
-                    e.RecurrencePattern != EventRecurrencePattern.None,
-                    e.RecurrencePattern.ToString(),
-                    RecurrenceRequestMapper.ToSummary(
-                        e.RecurrencePattern,
-                        e.WeeklyDaysMask,
-                        e.RecursUntilUtc),
-                    !string.IsNullOrWhiteSpace(e.SourceKind),
-                    e.SourceKind)))
+                .Select(item =>
+                {
+                    var capabilities = ScheduleItemPolicy.BuildEventCapabilities(e, isOwner: true);
+
+                    return new ScheduleBrowseItem(
+                        e.Id,
+                        item.Title,
+                        item.Description,
+                        item.IsAllDay,
+                        item.StartsAtUtc,
+                        item.EndsAtUtc,
+                        e.RecurrencePattern != EventRecurrencePattern.None,
+                        e.RecurrencePattern.ToString(),
+                        RecurrenceRequestMapper.ToSummary(
+                            e.RecurrencePattern,
+                            e.WeeklyDaysMask,
+                            e.RecursUntilUtc),
+                        !string.IsNullOrWhiteSpace(e.SourceKind),
+                        e.SourceKind,
+                        capabilities.IsReadOnly,
+                        capabilities.CanEdit,
+                        capabilities.CanDelete,
+                        capabilities.CanCreateReminder,
+                        capabilities.CanManageReminders,
+                        capabilities.ReminderEligibilityReason);
+                }))
             .OrderBy(item => item.StartsAtUtc)
             .GroupBy(item => DateOnly.FromDateTime(
                 item.StartsAtUtc?.UtcDateTime.Date ?? request.WindowStartUtc.UtcDateTime.Date))
@@ -157,7 +179,8 @@ public sealed class ScheduleBrowseQueryService(
 public sealed class ScheduledEventManagementService(
     HouseholdOpsDbContext dbContext,
     IClock clock,
-    IGoogleCalendarIntegrationService googleCalendarIntegrationService) : IScheduledEventManagementService
+    IGoogleCalendarIntegrationService googleCalendarIntegrationService,
+    IEventReminderService eventReminderService) : IScheduledEventManagementService
 {
     public async Task<ScheduledEventMutationResult> CreateEventAsync(
         Guid householdId,
@@ -287,6 +310,10 @@ public sealed class ScheduledEventManagementService(
             clock.UtcNow,
             cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
+        await eventReminderService.ReconcileEventRemindersAsync(
+            householdId,
+            scheduledEvent.Id,
+            cancellationToken);
 
         var syncInfo = await LoadLocalGoogleSyncInfoAsync(
             householdId,
@@ -324,6 +351,10 @@ public sealed class ScheduledEventManagementService(
             scheduledEvent.Id,
             clock.UtcNow,
             cancellationToken);
+        await eventReminderService.RemoveEventRemindersAsync(
+            householdId,
+            scheduledEvent.Id,
+            cancellationToken);
         dbContext.ScheduledEvents.Remove(scheduledEvent);
         await dbContext.SaveChangesAsync(cancellationToken);
 
@@ -332,8 +363,11 @@ public sealed class ScheduledEventManagementService(
 
     private ScheduledEventSeriesItem MapSeriesItem(
         ScheduledEvent scheduledEvent,
-        LocalGoogleSyncInfo? localGoogleSync = null) =>
-        new(
+        LocalGoogleSyncInfo? localGoogleSync = null)
+    {
+        var capabilities = ScheduleItemPolicy.BuildEventCapabilities(scheduledEvent, isOwner: true);
+
+        return new ScheduledEventSeriesItem(
             scheduledEvent.Id,
             scheduledEvent.Title,
             scheduledEvent.Description,
@@ -356,7 +390,14 @@ public sealed class ScheduledEventManagementService(
             localGoogleSync?.TargetDisplayName,
             localGoogleSync?.LastSucceededAtUtc,
             GetNextOccurrenceStartsAtUtc(scheduledEvent, clock.UtcNow),
-            scheduledEvent.CreatedAtUtc);
+            scheduledEvent.CreatedAtUtc,
+            capabilities.IsReadOnly,
+            capabilities.CanEdit,
+            capabilities.CanDelete,
+            capabilities.CanCreateReminder,
+            capabilities.CanManageReminders,
+            capabilities.ReminderEligibilityReason);
+    }
 
     private static ValidatedScheduledEvent ValidateRequest(
         string title,

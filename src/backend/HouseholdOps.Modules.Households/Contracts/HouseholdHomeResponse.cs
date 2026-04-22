@@ -20,7 +20,11 @@ public sealed record HomeReminder(
     Guid Id,
     string EventTitle,
     int MinutesBefore,
-    DateTimeOffset DueAtUtc);
+    DateTimeOffset DueAtUtc,
+    bool IsReadOnly,
+    bool CanDismiss,
+    bool CanSnooze,
+    bool CanDelete);
 
 public sealed record HomeEvent(
     string Title,
@@ -39,7 +43,13 @@ public sealed record HomeUpcomingEvent(
     DateTimeOffset? StartsAtUtc,
     DateTimeOffset? EndsAtUtc,
     bool IsAllDay,
-    bool IsImported);
+    bool IsImported,
+    bool IsReadOnly,
+    bool CanEdit,
+    bool CanDelete,
+    bool CanCreateReminder,
+    bool CanManageReminders,
+    string? ReminderEligibilityReason);
 
 public sealed record HomeChore(
     Guid Id,

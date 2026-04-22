@@ -17,7 +17,8 @@ namespace HouseholdOps.Infrastructure.Display;
 public sealed class DisplayProjectionService(
     HouseholdOpsDbContext dbContext,
     IClock clock,
-    IAgendaQueryService agendaQueryService) : IDisplayProjectionService
+    IAgendaQueryService agendaQueryService,
+    IEventReminderService eventReminderService) : IDisplayProjectionService
 {
     private static string ToDayLabel(DateOnly date, DateOnly today)
     {
@@ -74,7 +75,7 @@ public sealed class DisplayProjectionService(
         var windowEnd = todayEndUtc.AddDays(6);
 
         var agenda = await agendaQueryService.GetUpcomingEventsAsync(
-            new UpcomingEventsRequest(result.HouseholdId, windowStart, windowEnd),
+            new UpcomingEventsRequest(result.HouseholdId, windowStart, windowEnd, IsOwner: false),
             cancellationToken);
 
         var agendaItems = agenda.Items
@@ -159,14 +160,20 @@ public sealed class DisplayProjectionService(
             .ToList();
 
         var reminderCutoff = windowStart.AddMinutes(30);
-        var upcomingReminders = await dbContext.EventReminders
-            .Where(r =>
-                r.HouseholdId == result.HouseholdId
-                && r.Status == EventReminderStatuses.Pending
-                && r.DueAtUtc <= reminderCutoff)
-            .OrderBy(r => r.DueAtUtc)
-            .Select(r => new DisplayReminderItem(r.EventTitle, r.MinutesBefore, r.DueAtUtc))
-            .ToListAsync(cancellationToken);
+        var reminderResponse = await eventReminderService.ListRemindersAsync(
+            result.HouseholdId,
+            isOwner: false,
+            cancellationToken);
+        var upcomingReminders = reminderResponse.Items
+            .Where(reminder =>
+                reminder.Status == EventReminderStatuses.Pending
+                && reminder.DueAtUtc <= reminderCutoff)
+            .OrderBy(reminder => reminder.DueAtUtc)
+            .Select(reminder => new DisplayReminderItem(
+                reminder.EventTitle,
+                reminder.MinutesBefore,
+                reminder.DueAtUtc))
+            .ToList();
 
         // Chore weekday bitmask anchored to the household's local day so a
         // "Monday" chore lights up when it is Monday at home.

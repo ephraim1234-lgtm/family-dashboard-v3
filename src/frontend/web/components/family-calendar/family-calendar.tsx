@@ -720,8 +720,10 @@ function CalendarDetailDrawer() {
     return null;
   }
 
-  const isEvent = selectedDetail.type === "event";
-  const isEditableEvent = isEvent && selectedDetail.item.accessState === "editable" && isOwner;
+  const selectedEventDetail = selectedDetail.type === "event" ? selectedDetail.item : null;
+  const selectedReminderDetail = selectedDetail.type === "reminder" ? selectedDetail.item : null;
+  const isEvent = selectedEventDetail !== null;
+  const isEditableEvent = Boolean(selectedEventDetail?.canEdit) && isOwner;
 
   return (
     <BottomDrawer
@@ -736,7 +738,7 @@ function CalendarDetailDrawer() {
             <div className="min-w-0 flex-1">
               <strong>{selectedDetail.item.title}</strong>
               <div className="muted">
-                {isEvent ? selectedDetail.item.timeLabel : selectedDetail.item.dueLabel}
+                {selectedEventDetail ? selectedEventDetail.timeLabel : selectedReminderDetail!.dueLabel}
               </div>
             </div>
             <HouseholdMetaBadges
@@ -751,18 +753,18 @@ function CalendarDetailDrawer() {
             <p className="muted">{selectedDetail.item.description}</p>
           ) : null}
           <p className="muted mb-0">{selectedDetail.item.detailLabel}</p>
-          {isEvent && selectedDetail.item.spanLabel ? (
-            <p className="muted mb-0">{selectedDetail.item.spanLabel}</p>
+          {selectedEventDetail?.spanLabel ? (
+            <p className="muted mb-0">{selectedEventDetail.spanLabel}</p>
           ) : null}
-          {isEvent && selectedDetail.item.recurrenceSummary ? (
-            <p className="muted mb-0 mt-3">{selectedDetail.item.recurrenceSummary}</p>
+          {selectedEventDetail?.recurrenceSummary ? (
+            <p className="muted mb-0 mt-3">{selectedEventDetail.recurrenceSummary}</p>
           ) : null}
-          {isEvent && selectedDetail.item.googleSyncLabel ? (
-            <p className="muted mb-0 mt-3">{selectedDetail.item.googleSyncLabel}</p>
+          {selectedEventDetail?.googleSyncLabel ? (
+            <p className="muted mb-0 mt-3">{selectedEventDetail.googleSyncLabel}</p>
           ) : null}
         </div>
 
-        {isEditableEvent ? (
+        {selectedEventDetail && isEditableEvent ? (
           detailEditorOpen ? (
             <div className="stack-card">
               <div className="eyebrow">Edit local series</div>
@@ -793,6 +795,8 @@ function CalendarDetailDrawer() {
               >
                 <SchedulingReminderManager
                   isAllDay={seriesEditorState.isAllDay}
+                  canManageReminders={selectedEventDetail.canManageReminders}
+                  reminderEligibilityReason={selectedEventDetail.reminderEligibilityReason}
                   isPending={isPending}
                   reminderMinutesBefore={reminderMinutesBefore}
                   onReminderMinutesChange={setReminderMinutesBefore}
@@ -826,30 +830,31 @@ function CalendarDetailDrawer() {
           )
         ) : null}
 
-        {selectedDetail.type === "event" && selectedDetail.item.isImported ? (
+        {selectedEventDetail?.isImported ? (
           <div className="stack-card">
             <div className="eyebrow">Imported event</div>
             <p className="muted mb-0">
-              Imported calendar items stay visible in the family calendar, but edits and deletes continue through the calendar integration workflow.
+              {selectedEventDetail.reminderEligibilityReason
+                ?? "Imported calendar items stay visible in the family calendar, but edits and deletes continue through the calendar integration workflow."}
             </p>
           </div>
         ) : null}
 
-        {selectedDetail.type === "event" && !selectedDetail.item.isImported && selectedDetail.item.isGoogleMirrorEnabled ? (
+        {selectedEventDetail && !selectedEventDetail.isImported && selectedEventDetail.isGoogleMirrorEnabled ? (
           <div className="stack-card">
             <div className="eyebrow">Google mirror</div>
             <p className="muted">
-              {selectedDetail.item.googleSyncLabel ?? "Mirrored to Google"}
-              {selectedDetail.item.googleTargetDisplayName
-                ? ` - ${selectedDetail.item.googleTargetDisplayName}`
+              {selectedEventDetail.googleSyncLabel ?? "Mirrored to Google"}
+              {selectedEventDetail.googleTargetDisplayName
+                ? ` - ${selectedEventDetail.googleTargetDisplayName}`
                 : ""}
             </p>
-            {selectedDetail.item.googleSyncError ? (
-              <p className="error-text">{selectedDetail.item.googleSyncError}</p>
+            {selectedEventDetail.googleSyncError ? (
+              <p className="error-text">{selectedEventDetail.googleSyncError}</p>
             ) : null}
-            {selectedDetail.item.lastGoogleSyncSucceededAtUtc ? (
+            {selectedEventDetail.lastGoogleSyncSucceededAtUtc ? (
               <p className="muted mb-0">
-                Last synced {new Date(selectedDetail.item.lastGoogleSyncSucceededAtUtc).toLocaleString()}.
+                Last synced {new Date(selectedEventDetail.lastGoogleSyncSucceededAtUtc).toLocaleString()}.
               </p>
             ) : (
               <p className="muted mb-0">
@@ -859,46 +864,56 @@ function CalendarDetailDrawer() {
           </div>
         ) : null}
 
-        {selectedDetail.type === "reminder" ? (
+        {selectedReminderDetail ? (
           <div className="stack-card">
             <div className="eyebrow">Reminder</div>
             <p className="muted">
-              {selectedDetail.item.status} - {selectedDetail.item.minutesBefore} minutes before the related event.
+              {selectedReminderDetail.status} - {selectedReminderDetail.minutesBefore} minutes before the related event.
             </p>
-            {isOwner ? (
+            {selectedReminderDetail.canDismiss || selectedReminderDetail.canSnooze || selectedReminderDetail.canDelete ? (
               <div className="action-row compact-action-row">
-                <ActionButton
-                  variant="secondary"
-                  onClick={() => handleSnoozeReminder(selectedDetail.item.id, 60)}
-                  disabled={isPending}
-                >
-                  Snooze 1h
-                </ActionButton>
-                <ActionButton
-                  variant="secondary"
-                  onClick={() => handleSnoozeReminder(selectedDetail.item.id, 1440)}
-                  disabled={isPending}
-                >
-                  Snooze 1d
-                </ActionButton>
-                <ActionButton
-                  variant="ghost"
-                  onClick={() => handleDismissReminder(selectedDetail.item.id)}
-                  disabled={isPending}
-                >
-                  Dismiss
-                </ActionButton>
-                <ActionButton
-                  variant="danger"
-                  onClick={() => handleDeleteReminder(selectedDetail.item.id)}
-                  disabled={isPending}
-                >
-                  Delete
-                </ActionButton>
+                {selectedReminderDetail.canSnooze ? (
+                  <ActionButton
+                    variant="secondary"
+                    onClick={() => handleSnoozeReminder(selectedReminderDetail.id, 60)}
+                    disabled={isPending}
+                  >
+                    Snooze 1h
+                  </ActionButton>
+                ) : null}
+                {selectedReminderDetail.canSnooze ? (
+                  <ActionButton
+                    variant="secondary"
+                    onClick={() => handleSnoozeReminder(selectedReminderDetail.id, 1440)}
+                    disabled={isPending}
+                  >
+                    Snooze 1d
+                  </ActionButton>
+                ) : null}
+                {selectedReminderDetail.canDismiss ? (
+                  <ActionButton
+                    variant="ghost"
+                    onClick={() => handleDismissReminder(selectedReminderDetail.id)}
+                    disabled={isPending}
+                  >
+                    Dismiss
+                  </ActionButton>
+                ) : null}
+                {selectedReminderDetail.canDelete ? (
+                  <ActionButton
+                    variant="danger"
+                    onClick={() => handleDeleteReminder(selectedReminderDetail.id)}
+                    disabled={isPending}
+                  >
+                    Delete
+                  </ActionButton>
+                ) : null}
               </div>
             ) : (
               <p className="muted mb-0">
-                Reminder triage stays owner-managed in this slice, but the prompt remains visible for household awareness.
+                {selectedReminderDetail.isReadOnly
+                  ? "Reminder triage stays owner-managed in this slice, but the prompt remains visible for household awareness."
+                  : "This reminder is visible, but it does not currently allow additional actions."}
               </p>
             )}
           </div>

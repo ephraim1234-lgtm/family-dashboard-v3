@@ -50,7 +50,13 @@ function buildWeekAgendaResponse(): UpcomingEventsResponse {
         googleSyncStatus: null,
         googleSyncError: null,
         googleTargetDisplayName: null,
-        lastGoogleSyncSucceededAtUtc: null
+        lastGoogleSyncSucceededAtUtc: null,
+        isReadOnly: false,
+        canEdit: true,
+        canDelete: true,
+        canCreateReminder: true,
+        canManageReminders: true,
+        reminderEligibilityReason: null
       },
       {
         id: "evt-imported-late",
@@ -65,7 +71,13 @@ function buildWeekAgendaResponse(): UpcomingEventsResponse {
         googleSyncStatus: null,
         googleSyncError: null,
         googleTargetDisplayName: null,
-        lastGoogleSyncSucceededAtUtc: null
+        lastGoogleSyncSucceededAtUtc: null,
+        isReadOnly: true,
+        canEdit: false,
+        canDelete: false,
+        canCreateReminder: false,
+        canManageReminders: false,
+        reminderEligibilityReason: "Imported calendar events are read-only and cannot have local reminders."
       }
     ]
   };
@@ -89,7 +101,13 @@ function buildMonthAgendaResponse(): UpcomingEventsResponse {
         googleSyncStatus: null,
         googleSyncError: null,
         googleTargetDisplayName: null,
-        lastGoogleSyncSucceededAtUtc: null
+        lastGoogleSyncSucceededAtUtc: null,
+        isReadOnly: false,
+        canEdit: true,
+        canDelete: true,
+        canCreateReminder: false,
+        canManageReminders: false,
+        reminderEligibilityReason: "Recurring events cannot have reminders in this cleanup pass."
       },
       {
         id: "evt-imported-same-day",
@@ -104,7 +122,13 @@ function buildMonthAgendaResponse(): UpcomingEventsResponse {
         googleSyncStatus: null,
         googleSyncError: null,
         googleTargetDisplayName: null,
-        lastGoogleSyncSucceededAtUtc: null
+        lastGoogleSyncSucceededAtUtc: null,
+        isReadOnly: true,
+        canEdit: false,
+        canDelete: false,
+        canCreateReminder: false,
+        canManageReminders: false,
+        reminderEligibilityReason: "Imported calendar events are read-only and cannot have local reminders."
       },
       {
         id: "evt-imported-late",
@@ -119,7 +143,13 @@ function buildMonthAgendaResponse(): UpcomingEventsResponse {
         googleSyncStatus: null,
         googleSyncError: null,
         googleTargetDisplayName: null,
-        lastGoogleSyncSucceededAtUtc: null
+        lastGoogleSyncSucceededAtUtc: null,
+        isReadOnly: true,
+        canEdit: false,
+        canDelete: false,
+        canCreateReminder: false,
+        canManageReminders: false,
+        reminderEligibilityReason: "Imported calendar events are read-only and cannot have local reminders."
       }
     ]
   };
@@ -135,7 +165,11 @@ function buildReminders(): EventReminderItem[] {
       dueAtUtc: "2026-04-20T14:10:00.000Z",
       status: "Pending",
       firedAtUtc: null,
-      createdAtUtc: "2026-04-20T12:00:00.000Z"
+      createdAtUtc: "2026-04-20T12:00:00.000Z",
+      isReadOnly: false,
+      canDismiss: true,
+      canSnooze: true,
+      canDelete: true
     }
   ];
 }
@@ -149,10 +183,10 @@ function buildSeries(): ScheduledEventSeriesItem[] {
       isAllDay: false,
       startsAtUtc: "2026-04-20T14:30:00.000Z",
       endsAtUtc: "2026-04-20T15:00:00.000Z",
-      isRecurring: true,
-      recurrencePattern: "Weekly",
-      recurrenceSummary: "Weekly on Monday",
-      weeklyDays: ["Monday"],
+      isRecurring: false,
+      recurrencePattern: "None",
+      recurrenceSummary: "One-time",
+      weeklyDays: [],
       recursUntilUtc: null,
       isImported: false,
       sourceKind: null,
@@ -162,7 +196,13 @@ function buildSeries(): ScheduledEventSeriesItem[] {
       googleTargetDisplayName: null,
       lastGoogleSyncSucceededAtUtc: null,
       nextOccurrenceStartsAtUtc: "2026-04-20T14:30:00.000Z",
-      createdAtUtc: "2026-04-01T10:00:00.000Z"
+      createdAtUtc: "2026-04-01T10:00:00.000Z",
+      isReadOnly: false,
+      canEdit: true,
+      canDelete: true,
+      canCreateReminder: true,
+      canManageReminders: true,
+      reminderEligibilityReason: null
     }
   ];
 }
@@ -284,7 +324,6 @@ test("creates selected-date drafts that keep the chosen date in the existing eve
 });
 
 test("derives owner editable vs read-only access state correctly", () => {
-  expect(getCalendarAccessState(true, false)).toBe("editable");
-  expect(getCalendarAccessState(true, true)).toBe("read-only");
-  expect(getCalendarAccessState(false, false)).toBe("read-only");
+  expect(getCalendarAccessState({ canEdit: true })).toBe("editable");
+  expect(getCalendarAccessState({ canEdit: false })).toBe("read-only");
 });

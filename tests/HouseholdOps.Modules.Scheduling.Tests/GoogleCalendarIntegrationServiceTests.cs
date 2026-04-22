@@ -1,4 +1,5 @@
 using HouseholdOps.Infrastructure.Integrations;
+using HouseholdOps.Infrastructure.Notifications;
 using HouseholdOps.Infrastructure.Persistence;
 using HouseholdOps.Infrastructure.Scheduling;
 using HouseholdOps.Modules.Households;
@@ -122,7 +123,7 @@ public class GoogleCalendarIntegrationServiceTests
             CreateConfiguration(),
             new FakeGoogleOAuthClient(),
             feedFetcher,
-            new ImportedScheduledEventSyncService(dbContext));
+            new ImportedScheduledEventSyncService(dbContext, new EventReminderService(dbContext)));
 
         var created = await service.CreateAsync(
             HouseholdId,
@@ -167,6 +168,77 @@ public class GoogleCalendarIntegrationServiceTests
         Assert.Equal("first-event", remaining.SourceEventId);
         Assert.Equal("First import updated", remaining.Title);
         Assert.Equal(new DateTimeOffset(2026, 4, 15, 15, 30, 0, TimeSpan.Zero), remaining.StartsAtUtc);
+    }
+
+    [Fact]
+    public async Task SyncAsync_RemovesLegacyRemindersForUpdatedImportedEvents()
+    {
+        await using var dbContext = CreateDbContext();
+        var feedFetcher = new MutableFeedFetcher(
+            """
+            BEGIN:VCALENDAR
+            BEGIN:VEVENT
+            UID:first-event
+            SUMMARY:Imported dentist
+            DTSTART:20260415T150000Z
+            DTEND:20260415T160000Z
+            END:VEVENT
+            END:VCALENDAR
+            """);
+
+        var service = new GoogleCalendarIntegrationService(
+            dbContext,
+            CreateConfiguration(),
+            new FakeGoogleOAuthClient(),
+            feedFetcher,
+            new ImportedScheduledEventSyncService(dbContext, new EventReminderService(dbContext)));
+
+        var created = await service.CreateAsync(
+            HouseholdId,
+            new CreateGoogleCalendarLinkRequest(
+                "School calendar",
+                "https://calendar.google.com/calendar/ical/test/basic.ics"),
+            CreatedAtUtc,
+            CancellationToken.None);
+
+        await service.SyncAsync(
+            HouseholdId,
+            created.Link!.Id,
+            CreatedAtUtc.AddMinutes(5),
+            CancellationToken.None);
+
+        var importedEvent = await dbContext.ScheduledEvents.SingleAsync();
+        dbContext.EventReminders.Add(new Modules.Notifications.EventReminder
+        {
+            HouseholdId = HouseholdId,
+            ScheduledEventId = importedEvent.Id,
+            EventTitle = importedEvent.Title,
+            MinutesBefore = 15,
+            DueAtUtc = importedEvent.StartsAtUtc!.Value.AddMinutes(-15),
+            Status = Modules.Notifications.EventReminderStatuses.Pending,
+            CreatedAtUtc = CreatedAtUtc.AddMinutes(6)
+        });
+        await dbContext.SaveChangesAsync();
+
+        feedFetcher.Content =
+            """
+            BEGIN:VCALENDAR
+            BEGIN:VEVENT
+            UID:first-event
+            SUMMARY:Imported dentist updated
+            DTSTART:20260415T153000Z
+            DTEND:20260415T163000Z
+            END:VEVENT
+            END:VCALENDAR
+            """;
+
+        await service.SyncAsync(
+            HouseholdId,
+            created.Link.Id,
+            CreatedAtUtc.AddMinutes(10),
+            CancellationToken.None);
+
+        Assert.Empty(dbContext.EventReminders);
     }
 
     [Fact]
@@ -513,7 +585,7 @@ public class GoogleCalendarIntegrationServiceTests
             CreateConfiguration(),
             new FakeGoogleOAuthClient(),
             new ThrowingFeedFetcher(new HttpRequestException("Network connection timed out.")),
-            new ImportedScheduledEventSyncService(dbContext));
+            new ImportedScheduledEventSyncService(dbContext, new EventReminderService(dbContext)));
 
         var created = await service.CreateAsync(
             HouseholdId,
@@ -538,11 +610,12 @@ public class GoogleCalendarIntegrationServiceTests
     public async Task UpdateEventAsync_ReturnsReadOnly_ForImportedSeries()
     {
         await using var dbContext = CreateDbContext();
-        var importSyncService = new ImportedScheduledEventSyncService(dbContext);
+        var importSyncService = new ImportedScheduledEventSyncService(dbContext, new EventReminderService(dbContext));
         var schedulingService = new ScheduledEventManagementService(
             dbContext,
             new FakeClock(CreatedAtUtc),
-            new NoOpGoogleCalendarIntegrationService());
+            new NoOpGoogleCalendarIntegrationService(),
+            new EventReminderService(dbContext));
 
         await importSyncService.SyncAsync(
             HouseholdId,
@@ -584,11 +657,12 @@ public class GoogleCalendarIntegrationServiceTests
     public async Task DeleteEventAsync_ReturnsReadOnly_ForImportedSeries()
     {
         await using var dbContext = CreateDbContext();
-        var importSyncService = new ImportedScheduledEventSyncService(dbContext);
+        var importSyncService = new ImportedScheduledEventSyncService(dbContext, new EventReminderService(dbContext));
         var schedulingService = new ScheduledEventManagementService(
             dbContext,
             new FakeClock(CreatedAtUtc),
-            new NoOpGoogleCalendarIntegrationService());
+            new NoOpGoogleCalendarIntegrationService(),
+            new EventReminderService(dbContext));
 
         await importSyncService.SyncAsync(
             HouseholdId,
@@ -630,11 +704,12 @@ public class GoogleCalendarIntegrationServiceTests
             CreateConfiguration(),
             oauthClient,
             new FakeFeedFetcher("BEGIN:VCALENDAR\r\nEND:VCALENDAR"),
-            new ImportedScheduledEventSyncService(dbContext));
+            new ImportedScheduledEventSyncService(dbContext, new EventReminderService(dbContext)));
         var managementService = new ScheduledEventManagementService(
             dbContext,
             new FakeClock(CreatedAtUtc),
-            service);
+            service,
+            new EventReminderService(dbContext));
 
         var accountLinkId = await SeedWritableAccountAsync(dbContext);
         var managedLink = await service.CreateManagedLinkAsync(
@@ -704,11 +779,12 @@ public class GoogleCalendarIntegrationServiceTests
             CreateConfiguration(),
             oauthClient,
             new FakeFeedFetcher("BEGIN:VCALENDAR\r\nEND:VCALENDAR"),
-            new ImportedScheduledEventSyncService(dbContext));
+            new ImportedScheduledEventSyncService(dbContext, new EventReminderService(dbContext)));
         var managementService = new ScheduledEventManagementService(
             dbContext,
             new FakeClock(CreatedAtUtc),
-            service);
+            service,
+            new EventReminderService(dbContext));
 
         var accountLinkId = await SeedWritableAccountAsync(dbContext);
         var managedLink = await service.CreateManagedLinkAsync(
@@ -784,11 +860,12 @@ public class GoogleCalendarIntegrationServiceTests
             CreateConfiguration(),
             oauthClient,
             new FakeFeedFetcher("BEGIN:VCALENDAR\r\nEND:VCALENDAR"),
-            new ImportedScheduledEventSyncService(dbContext));
+            new ImportedScheduledEventSyncService(dbContext, new EventReminderService(dbContext)));
         var managementService = new ScheduledEventManagementService(
             dbContext,
             new FakeClock(CreatedAtUtc),
-            service);
+            service,
+            new EventReminderService(dbContext));
 
         var accountLinkId = await SeedWritableAccountAsync(dbContext);
         var managedLink = await service.CreateManagedLinkAsync(
@@ -853,11 +930,12 @@ public class GoogleCalendarIntegrationServiceTests
             CreateConfiguration(),
             oauthClient,
             new FakeFeedFetcher("BEGIN:VCALENDAR\r\nEND:VCALENDAR"),
-            new ImportedScheduledEventSyncService(dbContext));
+            new ImportedScheduledEventSyncService(dbContext, new EventReminderService(dbContext)));
         var managementService = new ScheduledEventManagementService(
             dbContext,
             new FakeClock(CreatedAtUtc),
-            service);
+            service,
+            new EventReminderService(dbContext));
 
         var accountLinkId = await SeedWritableAccountAsync(dbContext);
         var managedLink = await service.CreateManagedLinkAsync(
@@ -918,11 +996,12 @@ public class GoogleCalendarIntegrationServiceTests
             CreateConfiguration(),
             oauthClient,
             new FakeFeedFetcher("BEGIN:VCALENDAR\r\nEND:VCALENDAR"),
-            new ImportedScheduledEventSyncService(dbContext));
+            new ImportedScheduledEventSyncService(dbContext, new EventReminderService(dbContext)));
         var managementService = new ScheduledEventManagementService(
             dbContext,
             new FakeClock(CreatedAtUtc),
-            service);
+            service,
+            new EventReminderService(dbContext));
 
         var accountLinkId = await SeedWritableAccountAsync(dbContext);
         var managedLink = await service.CreateManagedLinkAsync(
@@ -1005,11 +1084,12 @@ public class GoogleCalendarIntegrationServiceTests
             CreateConfiguration(),
             oauthClient,
             new FakeFeedFetcher("BEGIN:VCALENDAR\r\nEND:VCALENDAR"),
-            new ImportedScheduledEventSyncService(dbContext));
+            new ImportedScheduledEventSyncService(dbContext, new EventReminderService(dbContext)));
         var managementService = new ScheduledEventManagementService(
             dbContext,
             new FakeClock(CreatedAtUtc),
-            service);
+            service,
+            new EventReminderService(dbContext));
 
         var household = await dbContext.Households.SingleAsync();
         household.TimeZoneId = "America/Chicago";
@@ -1314,7 +1394,7 @@ public class GoogleCalendarIntegrationServiceTests
             CreateConfiguration(),
             new FakeGoogleOAuthClient(),
             new FakeFeedFetcher(feedContent),
-            new ImportedScheduledEventSyncService(dbContext));
+            new ImportedScheduledEventSyncService(dbContext, new EventReminderService(dbContext)));
     }
 
     private static async Task<Guid> SeedWritableAccountAsync(HouseholdOpsDbContext dbContext)
@@ -1381,7 +1461,7 @@ public class GoogleCalendarIntegrationServiceTests
             configuration,
             new FakeGoogleOAuthClient(),
             new FakeFeedFetcher("BEGIN:VCALENDAR\r\nEND:VCALENDAR"),
-            new ImportedScheduledEventSyncService(dbContext));
+            new ImportedScheduledEventSyncService(dbContext, new EventReminderService(dbContext)));
 
         var readiness = service.GetOAuthReadiness();
 
@@ -1413,7 +1493,7 @@ public class GoogleCalendarIntegrationServiceTests
                     "owner@example.com",
                     "Owner Example")),
             new FakeFeedFetcher("BEGIN:VCALENDAR\r\nEND:VCALENDAR"),
-            new ImportedScheduledEventSyncService(dbContext));
+            new ImportedScheduledEventSyncService(dbContext, new EventReminderService(dbContext)));
 
         await service.CompleteOAuthLinkAsync(
             HouseholdId,
@@ -1475,7 +1555,7 @@ public class GoogleCalendarIntegrationServiceTests
             CreateConfiguration(),
             oauthClient,
             new FakeFeedFetcher("BEGIN:VCALENDAR\r\nEND:VCALENDAR"),
-            new ImportedScheduledEventSyncService(dbContext));
+            new ImportedScheduledEventSyncService(dbContext, new EventReminderService(dbContext)));
 
         var calendars = await service.ListOAuthCalendarsAsync(
             HouseholdId,
@@ -1624,7 +1704,7 @@ public class GoogleCalendarIntegrationServiceTests
             CreateConfiguration(),
             oauthClient,
             new FakeFeedFetcher("BEGIN:VCALENDAR\r\nEND:VCALENDAR"),
-            new ImportedScheduledEventSyncService(dbContext));
+            new ImportedScheduledEventSyncService(dbContext, new EventReminderService(dbContext)));
 
         var created = await service.CreateManagedLinkAsync(
             HouseholdId,
@@ -1667,7 +1747,7 @@ public class GoogleCalendarIntegrationServiceTests
             CreateConfiguration(),
             new FakeGoogleOAuthClient(),
             new FakeFeedFetcher("BEGIN:VCALENDAR\r\nEND:VCALENDAR"),
-            new ImportedScheduledEventSyncService(dbContext));
+            new ImportedScheduledEventSyncService(dbContext, new EventReminderService(dbContext)));
 
         var created = await service.CreateManagedLinkAsync(
             HouseholdId,
@@ -1738,7 +1818,7 @@ public class GoogleCalendarIntegrationServiceTests
                 getCalendarEventsException: new InvalidOperationException(
                     "Google Calendar event lookup failed with 403.")),
             new FakeFeedFetcher("BEGIN:VCALENDAR\r\nEND:VCALENDAR"),
-            new ImportedScheduledEventSyncService(dbContext));
+            new ImportedScheduledEventSyncService(dbContext, new EventReminderService(dbContext)));
 
         var created = await service.CreateManagedLinkAsync(
             HouseholdId,
@@ -1791,7 +1871,7 @@ public class GoogleCalendarIntegrationServiceTests
             new FakeGoogleOAuthClient(
                 refreshAccessTokenException: new InvalidOperationException("invalid_grant")),
             new FakeFeedFetcher("BEGIN:VCALENDAR\r\nEND:VCALENDAR"),
-            new ImportedScheduledEventSyncService(dbContext));
+            new ImportedScheduledEventSyncService(dbContext, new EventReminderService(dbContext)));
 
         var created = await service.CreateManagedLinkAsync(
             HouseholdId,

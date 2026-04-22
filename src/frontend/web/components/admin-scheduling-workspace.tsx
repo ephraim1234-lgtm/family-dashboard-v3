@@ -26,6 +26,12 @@ type ScheduledEventSeriesItem = {
   sourceKind: string | null;
   nextOccurrenceStartsAtUtc: string | null;
   createdAtUtc: string;
+  isReadOnly: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+  canCreateReminder: boolean;
+  canManageReminders: boolean;
+  reminderEligibilityReason: string | null;
 };
 
 type ScheduledEventSeriesListResponse = {
@@ -44,6 +50,12 @@ type ScheduleBrowseItem = {
   recurrenceSummary: string;
   isImported: boolean;
   sourceKind: string | null;
+  isReadOnly: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+  canCreateReminder: boolean;
+  canManageReminders: boolean;
+  reminderEligibilityReason: string | null;
 };
 
 type ScheduleBrowseDayGroup = {
@@ -67,6 +79,10 @@ type EventReminderItem = {
   status: string;
   firedAtUtc: string | null;
   createdAtUtc: string;
+  isReadOnly: boolean;
+  canDismiss: boolean;
+  canSnooze: boolean;
+  canDelete: boolean;
 };
 
 type EventReminderListResponse = {
@@ -520,6 +536,13 @@ export function AdminSchedulingWorkspace() {
   async function addReminder(eventId: string) {
     setReminderError(null);
 
+    if (!editingEvent?.canCreateReminder) {
+      throw new Error(
+        editingEvent?.reminderEligibilityReason
+          ?? "This event cannot receive reminders."
+      );
+    }
+
     const response = await fetch("/api/notifications/reminders", {
       method: "POST",
       credentials: "same-origin",
@@ -672,6 +695,11 @@ export function AdminSchedulingWorkspace() {
           : !item.isRecurring
     );
   }, [managedEvents, browseFilter]);
+
+  const editingEvent = useMemo(
+    () => managedEvents.find((item) => item.id === editingEventId) ?? null,
+    [editingEventId, managedEvents]
+  );
 
   const browseSummary = useMemo(() => {
     if (!browse) {
@@ -1206,10 +1234,12 @@ export function AdminSchedulingWorkspace() {
                         </div>
                         <div className="muted">{item.recurrenceSummary}</div>
                         {item.description ? <div>{item.description}</div> : null}
-                        {item.isImported ? (
+                        {!item.canEdit ? (
                           <div className="muted">
-                            Imported events are managed from the Calendar integrations
-                            panel.
+                            {item.reminderEligibilityReason
+                              ?? (item.isImported
+                                ? "Imported events are managed from the Calendar integrations panel."
+                                : "This schedule item is read-only in the current workspace.")}
                           </div>
                         ) : (
                           <div className="action-row compact-action-row">
@@ -1278,6 +1308,8 @@ export function AdminSchedulingWorkspace() {
             {editingEventId ? (
               <SchedulingReminderManager
                 isAllDay={isAllDay}
+                canManageReminders={editingEvent?.canManageReminders ?? false}
+                reminderEligibilityReason={editingEvent?.reminderEligibilityReason ?? null}
                 isPending={isReminderPending}
                 reminderMinutesBefore={reminderMinutesBefore}
                 onReminderMinutesChange={setReminderMinutesBefore}
@@ -1329,10 +1361,12 @@ export function AdminSchedulingWorkspace() {
                     : ""}
                 </div>
                 {item.description ? <div>{item.description}</div> : null}
-                {item.isImported ? (
+                {!item.canEdit ? (
                   <div className="muted">
-                    Imported series update through Integration sync, not direct Scheduling
-                    edits.
+                    {item.reminderEligibilityReason
+                      ?? (item.isImported
+                        ? "Imported series update through Integration sync, not direct Scheduling edits."
+                        : "This series is read-only in the current workspace.")}
                   </div>
                 ) : (
                   <div className="action-row compact-action-row">

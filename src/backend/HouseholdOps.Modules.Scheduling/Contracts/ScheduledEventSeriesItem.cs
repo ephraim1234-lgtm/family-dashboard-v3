@@ -20,4 +20,10 @@ public sealed record ScheduledEventSeriesItem(
     string? GoogleTargetDisplayName,
     DateTimeOffset? LastGoogleSyncSucceededAtUtc,
     DateTimeOffset? NextOccurrenceStartsAtUtc,
-    DateTimeOffset CreatedAtUtc);
+    DateTimeOffset CreatedAtUtc,
+    bool IsReadOnly,
+    bool CanEdit,
+    bool CanDelete,
+    bool CanCreateReminder,
+    bool CanManageReminders,
+    string? ReminderEligibilityReason);

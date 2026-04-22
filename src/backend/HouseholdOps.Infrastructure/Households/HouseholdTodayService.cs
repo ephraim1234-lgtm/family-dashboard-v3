@@ -13,7 +13,8 @@ namespace HouseholdOps.Infrastructure.Households;
 public sealed class HouseholdTodayService(
     HouseholdOpsDbContext dbContext,
     IClock clock,
-    IAgendaQueryService agendaQueryService) : IHouseholdTodayService
+    IAgendaQueryService agendaQueryService,
+    IEventReminderService eventReminderService) : IHouseholdTodayService
 {
     public async Task<HouseholdTodayResponse> GetTodayAsync(
         Guid householdId,
@@ -31,7 +32,7 @@ public sealed class HouseholdTodayService(
         var (todayStart, todayEnd) = HouseholdTimeBoundary.GetTodayWindowUtc(nowUtc, timeZone);
 
         var agenda = await agendaQueryService.GetUpcomingEventsAsync(
-            new UpcomingEventsRequest(householdId, todayStart, todayEnd),
+            new UpcomingEventsRequest(householdId, todayStart, todayEnd, IsOwner: false),
             cancellationToken);
 
         var todayEvents = agenda.Items
@@ -56,13 +57,16 @@ public sealed class HouseholdTodayService(
             .Select(n => new HouseholdTodayNote(n.Id, n.Title, n.Body, n.AuthorDisplayName))
             .ToListAsync(cancellationToken);
 
-        var pendingReminderCount = await dbContext.EventReminders
-            .CountAsync(r =>
-                r.HouseholdId == householdId
-                && r.Status == EventReminderStatuses.Pending
-                && r.DueAtUtc >= todayStart
-                && r.DueAtUtc < todayEnd,
-                cancellationToken);
+        var reminderResponse = await eventReminderService.ListRemindersAsync(
+            householdId,
+            isOwner: false,
+            cancellationToken);
+
+        var pendingReminderCount = reminderResponse.Items
+            .Count(reminder =>
+                reminder.Status == EventReminderStatuses.Pending
+                && reminder.DueAtUtc >= todayStart
+                && reminder.DueAtUtc < todayEnd);
 
         return new HouseholdTodayResponse(todayEvents, todayChores, pinnedNotes, pendingReminderCount);
     }

@@ -41,6 +41,12 @@ export type HomeUpcomingEvent = {
   endsAtUtc: string | null;
   isAllDay: boolean;
   isImported: boolean;
+  isReadOnly: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+  canCreateReminder: boolean;
+  canManageReminders: boolean;
+  reminderEligibilityReason: string | null;
 };
 
 export type HomeUpcomingDay = {
@@ -53,6 +59,10 @@ export type HomeReminder = {
   eventTitle: string;
   minutesBefore: number;
   dueAtUtc: string;
+  isReadOnly: boolean;
+  canDismiss: boolean;
+  canSnooze: boolean;
+  canDelete: boolean;
 };
 
 export type HomeMemberChoreProgress = {
@@ -96,12 +106,22 @@ export type FamilyEventItem = FamilyItemBase & {
   startsAtUtc: string | null;
   endsAtUtc: string | null;
   isAllDay: boolean;
+  isReadOnly: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+  canCreateReminder: boolean;
+  canManageReminders: boolean;
+  reminderEligibilityReason: string | null;
 };
 
 export type FamilyReminderItem = FamilyItemBase & {
   reminderId: string;
   dueAtUtc: string;
   minutesBefore: number;
+  isReadOnly: boolean;
+  canDismiss: boolean;
+  canSnooze: boolean;
+  canDelete: boolean;
 };
 
 export type FamilyChoreItem = FamilyItemBase & {
@@ -260,7 +280,13 @@ export function normalizeHomeEvent(event: HomeEvent, index: number, now = new Da
     ownerDisplay: createHouseholdOwnerDisplay(),
     startsAtUtc: event.startsAtUtc,
     endsAtUtc: event.endsAtUtc,
-    isAllDay: event.isAllDay
+    isAllDay: event.isAllDay,
+    isReadOnly: true,
+    canEdit: false,
+    canDelete: false,
+    canCreateReminder: false,
+    canManageReminders: false,
+    reminderEligibilityReason: null
   };
 }
 
@@ -279,7 +305,13 @@ export function normalizeUpcomingEvent(
     ownerDisplay: createHouseholdOwnerDisplay(),
     startsAtUtc: event.startsAtUtc,
     endsAtUtc: event.endsAtUtc,
-    isAllDay: event.isAllDay
+    isAllDay: event.isAllDay,
+    isReadOnly: event.isReadOnly,
+    canEdit: event.canEdit,
+    canDelete: event.canDelete,
+    canCreateReminder: event.canCreateReminder,
+    canManageReminders: event.canManageReminders,
+    reminderEligibilityReason: event.reminderEligibilityReason
   };
 }
 
@@ -293,7 +325,11 @@ export function normalizeHomeReminder(reminder: HomeReminder, now = new Date()):
     urgencyState: getReminderUrgencyState(reminder, now),
     ownerDisplay: createHouseholdOwnerDisplay(),
     dueAtUtc: reminder.dueAtUtc,
-    minutesBefore: reminder.minutesBefore
+    minutesBefore: reminder.minutesBefore,
+    isReadOnly: reminder.isReadOnly,
+    canDismiss: reminder.canDismiss,
+    canSnooze: reminder.canSnooze,
+    canDelete: reminder.canDelete
   };
 }
 

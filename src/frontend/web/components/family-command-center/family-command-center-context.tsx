@@ -303,6 +303,16 @@ export function FamilyCommandCenterProvider({
   async function addReminder() {
     const minutes = parseInt(reminderMinutes, 10);
     if (!reminderEventId || !Number.isFinite(minutes) || minutes < 1) return;
+    const targetEvent = data?.upcomingDays
+      .flatMap((day) => day.events)
+      .find((event) => event.scheduledEventId === reminderEventId);
+
+    if (!targetEvent?.canCreateReminder) {
+      throw new Error(
+        targetEvent?.reminderEligibilityReason
+          ?? "This event cannot receive reminders."
+      );
+    }
 
     const response = await fetch("/api/notifications/reminders", {
       method: "POST",

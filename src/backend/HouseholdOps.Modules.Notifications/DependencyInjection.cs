@@ -33,6 +33,7 @@ public static class DependencyInjection
 
             var response = await reminderService.ListRemindersAsync(
                 householdId,
+                string.Equals(session.ActiveHouseholdRole, "Owner", StringComparison.Ordinal),
                 cancellationToken);
 
             return Results.Ok(response);
@@ -154,7 +155,12 @@ public static class DependencyInjection
                 reminderId,
                 cancellationToken);
 
-            return deleted ? Results.NoContent() : Results.NotFound();
+            return deleted.Status switch
+            {
+                EventReminderMutationStatus.Succeeded => Results.NoContent(),
+                EventReminderMutationStatus.NotFound => Results.NotFound(),
+                _ => Results.BadRequest(deleted.Error ?? "Unable to delete reminder.")
+            };
         });
 
         return app;

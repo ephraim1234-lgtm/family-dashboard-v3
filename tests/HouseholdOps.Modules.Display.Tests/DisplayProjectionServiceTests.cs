@@ -1,8 +1,11 @@
 using HouseholdOps.Infrastructure.Display;
+using HouseholdOps.Infrastructure.Notifications;
 using HouseholdOps.Infrastructure.Persistence;
 using HouseholdOps.Infrastructure.Scheduling;
 using HouseholdOps.Modules.Display;
 using HouseholdOps.Modules.Households;
+using HouseholdOps.Modules.Integrations;
+using HouseholdOps.Modules.Integrations.Contracts;
 using HouseholdOps.Modules.Scheduling;
 using HouseholdOps.Modules.Scheduling.Contracts;
 using HouseholdOps.SharedKernel.Time;
@@ -42,7 +45,7 @@ public class DisplayProjectionServiceTests
         await using var dbContext = CreateDbContext();
         var clock = new FakeClock(ClockNow);
         var managementService = new DisplayManagementService(dbContext, clock);
-        var schedulingService = new ScheduledEventManagementService(dbContext, clock);
+        var schedulingService = CreateManagementService(dbContext, clock);
 
         var device = await managementService.CreateDeviceAsync(
             HouseholdId,
@@ -115,7 +118,8 @@ public class DisplayProjectionServiceTests
         var projectionService = new DisplayProjectionService(
             dbContext,
             clock,
-            new AgendaQueryService(dbContext));
+            new AgendaQueryService(dbContext),
+            new EventReminderService(dbContext));
 
         var projection = await projectionService.GetProjectionAsync(
             device.AccessToken,
@@ -166,7 +170,8 @@ public class DisplayProjectionServiceTests
         var projectionService = new DisplayProjectionService(
             dbContext,
             clock,
-            new AgendaQueryService(dbContext));
+            new AgendaQueryService(dbContext),
+            new EventReminderService(dbContext));
 
         var projection = await projectionService.GetProjectionAsync(
             device.AccessToken,
@@ -179,6 +184,56 @@ public class DisplayProjectionServiceTests
         Assert.Equal("GoogleCalendarIcs", agendaItem.SourceKind);
         Assert.Single(projection.AgendaSection.UpcomingDays);
         Assert.Equal("Today", projection.AgendaSection.UpcomingDays[0].Label);
+    }
+
+    [Fact]
+    public async Task Projection_HidesLegacyRemindersForImportedEvents()
+    {
+        await using var dbContext = CreateDbContext();
+        var clock = new FakeClock(ClockNow);
+        var managementService = new DisplayManagementService(dbContext, clock);
+
+        var device = await managementService.CreateDeviceAsync(
+            HouseholdId,
+            "Kitchen Display",
+            CancellationToken.None);
+
+        var importedEvent = new ScheduledEvent
+        {
+            Id = Guid.NewGuid(),
+            HouseholdId = HouseholdId,
+            Title = "Imported practice",
+            IsAllDay = false,
+            StartsAtUtc = ClockNow.AddMinutes(20),
+            EndsAtUtc = ClockNow.AddMinutes(80),
+            SourceKind = "GoogleCalendarIcs",
+            CreatedAtUtc = ClockNow
+        };
+        dbContext.ScheduledEvents.Add(importedEvent);
+        dbContext.EventReminders.Add(new Modules.Notifications.EventReminder
+        {
+            HouseholdId = HouseholdId,
+            ScheduledEventId = importedEvent.Id,
+            EventTitle = importedEvent.Title,
+            MinutesBefore = 15,
+            DueAtUtc = ClockNow.AddMinutes(5),
+            Status = Modules.Notifications.EventReminderStatuses.Pending,
+            CreatedAtUtc = ClockNow
+        });
+        await dbContext.SaveChangesAsync();
+
+        var projectionService = new DisplayProjectionService(
+            dbContext,
+            clock,
+            new AgendaQueryService(dbContext),
+            new EventReminderService(dbContext));
+
+        var projection = await projectionService.GetProjectionAsync(
+            device.AccessToken,
+            CancellationToken.None);
+
+        Assert.NotNull(projection);
+        Assert.Empty(projection!.UpcomingReminders);
     }
 
     private static HouseholdOpsDbContext CreateDbContext(
@@ -204,5 +259,62 @@ public class DisplayProjectionServiceTests
     private sealed class FakeClock(DateTimeOffset utcNow) : IClock
     {
         public DateTimeOffset UtcNow { get; } = utcNow;
+    }
+
+    private static ScheduledEventManagementService CreateManagementService(
+        HouseholdOpsDbContext dbContext,
+        IClock clock) =>
+        new(
+            dbContext,
+            clock,
+            new NoOpGoogleCalendarIntegrationService(),
+            new EventReminderService(dbContext));
+
+    private sealed class NoOpGoogleCalendarIntegrationService : IGoogleCalendarIntegrationService
+    {
+        public Task<GoogleCalendarLinkListResponse> ListAsync(Guid householdId, CancellationToken cancellationToken) =>
+            Task.FromResult(new GoogleCalendarLinkListResponse([]));
+
+        public GoogleOAuthReadinessResponse GetOAuthReadiness() =>
+            new(false, false, false, false, null);
+
+        public Task<GoogleOAuthAccountLinkListResponse> ListOAuthAccountsAsync(Guid householdId, CancellationToken cancellationToken) =>
+            Task.FromResult(new GoogleOAuthAccountLinkListResponse([]));
+
+        public Task<GoogleOAuthCalendarListResponse> ListOAuthCalendarsAsync(Guid householdId, CancellationToken cancellationToken) =>
+            Task.FromResult(new GoogleOAuthCalendarListResponse([]));
+
+        public GoogleOAuthStartResponse BeginOAuthLink(string state) =>
+            new(string.Empty);
+
+        public Task CompleteOAuthLinkAsync(Guid householdId, Guid linkedByUserId, string code, DateTimeOffset completedAtUtc, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+
+        public Task<GoogleCalendarLinkMutationResult> CreateAsync(Guid householdId, CreateGoogleCalendarLinkRequest request, DateTimeOffset createdAtUtc, CancellationToken cancellationToken) =>
+            Task.FromResult(GoogleCalendarLinkMutationResult.ValidationFailure("Not used in this test."));
+
+        public Task<GoogleCalendarLinkMutationResult> CreateManagedLinkAsync(Guid householdId, CreateManagedGoogleCalendarLinkRequest request, DateTimeOffset createdAtUtc, CancellationToken cancellationToken) =>
+            Task.FromResult(GoogleCalendarLinkMutationResult.ValidationFailure("Not used in this test."));
+
+        public Task<GoogleCalendarLinkMutationResult> DeleteAsync(Guid householdId, Guid linkId, CancellationToken cancellationToken) =>
+            Task.FromResult(GoogleCalendarLinkMutationResult.NotFound());
+
+        public Task<GoogleCalendarLinkMutationResult> UpdateSyncSettingsAsync(Guid householdId, Guid linkId, UpdateGoogleCalendarLinkSyncSettingsRequest request, DateTimeOffset requestedAtUtc, CancellationToken cancellationToken) =>
+            Task.FromResult(GoogleCalendarLinkMutationResult.NotFound());
+
+        public Task<GoogleCalendarSyncResult> SyncAsync(Guid householdId, Guid linkId, DateTimeOffset requestedAtUtc, CancellationToken cancellationToken) =>
+            Task.FromResult(GoogleCalendarSyncResult.NotFound());
+
+        public Task<GoogleCalendarAutoSyncRunResult> SyncDueLinksAsync(DateTimeOffset requestedAtUtc, CancellationToken cancellationToken) =>
+            Task.FromResult(new GoogleCalendarAutoSyncRunResult(0, 0, 0));
+
+        public Task QueueLocalEventUpsertAsync(Guid householdId, Guid scheduledEventId, DateTimeOffset queuedAtUtc, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+
+        public Task QueueLocalEventDeletionAsync(Guid householdId, Guid scheduledEventId, DateTimeOffset queuedAtUtc, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+
+        public Task<GoogleCalendarLocalEventSyncRunResult> SyncDueLocalEventsAsync(DateTimeOffset requestedAtUtc, CancellationToken cancellationToken) =>
+            Task.FromResult(new GoogleCalendarLocalEventSyncRunResult(0, 0, 0));
     }
 }

@@ -271,30 +271,36 @@ function NeedsAttentionSection() {
                       </span>
                     </div>
                     <div className="action-row compact-action-row">
-                      <ActionButton
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => handleSnoozeReminder(reminder.reminderId, 60)}
-                        disabled={isPending}
-                      >
-                        Snooze 1h
-                      </ActionButton>
-                      <ActionButton
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => handleSnoozeReminder(reminder.reminderId, 1_440)}
-                        disabled={isPending}
-                      >
-                        Snooze 1d
-                      </ActionButton>
-                      <ActionButton
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleDismissReminder(reminder.reminderId)}
-                        disabled={isPending}
-                      >
-                        Dismiss
-                      </ActionButton>
+                      {reminder.canSnooze ? (
+                        <ActionButton
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => handleSnoozeReminder(reminder.reminderId, 60)}
+                          disabled={isPending}
+                        >
+                          Snooze 1h
+                        </ActionButton>
+                      ) : null}
+                      {reminder.canSnooze ? (
+                        <ActionButton
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => handleSnoozeReminder(reminder.reminderId, 1_440)}
+                          disabled={isPending}
+                        >
+                          Snooze 1d
+                        </ActionButton>
+                      ) : null}
+                      {reminder.canDismiss ? (
+                        <ActionButton
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDismissReminder(reminder.reminderId)}
+                          disabled={isPending}
+                        >
+                          Dismiss
+                        </ActionButton>
+                      ) : null}
                     </div>
                   </div>
                 ))}
@@ -625,16 +631,17 @@ function QuickAddSection() {
     setReminderMinutes,
     handleAddEvent,
     handleAddReminder,
-    applySuggestedEnd
+    applySuggestedEnd,
+    isOwner
   } = useFamilyCommandCenterContext();
 
   if (!data) {
     return null;
   }
 
-  const timedUpcoming = data.upcomingDays
+  const reminderEligibleUpcoming = data.upcomingDays
     .flatMap((day) => day.events)
-    .filter((event) => !event.isAllDay && event.startsAtUtc);
+    .filter((event) => event.canCreateReminder && !event.isAllDay && event.startsAtUtc);
 
   return (
     <HouseholdSection
@@ -778,7 +785,11 @@ function QuickAddSection() {
           <h3 className="m-0 text-xl font-semibold text-[color:var(--text-strong)]">
             Add a prompt to an existing event
           </h3>
-          {!showReminderForm ? (
+          {!isOwner ? (
+            <p className="muted mt-4 mb-0">
+              Reminder creation is owner-managed. Members can still see household reminder state on the shared surfaces.
+            </p>
+          ) : !showReminderForm ? (
             <div className="action-row">
               <ActionButton variant="secondary" onClick={() => setShowReminderForm(true)}>
                 + Reminder
@@ -786,8 +797,10 @@ function QuickAddSection() {
             </div>
           ) : (
             <div className="mt-4 grid gap-3">
-              {timedUpcoming.length === 0 ? (
-                <p className="muted mb-0">No upcoming timed events are available for reminders yet.</p>
+              {reminderEligibleUpcoming.length === 0 ? (
+                <p className="muted mb-0">
+                  No backend-eligible upcoming events are available for reminders yet.
+                </p>
               ) : (
                 <>
                   <select
@@ -796,7 +809,7 @@ function QuickAddSection() {
                     onChange={(event) => setReminderEventId(event.target.value)}
                   >
                     <option value="">Select an event…</option>
-                    {timedUpcoming.map((event) => (
+                    {reminderEligibleUpcoming.map((event) => (
                       <option key={event.scheduledEventId} value={event.scheduledEventId}>
                         {event.title} - {formatTime(event.startsAtUtc)}
                       </option>

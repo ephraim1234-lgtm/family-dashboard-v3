@@ -13,12 +13,14 @@ namespace HouseholdOps.Infrastructure.Households;
 public sealed class HouseholdHomeService(
     HouseholdOpsDbContext dbContext,
     IClock clock,
-    IAgendaQueryService agendaQueryService) : IHouseholdHomeService
+    IAgendaQueryService agendaQueryService,
+    IEventReminderService eventReminderService) : IHouseholdHomeService
 {
     private const int RecentActivityLimit = 5;
 
     public async Task<HouseholdHomeResponse> GetHomeAsync(
         Guid householdId,
+        bool isOwner,
         CancellationToken cancellationToken)
     {
         var nowUtc = clock.UtcNow;
@@ -36,7 +38,7 @@ public sealed class HouseholdHomeService(
 
         // Today's events
         var agenda = await agendaQueryService.GetUpcomingEventsAsync(
-            new UpcomingEventsRequest(householdId, todayStart, todayEnd),
+            new UpcomingEventsRequest(householdId, todayStart, todayEnd, isOwner),
             cancellationToken);
 
         var todayEvents = agenda.Items
@@ -98,21 +100,26 @@ public sealed class HouseholdHomeService(
                 "NoteCreated", n.Title, n.Body, n.AuthorDisplayName, n.CreatedAtUtc))
             .ToListAsync(cancellationToken);
 
+        var reminderResponse = await eventReminderService.ListRemindersAsync(
+            householdId,
+            isOwner,
+            cancellationToken);
+
         // Fired reminders surface in the activity feed so the family sees what
         // actually pinged (not just what is pending triage).
-        var recentFiredReminders = await dbContext.EventReminders
-            .Where(r => r.HouseholdId == householdId
-                && r.Status == EventReminderStatuses.Fired
-                && r.FiredAtUtc != null)
-            .OrderByDescending(r => r.FiredAtUtc)
+        var recentFiredReminders = reminderResponse.Items
+            .Where(reminder =>
+                reminder.Status == EventReminderStatuses.Fired
+                && reminder.FiredAtUtc.HasValue)
+            .OrderByDescending(reminder => reminder.FiredAtUtc)
             .Take(RecentActivityLimit)
-            .Select(r => new HomeActivityItem(
+            .Select(reminder => new HomeActivityItem(
                 "ReminderFired",
-                r.EventTitle,
-                r.MinutesBefore + "m before",
+                reminder.EventTitle,
+                reminder.MinutesBefore + "m before",
                 "Reminder",
-                r.FiredAtUtc!.Value))
-            .ToListAsync(cancellationToken);
+                reminder.FiredAtUtc!.Value))
+            .ToList();
 
         var recentActivity = recentCompletions
             .Concat(recentNotes)
@@ -123,7 +130,7 @@ public sealed class HouseholdHomeService(
 
         // Upcoming events (next 7 days, excluding today) — day-grouped
         var upcomingAgenda = await agendaQueryService.GetUpcomingEventsAsync(
-            new UpcomingEventsRequest(householdId, todayEnd, weekEnd),
+            new UpcomingEventsRequest(householdId, todayEnd, weekEnd, isOwner),
             cancellationToken);
         var upcomingEventCount = upcomingAgenda.Items.Count;
 
@@ -134,7 +141,18 @@ public sealed class HouseholdHomeService(
             .Select(g => new HomeUpcomingDay(
                 g.Key,
                 g.Select(i => new HomeUpcomingEvent(
-                    i.Id, i.Title, i.StartsAtUtc, i.EndsAtUtc, i.IsAllDay, i.IsImported))
+                    i.Id,
+                    i.Title,
+                    i.StartsAtUtc,
+                    i.EndsAtUtc,
+                    i.IsAllDay,
+                    i.IsImported,
+                    i.IsReadOnly,
+                    i.CanEdit,
+                    i.CanDelete,
+                    i.CanCreateReminder,
+                    i.CanManageReminders,
+                    i.ReminderEligibilityReason))
                 .ToList()))
             .ToList();
 
@@ -178,23 +196,28 @@ public sealed class HouseholdHomeService(
             .ToList();
 
         // Pending reminders (next 7 days, top 5) — surfaced for triage
-        var pendingReminderEntities = await dbContext.EventReminders
-            .Where(r =>
-                r.HouseholdId == householdId
-                && r.Status == EventReminderStatuses.Pending
-                && r.DueAtUtc < weekEnd)
-            .OrderBy(r => r.DueAtUtc)
+        var pendingReminderEntities = reminderResponse.Items
+            .Where(reminder =>
+                reminder.Status == EventReminderStatuses.Pending
+                && reminder.DueAtUtc < weekEnd)
+            .OrderBy(reminder => reminder.DueAtUtc)
             .Take(5)
-            .Select(r => new HomeReminder(r.Id, r.EventTitle, r.MinutesBefore, r.DueAtUtc))
-            .ToListAsync(cancellationToken);
+            .Select(reminder => new HomeReminder(
+                reminder.Id,
+                reminder.EventTitle,
+                reminder.MinutesBefore,
+                reminder.DueAtUtc,
+                reminder.IsReadOnly,
+                reminder.CanDismiss,
+                reminder.CanSnooze,
+                reminder.CanDelete))
+            .ToList();
 
-        var pendingReminderCount = await dbContext.EventReminders
-            .CountAsync(r =>
-                r.HouseholdId == householdId
-                && r.Status == EventReminderStatuses.Pending
-                && r.DueAtUtc >= todayStart
-                && r.DueAtUtc < todayEnd,
-                cancellationToken);
+        var pendingReminderCount = reminderResponse.Items
+            .Count(reminder =>
+                reminder.Status == EventReminderStatuses.Pending
+                && reminder.DueAtUtc >= todayStart
+                && reminder.DueAtUtc < todayEnd);
 
         return new HouseholdHomeResponse(
             todayEvents,

@@ -34,7 +34,7 @@ public static class DependencyInjection
             var windowEnd = windowStart.AddDays(30);
 
             var response = await agendaQueryService.GetUpcomingEventsAsync(
-                new UpcomingEventsRequest(householdId, windowStart, windowEnd),
+                new UpcomingEventsRequest(householdId, windowStart, windowEnd, IsOwner: true),
                 cancellationToken);
 
             return Results.Ok(response);
@@ -246,7 +246,14 @@ public static class DependencyInjection
             var windowEnd = windowStart.AddDays(windowDays);
 
             var response = await agendaQueryService.GetUpcomingEventsAsync(
-                new UpcomingEventsRequest(householdId, windowStart, windowEnd),
+                new UpcomingEventsRequest(
+                    householdId,
+                    windowStart,
+                    windowEnd,
+                    IsOwner: string.Equals(
+                        session.ActiveHouseholdRole,
+                        "Owner",
+                        StringComparison.Ordinal)),
                 cancellationToken);
 
             return Results.Ok(response);

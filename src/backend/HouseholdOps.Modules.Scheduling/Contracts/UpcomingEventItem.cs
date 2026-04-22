@@ -13,4 +13,10 @@ public sealed record UpcomingEventItem(
     string? GoogleSyncStatus,
     string? GoogleSyncError,
     string? GoogleTargetDisplayName,
-    DateTimeOffset? LastGoogleSyncSucceededAtUtc);
+    DateTimeOffset? LastGoogleSyncSucceededAtUtc,
+    bool IsReadOnly,
+    bool CanEdit,
+    bool CanDelete,
+    bool CanCreateReminder,
+    bool CanManageReminders,
+    string? ReminderEligibilityReason);

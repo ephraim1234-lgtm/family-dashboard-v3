@@ -4,5 +4,8 @@ namespace HouseholdOps.Modules.Households;
 
 public interface IHouseholdHomeService
 {
-    Task<HouseholdHomeResponse> GetHomeAsync(Guid householdId, CancellationToken cancellationToken);
+    Task<HouseholdHomeResponse> GetHomeAsync(
+        Guid householdId,
+        bool isOwner,
+        CancellationToken cancellationToken);
 }
