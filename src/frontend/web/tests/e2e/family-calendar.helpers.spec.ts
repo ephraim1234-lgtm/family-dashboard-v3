@@ -2,10 +2,12 @@ import { expect, test } from "@playwright/test";
 import { createMemberEventDraftForDate } from "../../components/member-event-draft";
 import {
   buildFamilyCalendarViewModel,
+  type CalendarEventItem,
   getCalendarAccessState,
-  getMonthGridStartUtc,
-  getMonthStartUtc,
-  getWeekStartUtc,
+  getMonthGridStartDate,
+  getMonthStartDate,
+  getUtcStartOfLocalDate,
+  getWeekStartDate,
   joinRemindersToEventIds
 } from "../../lib/family-calendar";
 import type { HomeResponse } from "../../lib/family-command-center";
@@ -32,8 +34,8 @@ function buildHomeResponse(overrides: Partial<HomeResponse> = {}): HomeResponse 
 
 function buildWeekAgendaResponse(): UpcomingEventsResponse {
   return {
-    windowStartUtc: "2026-04-20T00:00:00.000Z",
-    windowEndUtc: "2026-04-27T00:00:00.000Z",
+    windowStartUtc: "2026-04-20T05:00:00.000Z",
+    windowEndUtc: "2026-04-27T05:00:00.000Z",
     items: [
       {
         id: "evt-local",
@@ -55,8 +57,8 @@ function buildWeekAgendaResponse(): UpcomingEventsResponse {
         title: "Soccer practice",
         description: null,
         isAllDay: false,
-        startsAtUtc: "2026-04-22T23:00:00.000Z",
-        endsAtUtc: "2026-04-23T00:00:00.000Z",
+        startsAtUtc: "2026-04-23T04:30:00.000Z",
+        endsAtUtc: "2026-04-23T06:00:00.000Z",
         isImported: true,
         sourceKind: "GoogleCalendarIcs",
         isGoogleMirrorEnabled: false,
@@ -71,8 +73,8 @@ function buildWeekAgendaResponse(): UpcomingEventsResponse {
 
 function buildMonthAgendaResponse(): UpcomingEventsResponse {
   return {
-    windowStartUtc: "2026-03-30T00:00:00.000Z",
-    windowEndUtc: "2026-05-11T00:00:00.000Z",
+    windowStartUtc: "2026-03-30T05:00:00.000Z",
+    windowEndUtc: "2026-05-11T05:00:00.000Z",
     items: [
       {
         id: "evt-local",
@@ -109,8 +111,8 @@ function buildMonthAgendaResponse(): UpcomingEventsResponse {
         title: "Soccer practice",
         description: null,
         isAllDay: false,
-        startsAtUtc: "2026-04-22T23:00:00.000Z",
-        endsAtUtc: "2026-04-23T00:00:00.000Z",
+        startsAtUtc: "2026-04-23T04:30:00.000Z",
+        endsAtUtc: "2026-04-23T06:00:00.000Z",
         isImported: true,
         sourceKind: "GoogleCalendarIcs",
         isGoogleMirrorEnabled: false,
@@ -165,13 +167,14 @@ function buildSeries(): ScheduledEventSeriesItem[] {
   ];
 }
 
-test("derives week windows from an anchor date", () => {
-  expect(getWeekStartUtc(new Date("2026-04-23T18:00:00.000Z"))).toBe("2026-04-20T00:00:00.000Z");
+test("derives week windows from a household-local anchor date", () => {
+  expect(getWeekStartDate(new Date("2026-04-23T18:00:00.000Z"), "America/Chicago")).toBe("2026-04-20");
 });
 
-test("derives month anchors and six-week grid starts", () => {
-  expect(getMonthStartUtc(new Date("2026-04-23T18:00:00.000Z"))).toBe("2026-04-01T00:00:00.000Z");
-  expect(getMonthGridStartUtc("2026-04-01T00:00:00.000Z")).toBe("2026-03-30T00:00:00.000Z");
+test("derives month anchors, six-week grids, and local midnight UTC starts", () => {
+  expect(getMonthStartDate(new Date("2026-04-23T18:00:00.000Z"), "America/Chicago")).toBe("2026-04-01");
+  expect(getMonthGridStartDate("2026-04-01")).toBe("2026-03-30");
+  expect(getUtcStartOfLocalDate("2026-04-20", "America/Chicago")).toBe("2026-04-20T05:00:00.000Z");
 });
 
 test("joins reminders to owning event ids", () => {
@@ -198,7 +201,9 @@ test("builds week and mobile month calendar models from the shared normalized da
     }),
     seriesItems: buildSeries(),
     isOwner: true,
-    visibleMonthStartUtc: "2026-04-01T00:00:00.000Z",
+    householdTimeZoneId: "America/Chicago",
+    weekStartDate: "2026-04-20",
+    visibleMonthStartDate: "2026-04-01",
     selectedDate: "2026-04-20",
     now
   });
@@ -229,7 +234,9 @@ test("keeps imported events read-only inside the mobile selected-day data", () =
     home: buildHomeResponse(),
     seriesItems: buildSeries(),
     isOwner: true,
-    visibleMonthStartUtc: "2026-04-01T00:00:00.000Z",
+    householdTimeZoneId: "America/Chicago",
+    weekStartDate: "2026-04-20",
+    visibleMonthStartDate: "2026-04-01",
     selectedDate: "2026-04-22",
     now: new Date("2026-04-20T14:00:00.000Z")
   });
@@ -237,6 +244,35 @@ test("keeps imported events read-only inside the mobile selected-day data", () =
   expect(viewModel.mobileMonth.selectedDay.items[0]?.kind).toBe("event");
   expect(viewModel.mobileMonth.selectedDay.items[0]?.sourceLabel).toBe("imported");
   expect(viewModel.mobileMonth.selectedDay.items[0]?.accessState).toBe("read-only");
+});
+
+test("expands late-night events across the local days they span", () => {
+  const viewModel = buildFamilyCalendarViewModel({
+    weekAgenda: buildWeekAgendaResponse(),
+    monthAgenda: buildMonthAgendaResponse(),
+    reminders: buildReminders(),
+    home: buildHomeResponse(),
+    seriesItems: buildSeries(),
+    isOwner: true,
+    householdTimeZoneId: "America/Chicago",
+    weekStartDate: "2026-04-20",
+    visibleMonthStartDate: "2026-04-01",
+    selectedDate: "2026-04-23",
+    now: new Date("2026-04-20T14:00:00.000Z")
+  });
+
+  const april22 = viewModel.mobileMonth.days.find((day) => day.date === "2026-04-22");
+  const april23 = viewModel.mobileMonth.days.find((day) => day.date === "2026-04-23");
+
+  expect(april22?.eventTiles[0]?.isStart).toBeTruthy();
+  expect(april22?.eventTiles[0]?.isEnd).toBeFalsy();
+  expect(april23?.eventTiles[0]?.isStart).toBeFalsy();
+  expect(april23?.eventTiles[0]?.isEnd).toBeTruthy();
+  const selectedEvent = viewModel.mobileMonth.selectedDay.items.find(
+    (item): item is CalendarEventItem => item.kind === "event"
+  );
+  expect(selectedEvent?.title).toBe("Soccer practice");
+  expect(selectedEvent?.spanLabel).toBe("Ends today");
 });
 
 test("creates selected-date drafts that keep the chosen date in the existing event form", () => {

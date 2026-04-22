@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { AdminSchedulingCalendarDiscovery } from "./admin-scheduling-calendar-discovery";
 import {
   SchedulingReminderManager,
   SchedulingSeriesEditor
@@ -1084,6 +1085,12 @@ export function AdminSchedulingWorkspace() {
           {error ? <p className="error-text">{error}</p> : null}
           {saveMessage ? <p className="success-text">{saveMessage}</p> : null}
         </article>
+      </section>
+
+      <div className="section-spacer" />
+
+      <section className="grid">
+        <AdminSchedulingCalendarDiscovery />
       </section>
 
       <div className="section-spacer" />

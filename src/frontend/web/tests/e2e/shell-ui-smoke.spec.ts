@@ -55,6 +55,7 @@ test("switches through the admin workspace tabs with URL persistence", async ({ 
 
   await expect(page.getByRole("tab", { name: "Scheduling" })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByText("Linked Google calendars")).toBeVisible();
+  await expect(page.getByText("Find calendars without leaving Scheduling")).toBeVisible();
   await expect(page.getByText("Upcoming household activity")).toBeVisible();
   await expect(page.getByText("Reminder triage")).toBeVisible();
 

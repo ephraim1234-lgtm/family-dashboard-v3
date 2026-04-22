@@ -132,8 +132,8 @@ async function mockCalendarRoutes(page: Page, role: SessionRole = "Owner") {
       title: "Soccer practice",
       description: null,
       isAllDay: false,
-      startsAtUtc: "2026-04-22T23:00:00.000Z",
-      endsAtUtc: "2026-04-23T00:00:00.000Z",
+      startsAtUtc: "2026-04-23T04:30:00.000Z",
+      endsAtUtc: "2026-04-23T06:00:00.000Z",
       isImported: true,
       sourceKind: "GoogleCalendarIcs",
       isGoogleMirrorEnabled: false,
@@ -219,6 +219,7 @@ async function mockCalendarRoutes(page: Page, role: SessionRole = "Owner") {
       body: JSON.stringify({
         householdId: "household-1",
         householdName: "The Parkers",
+        timeZoneId: "America/Chicago",
         activeRole: role,
         membershipStatus: "Active"
       })
@@ -410,6 +411,11 @@ test("supports week navigation, agenda switching, local editing, and reminder ac
   await page.getByRole("button", { name: "This week" }).click();
   await expect(page.getByTestId("family-calendar-section")).toContainText("Morning dropoff");
 
+  await page.getByTestId("calendar-view-toggle").getByRole("button", { name: "Month" }).click();
+  await expect(page.getByTestId("family-calendar-desktop-month")).toBeVisible();
+  await page.getByTestId("calendar-month-day-2026-04-22").click();
+  await expect(page.getByTestId("calendar-selected-day")).toContainText("Soccer practice");
+
   await page.getByLabel("Calendar event title").fill("Neighborhood potluck");
   await page.getByLabel("Calendar event starts").fill("2026-04-24T16:00");
   await page.getByLabel("Calendar event ends").fill("2026-04-24T17:00");
@@ -463,6 +469,16 @@ test("renders a mobile month-first planner with month navigation and selected-da
 
   await page.getByRole("button", { name: "This month" }).click();
   await expect(page.getByTestId("calendar-month-label")).toHaveText("April 2026");
+
+  await page.getByTestId("calendar-month-grid").dispatchEvent("touchstart", {
+    changedTouches: [{ clientX: 240, clientY: 140 }]
+  });
+  await page.getByTestId("calendar-month-grid").dispatchEvent("touchend", {
+    changedTouches: [{ clientX: 40, clientY: 140 }]
+  });
+  await expect(page.getByTestId("calendar-month-label")).toHaveText("May 2026");
+
+  await page.getByRole("button", { name: "This month" }).click();
 
   await page.getByTestId("calendar-month-day-2026-04-22").click();
   await expect(page.getByTestId("calendar-selected-day")).toContainText("Soccer practice");

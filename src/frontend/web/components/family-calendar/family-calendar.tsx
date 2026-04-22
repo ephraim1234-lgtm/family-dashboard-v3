@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type TouchEvent } from "react";
 import { applySuggestedEnd } from "../member-event-draft";
 import { HouseholdBoardCard, HouseholdEmptyState, HouseholdMetaBadges, HouseholdSection } from "../household";
 import { FamilyCalendarProvider, useFamilyCalendarContext } from "./family-calendar-context";
@@ -80,6 +80,9 @@ function CalendarEntryButton({
         </span>
       </div>
       <div className="muted">{item.detailLabel}</div>
+      {item.kind === "event" && item.spanLabel ? (
+        <div className="pill family-calendar-span-pill">{item.spanLabel}</div>
+      ) : null}
       <HouseholdMetaBadges
         owner={item.ownerDisplay}
         kind={item.kind}
@@ -148,87 +151,6 @@ function CalendarDayCard({
         </div>
       )}
     </div>
-  );
-}
-
-function WeekPlanningSection() {
-  const {
-    viewModel,
-    viewMode,
-    setViewMode,
-    goToPreviousWeek,
-    goToNextWeek,
-    goToCurrentWeek
-  } = useFamilyCalendarContext();
-
-  if (!viewModel) {
-    return null;
-  }
-
-  return (
-    <HouseholdSection
-      eyebrow="Planning"
-      title="Family calendar"
-      description="Week-first household planning with clear local, imported, and reminder distinctions."
-      actions={(
-        <div className="family-calendar-toolbar">
-          <ActionButton variant="ghost" size="sm" onClick={goToPreviousWeek}>
-            Previous week
-          </ActionButton>
-          <ActionButton variant="ghost" size="sm" onClick={goToCurrentWeek}>
-            This week
-          </ActionButton>
-          <ActionButton variant="ghost" size="sm" onClick={goToNextWeek}>
-            Next week
-          </ActionButton>
-        </div>
-      )}
-      data-testid="family-calendar-section"
-    >
-      <div className="family-calendar-summary-row">
-        <div>
-          <h2 className="family-calendar-range">{viewModel.weekRangeLabel}</h2>
-          <p className="muted mb-0">
-            {viewModel.totalEvents} scheduled blocks, {viewModel.importedCount} imported, {viewModel.reminderCount} prompts
-          </p>
-        </div>
-        <SegmentedToggle
-          value={viewMode}
-          options={[
-            { label: "Week", value: "week" },
-            { label: "Agenda", value: "agenda" }
-          ]}
-          onChange={setViewMode}
-          testId="calendar-view-toggle"
-        />
-      </div>
-
-      {viewMode === "week" ? (
-        <div className="family-calendar-grid" data-testid="family-calendar-week-grid">
-          {viewModel.days.map((day) => (
-            <CalendarDayCard key={day.date} {...day} />
-          ))}
-        </div>
-      ) : (
-        <div className="family-calendar-agenda" data-testid="family-calendar-agenda-view">
-          {viewModel.days.map((day) => (
-            <div className="stack-card" key={day.date}>
-              <div className="stack-card-header">
-                <div>
-                  <strong>{day.label}</strong>
-                  <div className="muted">{day.busyLabel}</div>
-                </div>
-                <span className="pill">{day.eventCount} events, {day.reminderCount} prompts</span>
-              </div>
-              <CalendarItemList
-                items={day.items}
-                emptyMessage="Nothing is scheduled or prompted on this day."
-              />
-            </div>
-          ))}
-        </div>
-      )}
-    </HouseholdSection>
   );
 }
 
@@ -434,10 +356,12 @@ function ContextRail() {
   );
 }
 
-function MobileMonthDayButton({
-  day
+function MonthDayButton({
+  day,
+  compact
 }: {
   day: CalendarMonthDay;
+  compact: boolean;
 }) {
   const { selectDate } = useFamilyCalendarContext();
   const itemCount = day.eventCount + day.reminderCount;
@@ -447,6 +371,7 @@ function MobileMonthDayButton({
       aria-label={`${day.date}: ${day.eventCount} events and ${day.reminderCount} prompts`}
       className={[
         "family-calendar-month-day",
+        compact ? "family-calendar-month-day-compact" : null,
         day.isCurrentMonth ? null : "family-calendar-month-day-muted",
         day.isToday ? "family-calendar-month-day-today" : null,
         day.isSelected ? "family-calendar-month-day-selected" : null
@@ -456,29 +381,66 @@ function MobileMonthDayButton({
       type="button"
     >
       <span className="family-calendar-month-day-number">{day.dayNumber}</span>
-      {itemCount > 0 ? (
-        <span className="family-calendar-month-indicators" aria-hidden="true">
-          {day.indicatorTones.map((tone, index) => (
-            <span
-              className={`family-calendar-month-indicator family-calendar-month-indicator-${tone}`}
-              key={`${day.date}-${tone}-${index}`}
-            />
-          ))}
-          {day.overflowCount > 0 ? (
-            <span className="family-calendar-month-overflow">+{day.overflowCount}</span>
-          ) : null}
-        </span>
-      ) : (
-        <span className="family-calendar-month-indicators family-calendar-month-indicators-empty" aria-hidden="true" />
-      )}
+      <span className="family-calendar-month-body" aria-hidden="true">
+        {day.eventTiles.length > 0 ? (
+          <span className="family-calendar-month-tile-stack">
+            {day.eventTiles.map((tile) => (
+              <span
+                className={[
+                  "family-calendar-month-tile",
+                  `family-calendar-month-tile-${tile.tone}`,
+                  tile.isStart ? "family-calendar-month-tile-start" : "family-calendar-month-tile-continue",
+                  tile.isEnd ? "family-calendar-month-tile-end" : "family-calendar-month-tile-continue"
+                ].join(" ")}
+                key={tile.key}
+                title={tile.title}
+              />
+            ))}
+          </span>
+        ) : (
+          <span className="family-calendar-month-tile-stack family-calendar-month-tile-stack-empty" />
+        )}
+        {itemCount > 0 ? (
+          <span className="family-calendar-month-indicators">
+            {Array.from({ length: Math.min(day.reminderDotCount, 2) }, (_, index) => (
+              <span
+                className="family-calendar-month-indicator family-calendar-month-indicator-reminder"
+                key={`${day.date}-reminder-${index}`}
+              />
+            ))}
+            {day.eventTiles.length === 0
+              ? day.indicatorTones
+                .filter((tone) => tone !== "reminder")
+                .slice(0, 2)
+                .map((tone, index) => (
+                  <span
+                    className={`family-calendar-month-indicator family-calendar-month-indicator-${tone}`}
+                    key={`${day.date}-${tone}-${index}`}
+                  />
+                ))
+              : null}
+            {day.overflowCount > 0 ? (
+              <span className="family-calendar-month-overflow">+{day.overflowCount}</span>
+            ) : null}
+          </span>
+        ) : (
+          <span className="family-calendar-month-indicators family-calendar-month-indicators-empty" />
+        )}
+      </span>
     </button>
   );
 }
 
-function MobileMonthPlannerSection({
-  onCreateFromSelectedDay
+function MonthPlannerSection({
+  compact,
+  onCreateFromSelectedDay,
+  testId,
+  enableSwipe = false
 }: {
+  compact: boolean;
   onCreateFromSelectedDay: () => void;
+  testId: string;
+  enableSwipe?: boolean;
 }) {
   const {
     viewModel,
@@ -486,6 +448,7 @@ function MobileMonthPlannerSection({
     goToNextMonth,
     goToCurrentMonth
   } = useFamilyCalendarContext();
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   if (!viewModel) {
     return null;
@@ -494,11 +457,58 @@ function MobileMonthPlannerSection({
   const { mobileMonth } = viewModel;
   const selectedDay = mobileMonth.selectedDay;
 
+  function handleTouchStart(event: TouchEvent<HTMLDivElement>) {
+    if (!enableSwipe) {
+      return;
+    }
+
+    const touch = event.changedTouches[0];
+    if (!touch) {
+      return;
+    }
+
+    touchStartRef.current = {
+      x: touch.clientX,
+      y: touch.clientY
+    };
+  }
+
+  function handleTouchEnd(event: TouchEvent<HTMLDivElement>) {
+    if (!enableSwipe || !touchStartRef.current) {
+      return;
+    }
+
+    const touch = event.changedTouches[0];
+    if (!touch) {
+      touchStartRef.current = null;
+      return;
+    }
+
+    const deltaX = touch.clientX - touchStartRef.current.x;
+    const deltaY = touch.clientY - touchStartRef.current.y;
+    touchStartRef.current = null;
+
+    if (Math.abs(deltaX) < 44 || Math.abs(deltaX) <= Math.abs(deltaY)) {
+      return;
+    }
+
+    if (deltaX < 0) {
+      goToNextMonth();
+      return;
+    }
+
+    goToPreviousMonth();
+  }
+
   return (
     <HouseholdSection
       eyebrow="Planning"
       title="Family calendar"
-      description="A compact month planner for daily household browsing on mobile."
+      description={
+        compact
+          ? "A compact month planner for daily household browsing on mobile."
+          : "Month-at-a-glance planning that still keeps the selected day readable and actionable."
+      }
       actions={(
         <div className="family-calendar-toolbar">
           <ActionButton variant="ghost" size="sm" onClick={goToPreviousMonth}>
@@ -512,7 +522,7 @@ function MobileMonthPlannerSection({
           </ActionButton>
         </div>
       )}
-      data-testid="family-calendar-mobile-month"
+      data-testid={testId}
     >
       <div className="family-calendar-month-header">
         <h2 className="family-calendar-range" data-testid="calendar-month-label">
@@ -532,9 +542,14 @@ function MobileMonthPlannerSection({
         ))}
       </div>
 
-      <div className="family-calendar-month-grid" data-testid="calendar-month-grid">
+      <div
+        className={`family-calendar-month-grid${compact ? "" : " family-calendar-month-grid-desktop"}`}
+        data-testid="calendar-month-grid"
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
         {mobileMonth.days.map((day) => (
-          <MobileMonthDayButton key={day.date} day={day} />
+          <MonthDayButton key={day.date} day={day} compact={compact} />
         ))}
       </div>
 
@@ -558,6 +573,114 @@ function MobileMonthPlannerSection({
           emptyMessage="Nothing is scheduled or prompted on this day."
         />
       </div>
+    </HouseholdSection>
+  );
+}
+
+function DesktopMonthPlannerSection({
+  onCreateFromSelectedDay
+}: {
+  onCreateFromSelectedDay: () => void;
+}) {
+  return (
+    <div className="family-calendar-desktop-month" data-testid="family-calendar-desktop-month">
+      <MonthPlannerSection
+        compact={false}
+        onCreateFromSelectedDay={onCreateFromSelectedDay}
+        testId="family-calendar-desktop-month-shell"
+      />
+    </div>
+  );
+}
+
+function WeekPlanningSection({
+  onCreateFromSelectedDay
+}: {
+  onCreateFromSelectedDay: () => void;
+}) {
+  const {
+    viewModel,
+    viewMode,
+    setViewMode,
+    goToPreviousWeek,
+    goToNextWeek,
+    goToCurrentWeek,
+    goToCurrentMonth
+  } = useFamilyCalendarContext();
+
+  if (!viewModel) {
+    return null;
+  }
+
+  return (
+    <HouseholdSection
+      eyebrow="Planning"
+      title="Family calendar"
+      description="Week-first household planning with clear local, imported, and reminder distinctions."
+      actions={(
+        <div className="family-calendar-toolbar">
+          <ActionButton variant="ghost" size="sm" onClick={goToPreviousWeek}>
+            Previous week
+          </ActionButton>
+          <ActionButton variant="ghost" size="sm" onClick={goToCurrentWeek}>
+            This week
+          </ActionButton>
+          <ActionButton variant="ghost" size="sm" onClick={goToNextWeek}>
+            Next week
+          </ActionButton>
+          <ActionButton variant="ghost" size="sm" onClick={goToCurrentMonth}>
+            This month
+          </ActionButton>
+        </div>
+      )}
+      data-testid="family-calendar-section"
+    >
+      <div className="family-calendar-summary-row">
+        <div>
+          <h2 className="family-calendar-range">{viewModel.weekRangeLabel}</h2>
+          <p className="muted mb-0">
+            {viewModel.totalEvents} scheduled blocks, {viewModel.importedCount} imported, {viewModel.reminderCount} prompts
+          </p>
+        </div>
+        <SegmentedToggle
+          value={viewMode}
+          options={[
+            { label: "Week", value: "week" },
+            { label: "Agenda", value: "agenda" },
+            { label: "Month", value: "month" }
+          ]}
+          onChange={setViewMode}
+          testId="calendar-view-toggle"
+        />
+      </div>
+
+      {viewMode === "week" ? (
+        <div className="family-calendar-grid" data-testid="family-calendar-week-grid">
+          {viewModel.days.map((day) => (
+            <CalendarDayCard key={day.date} {...day} />
+          ))}
+        </div>
+      ) : viewMode === "agenda" ? (
+        <div className="family-calendar-agenda" data-testid="family-calendar-agenda-view">
+          {viewModel.days.map((day) => (
+            <div className="stack-card" key={day.date}>
+              <div className="stack-card-header">
+                <div>
+                  <strong>{day.label}</strong>
+                  <div className="muted">{day.busyLabel}</div>
+                </div>
+                <span className="pill">{day.eventCount} events, {day.reminderCount} prompts</span>
+              </div>
+              <CalendarItemList
+                items={day.items}
+                emptyMessage="Nothing is scheduled or prompted on this day."
+              />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <DesktopMonthPlannerSection onCreateFromSelectedDay={onCreateFromSelectedDay} />
+      )}
     </HouseholdSection>
   );
 }
@@ -628,6 +751,9 @@ function CalendarDetailDrawer() {
             <p className="muted">{selectedDetail.item.description}</p>
           ) : null}
           <p className="muted mb-0">{selectedDetail.item.detailLabel}</p>
+          {isEvent && selectedDetail.item.spanLabel ? (
+            <p className="muted mb-0">{selectedDetail.item.spanLabel}</p>
+          ) : null}
           {isEvent && selectedDetail.item.recurrenceSummary ? (
             <p className="muted mb-0 mt-3">{selectedDetail.item.recurrenceSummary}</p>
           ) : null}
@@ -793,10 +919,15 @@ function FamilyCalendarBody() {
   } = useFamilyCalendarContext();
   const isMobileCalendarLayout = useIsMobileCalendarLayout();
   const mobileQuickCreateRef = useRef<HTMLDivElement | null>(null);
+  const desktopQuickCreateRef = useRef<HTMLDivElement | null>(null);
 
   function handleCreateFromSelectedDay() {
     prefillEventDraftForSelectedDate();
-    mobileQuickCreateRef.current?.scrollIntoView({
+    const target = isMobileCalendarLayout
+      ? mobileQuickCreateRef.current
+      : desktopQuickCreateRef.current;
+
+    target?.scrollIntoView({
       behavior: "smooth",
       block: "start"
     });
@@ -810,7 +941,7 @@ function FamilyCalendarBody() {
       <PageHeader
         eyebrow="Calendar"
         title="Calendar"
-        description="A warm family planner that stays week-first on larger screens and becomes month-first on mobile."
+        description="A warm family planner that stays week-first on larger screens, becomes month-first on mobile, and now supports a shared month view on desktop too."
       />
 
       {isLoading ? (
@@ -824,7 +955,12 @@ function FamilyCalendarBody() {
       ) : viewModel ? (
         isMobileCalendarLayout ? (
           <div className="family-calendar-mobile-stack" data-testid="family-calendar-page">
-            <MobileMonthPlannerSection onCreateFromSelectedDay={handleCreateFromSelectedDay} />
+            <MonthPlannerSection
+              compact
+              enableSwipe
+              onCreateFromSelectedDay={handleCreateFromSelectedDay}
+              testId="family-calendar-mobile-month"
+            />
             <div ref={mobileQuickCreateRef}>
               <QuickCreateSection
                 title={`Add an event on ${viewModel.mobileMonth.selectedDay.createLabel}`}
@@ -839,8 +975,10 @@ function FamilyCalendarBody() {
           </div>
         ) : (
           <div className="family-calendar-layout" data-testid="family-calendar-page">
-            <WeekPlanningSection />
-            <ContextRail />
+            <WeekPlanningSection onCreateFromSelectedDay={handleCreateFromSelectedDay} />
+            <div ref={desktopQuickCreateRef}>
+              <ContextRail />
+            </div>
             <CalendarDetailDrawer />
           </div>
         )

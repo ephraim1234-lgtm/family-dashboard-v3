@@ -32,20 +32,29 @@ import {
   type UpcomingEventsResponse
 } from "../scheduling";
 import {
-  addDaysUtc,
-  addMonthsUtc,
+  addCalendarDays,
+  addCalendarMonths,
   buildFamilyCalendarViewModel,
   getDefaultSelectedDateForMonth,
-  getMonthGridStartUtc,
-  getMonthStartUtc,
-  getWeekStartUtc,
+  getMonthGridStartDate,
+  getMonthStartDate,
+  getUtcStartOfLocalDate,
+  getWeekStartDate,
   type CalendarEventItem,
   type CalendarReminderItem,
   type FamilyCalendarViewModel
 } from "@/lib/family-calendar";
 import type { HomeResponse } from "@/lib/family-command-center";
 
-type CalendarViewMode = "week" | "agenda";
+type CalendarViewMode = "week" | "agenda" | "month";
+
+type HouseholdContextResponse = {
+  householdId: string;
+  householdName: string;
+  timeZoneId: string;
+  activeRole: string;
+  membershipStatus: string;
+};
 
 type CalendarDetailSelection =
   | {
@@ -66,8 +75,8 @@ type FamilyCalendarContextValue = {
   isAuthenticated: boolean;
   viewMode: CalendarViewMode;
   setViewMode: (value: CalendarViewMode) => void;
-  weekStartUtc: string;
-  monthStartUtc: string;
+  weekStartDate: string;
+  monthStartDate: string;
   selectedDate: string;
   selectDate: (date: string) => void;
   viewModel: FamilyCalendarViewModel | null;
@@ -141,6 +150,23 @@ async function fetchHome() {
   return (await response.json()) as HomeResponse;
 }
 
+async function fetchHouseholdContext() {
+  const response = await fetch("/api/households/current", {
+    credentials: "same-origin",
+    cache: "no-store"
+  });
+
+  if (response.status === 401 || response.status === 403) {
+    return null;
+  }
+
+  if (!response.ok) {
+    throw new Error(`Failed to load household context: ${response.status}`);
+  }
+
+  return (await response.json()) as HouseholdContextResponse;
+}
+
 async function fetchAgenda(windowStartUtc: string, days: number) {
   const searchParams = new URLSearchParams({
     startUtc: windowStartUtc,
@@ -207,11 +233,11 @@ export function FamilyCalendarProvider({
   const [actionError, setActionError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<CalendarViewMode>("week");
-  const [weekStartUtc, setWeekStartUtc] = useState(() => getWeekStartUtc(new Date()));
-  const [monthStartUtc, setMonthStartUtc] = useState(() => getMonthStartUtc(new Date()));
+  const [weekStartDate, setWeekStartDate] = useState(() => getWeekStartDate(new Date()));
+  const [monthStartDate, setMonthStartDate] = useState(() => getMonthStartDate(new Date()));
   const [selectedDate, setSelectedDate] = useState(() => {
     const now = new Date();
-    return getDefaultSelectedDateForMonth(getMonthStartUtc(now), now);
+    return getDefaultSelectedDateForMonth(getMonthStartDate(now), now);
   });
   const [selectedDetail, setSelectedDetailRaw] = useState<CalendarDetailSelection | null>(null);
   const [detailEditorOpen, setDetailEditorOpen] = useState(false);
@@ -230,9 +256,23 @@ export function FamilyCalendarProvider({
   const [eventEnd, setEventEnd] = useState(defaultEventDraft.endsAtLocal);
 
   const isAuthenticated = session.isAuthenticated;
+  const householdQuery = useQuery({
+    queryKey: ["calendar", "household-context"],
+    queryFn: fetchHouseholdContext,
+    enabled: !isSessionLoading && isAuthenticated
+  });
+  const householdTimeZoneId = householdQuery.data?.timeZoneId ?? "UTC";
+  const monthGridStartDate = useMemo(
+    () => getMonthGridStartDate(monthStartDate),
+    [monthStartDate]
+  );
+  const weekStartUtc = useMemo(
+    () => getUtcStartOfLocalDate(weekStartDate, householdTimeZoneId),
+    [householdTimeZoneId, weekStartDate]
+  );
   const monthGridStartUtc = useMemo(
-    () => getMonthGridStartUtc(monthStartUtc),
-    [monthStartUtc]
+    () => getUtcStartOfLocalDate(monthGridStartDate, householdTimeZoneId),
+    [householdTimeZoneId, monthGridStartDate]
   );
 
   const homeQuery = useQuery({
@@ -242,13 +282,13 @@ export function FamilyCalendarProvider({
   });
 
   const weekAgendaQuery = useQuery({
-    queryKey: ["calendar", "agenda", "week", weekStartUtc],
+    queryKey: ["calendar", "agenda", "week", weekStartDate, householdTimeZoneId],
     queryFn: () => fetchAgenda(weekStartUtc, 7),
     enabled: !isSessionLoading && isAuthenticated
   });
 
   const monthAgendaQuery = useQuery({
-    queryKey: ["calendar", "agenda", "month", monthGridStartUtc],
+    queryKey: ["calendar", "agenda", "month", monthGridStartDate, householdTimeZoneId],
     queryFn: () => fetchAgenda(monthGridStartUtc, 42),
     enabled: !isSessionLoading && isAuthenticated
   });
@@ -274,8 +314,8 @@ export function FamilyCalendarProvider({
   }, [selectedDetail, seriesQuery.data]);
 
   useEffect(() => {
-    setSelectedDate(getDefaultSelectedDateForMonth(monthStartUtc, new Date()));
-  }, [monthStartUtc]);
+    setSelectedDate(getDefaultSelectedDateForMonth(monthStartDate, new Date(), householdTimeZoneId));
+  }, [householdTimeZoneId, monthStartDate]);
 
   useEffect(() => {
     if (!selectedDetail || selectedDetail.type !== "event" || !selectedSeriesItem) {
@@ -572,18 +612,22 @@ export function FamilyCalendarProvider({
         home: homeQuery.data ?? null,
         seriesItems: seriesQuery.data ?? [],
         isOwner,
-        visibleMonthStartUtc: monthStartUtc,
+        householdTimeZoneId,
+        weekStartDate,
+        visibleMonthStartDate: monthStartDate,
         selectedDate,
         now: new Date()
       }),
     [
       homeQuery.data,
       isOwner,
+      householdTimeZoneId,
       monthAgendaQuery.data,
-      monthStartUtc,
+      monthStartDate,
       reminderQuery.data,
       selectedDate,
       seriesQuery.data,
+      weekStartDate,
       weekAgendaQuery.data
     ]
   );
@@ -632,6 +676,7 @@ export function FamilyCalendarProvider({
     actionError
     ?? (weekAgendaQuery.error instanceof Error ? weekAgendaQuery.error.message : null)
     ?? (monthAgendaQuery.error instanceof Error ? monthAgendaQuery.error.message : null)
+    ?? (householdQuery.error instanceof Error ? householdQuery.error.message : null)
     ?? (homeQuery.error instanceof Error ? homeQuery.error.message : null)
     ?? (reminderQuery.error instanceof Error ? reminderQuery.error.message : null)
     ?? (seriesQuery.error instanceof Error ? seriesQuery.error.message : null);
@@ -639,6 +684,7 @@ export function FamilyCalendarProvider({
   const value: FamilyCalendarContextValue = {
     isLoading:
       isSessionLoading
+      || householdQuery.isLoading
       || weekAgendaQuery.isLoading
       || monthAgendaQuery.isLoading
       || homeQuery.isLoading
@@ -650,8 +696,8 @@ export function FamilyCalendarProvider({
     isAuthenticated,
     viewMode,
     setViewMode,
-    weekStartUtc,
-    monthStartUtc,
+    weekStartDate,
+    monthStartDate,
     selectedDate,
     selectDate: setSelectedDate,
     viewModel,
@@ -687,12 +733,12 @@ export function FamilyCalendarProvider({
 
       runAction(addEvent, "Unable to add event.");
     },
-    goToPreviousWeek: () => setWeekStartUtc((current) => addDaysUtc(current, -7)),
-    goToNextWeek: () => setWeekStartUtc((current) => addDaysUtc(current, 7)),
-    goToCurrentWeek: () => setWeekStartUtc(getWeekStartUtc(new Date())),
-    goToPreviousMonth: () => setMonthStartUtc((current) => addMonthsUtc(current, -1)),
-    goToNextMonth: () => setMonthStartUtc((current) => addMonthsUtc(current, 1)),
-    goToCurrentMonth: () => setMonthStartUtc(getMonthStartUtc(new Date())),
+    goToPreviousWeek: () => setWeekStartDate((current) => addCalendarDays(current, -7)),
+    goToNextWeek: () => setWeekStartDate((current) => addCalendarDays(current, 7)),
+    goToCurrentWeek: () => setWeekStartDate(getWeekStartDate(new Date(), householdTimeZoneId)),
+    goToPreviousMonth: () => setMonthStartDate((current) => addCalendarMonths(current, -1)),
+    goToNextMonth: () => setMonthStartDate((current) => addCalendarMonths(current, 1)),
+    goToCurrentMonth: () => setMonthStartDate(getMonthStartDate(new Date(), householdTimeZoneId)),
     selectedSeriesItem,
     seriesEditorState,
     setSeriesEditorState,

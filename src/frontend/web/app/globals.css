@@ -430,6 +430,10 @@ textarea {
   box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent-warning) 14%, transparent);
 }
 
+.family-calendar-span-pill {
+  width: fit-content;
+}
+
 .family-calendar-empty .ui-empty-state {
   padding-inline: 0;
 }
@@ -500,7 +504,7 @@ textarea {
 .family-calendar-month-day {
   appearance: none;
   display: grid;
-  align-content: space-between;
+  align-content: start;
   gap: 0.45rem;
   min-height: 4.3rem;
   border: 1px solid var(--surface-line);
@@ -510,6 +514,10 @@ textarea {
   color: var(--text);
   text-align: left;
   transition: border-color 0.16s ease, background 0.16s ease, transform 0.16s ease;
+}
+
+.family-calendar-month-day-compact {
+  min-height: 4rem;
 }
 
 .family-calendar-month-day:hover {
@@ -538,6 +546,50 @@ textarea {
   font-size: 0.95rem;
   font-weight: 600;
   color: var(--text-strong);
+}
+
+.family-calendar-month-body {
+  display: grid;
+  gap: 0.32rem;
+}
+
+.family-calendar-month-tile-stack {
+  display: grid;
+  gap: 0.16rem;
+  min-height: 0.9rem;
+}
+
+.family-calendar-month-tile-stack-empty {
+  opacity: 0.34;
+}
+
+.family-calendar-month-tile {
+  display: block;
+  height: 0.28rem;
+  border-radius: 999px;
+  opacity: 0.96;
+}
+
+.family-calendar-month-tile-start {
+  border-top-left-radius: 999px;
+  border-bottom-left-radius: 999px;
+}
+
+.family-calendar-month-tile-end {
+  border-top-right-radius: 999px;
+  border-bottom-right-radius: 999px;
+}
+
+.family-calendar-month-tile-continue {
+  border-radius: 0.22rem;
+}
+
+.family-calendar-month-tile-local {
+  background: color-mix(in oklab, var(--accent-primary) 70%, white);
+}
+
+.family-calendar-month-tile-imported {
+  background: color-mix(in oklab, var(--accent-admin) 68%, white);
 }
 
 .family-calendar-month-indicators {
@@ -585,6 +637,14 @@ textarea {
     linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(247, 242, 233, 0.88));
 }
 
+.family-calendar-desktop-month {
+  display: grid;
+}
+
+.family-calendar-month-grid-desktop .family-calendar-month-day {
+  min-height: 6rem;
+}
+
 @media (min-width: 1100px) {
   .family-calendar-layout {
     grid-template-columns: minmax(0, 2fr) minmax(18rem, 24rem);
@@ -607,6 +667,10 @@ textarea {
   .family-calendar-month-header,
   .family-calendar-selected-day-head {
     flex-direction: column;
+  }
+
+  .family-calendar-month-grid-desktop .family-calendar-month-day {
+    min-height: 4.5rem;
   }
 }
 
