@@ -4,11 +4,11 @@ export default function DisplayIndexPage() {
   return (
     <main className="page">
       <section className="hero">
-        <div className="eyebrow">Display Surface</div>
-        <h1>Token-required display access</h1>
+        <div className="eyebrow">Display</div>
+        <h1>Token-required household display</h1>
         <p className="lede text-[rgba(247,239,224,0.72)]">
           Display routes stay separate from normal user sessions. Provision a
-          display device from the admin surface to obtain a usable display path.
+          display device from the admin tools to obtain a usable display path.
         </p>
       </section>
 

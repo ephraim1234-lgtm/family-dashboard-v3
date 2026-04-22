@@ -4,6 +4,7 @@ public sealed record DisplayProjectionResponse(
     string AccessMode,
     string DeviceName,
     string HouseholdName,
+    string HouseholdTimeZoneId,
     string PresentationMode,
     string AgendaDensityMode,
     string AccessTokenHint,

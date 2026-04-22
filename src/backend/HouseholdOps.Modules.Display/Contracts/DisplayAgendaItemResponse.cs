@@ -5,4 +5,6 @@ public sealed record DisplayAgendaItemResponse(
     DateTimeOffset? StartsAtUtc,
     DateTimeOffset? EndsAtUtc,
     bool IsAllDay,
-    string? Description);
+    string? Description,
+    bool IsImported,
+    string? SourceKind);

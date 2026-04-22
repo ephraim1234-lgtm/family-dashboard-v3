@@ -4,8 +4,8 @@ import { Card, PageContainer, PageHeader, SectionHeader } from "@/components/ui"
 const surfaces = [
   {
     href: "/app",
-    title: "Household App",
-    body: "Primary member-facing web surface for household context, schedule views, and day-to-day planning."
+    title: "Command Center",
+    body: "The member-facing home for daily triage, household context, chores, notes, and agenda."
   },
   {
     href: "/admin",
@@ -15,7 +15,7 @@ const surfaces = [
   {
     href: "/display",
     title: "Display",
-    body: "Kiosk-oriented ambient visibility surface backed by explicit display projection endpoints and tokenized device access."
+    body: "The ambient household board for passive visibility, driven by explicit projection endpoints and tokenized device access."
   }
 ];
 

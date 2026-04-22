@@ -124,6 +124,7 @@ public class DisplayProjectionServiceTests
         Assert.NotNull(projection);
         Assert.Equal("FocusNext", projection!.PresentationMode);
         Assert.Equal("Dense", projection.AgendaDensityMode);
+        Assert.Equal("UTC", projection.HouseholdTimeZoneId);
         Assert.NotNull(projection.AgendaSection.NextItem);
         Assert.Equal("Pickup groceries", projection.AgendaSection.NextItem!.Title);
         Assert.Single(projection.AgendaSection.SoonItems);
@@ -136,7 +137,53 @@ public class DisplayProjectionServiceTests
         Assert.Equal("Today", projection.AgendaSection.UpcomingDays[0].Label);
     }
 
-    private static HouseholdOpsDbContext CreateDbContext()
+    [Fact]
+    public async Task Projection_PreservesImportedMetadata_AndUsesHouseholdLocalDayLabels()
+    {
+        var chicagoNow = new DateTimeOffset(2026, 4, 11, 2, 0, 0, TimeSpan.Zero);
+        await using var dbContext = CreateDbContext("America/Chicago", chicagoNow);
+        var clock = new FakeClock(chicagoNow);
+        var managementService = new DisplayManagementService(dbContext, clock);
+
+        var device = await managementService.CreateDeviceAsync(
+            HouseholdId,
+            "Hallway Display",
+            CancellationToken.None);
+
+        dbContext.ScheduledEvents.Add(new ScheduledEvent
+        {
+            HouseholdId = HouseholdId,
+            Title = "Imported practice",
+            Description = "Pulled from Google Calendar",
+            IsAllDay = false,
+            StartsAtUtc = new DateTimeOffset(2026, 4, 11, 3, 0, 0, TimeSpan.Zero),
+            EndsAtUtc = new DateTimeOffset(2026, 4, 11, 4, 0, 0, TimeSpan.Zero),
+            SourceKind = "GoogleCalendarIcs",
+            CreatedAtUtc = chicagoNow
+        });
+        await dbContext.SaveChangesAsync();
+
+        var projectionService = new DisplayProjectionService(
+            dbContext,
+            clock,
+            new AgendaQueryService(dbContext));
+
+        var projection = await projectionService.GetProjectionAsync(
+            device.AccessToken,
+            CancellationToken.None);
+
+        Assert.NotNull(projection);
+        Assert.Equal("America/Chicago", projection!.HouseholdTimeZoneId);
+        var agendaItem = Assert.Single(projection.AgendaSection.Items);
+        Assert.True(agendaItem.IsImported);
+        Assert.Equal("GoogleCalendarIcs", agendaItem.SourceKind);
+        Assert.Single(projection.AgendaSection.UpcomingDays);
+        Assert.Equal("Today", projection.AgendaSection.UpcomingDays[0].Label);
+    }
+
+    private static HouseholdOpsDbContext CreateDbContext(
+        string timeZoneId = "UTC",
+        DateTimeOffset? createdAtUtc = null)
     {
         var options = new DbContextOptionsBuilder<HouseholdOpsDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString("N"))
@@ -147,7 +194,8 @@ public class DisplayProjectionServiceTests
         {
             Id = HouseholdId,
             Name = "Display Test Household",
-            CreatedAtUtc = ClockNow
+            TimeZoneId = timeZoneId,
+            CreatedAtUtc = createdAtUtc ?? ClockNow
         });
         dbContext.SaveChanges();
         return dbContext;

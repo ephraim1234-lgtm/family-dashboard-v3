@@ -10,8 +10,8 @@ function shellContext(pathname: string) {
   if (pathname.startsWith("/admin")) {
     return {
       label: "Admin",
-      title: "Household control center",
-      description: "Owner-facing workflows across scheduling, display, members, and operations.",
+      title: "Household Admin",
+      description: "Owner-facing control for scheduling, display devices, members, and operations.",
       accentLabel: "Owner tools"
     };
   }
@@ -19,8 +19,8 @@ function shellContext(pathname: string) {
   if (pathname.startsWith("/app/calendar")) {
     return {
       label: "Calendar",
-      title: "Family planning surface",
-      description: "Week-first household planning for local events, imported schedules, and reminders.",
+      title: "Calendar",
+      description: "Week-first planning for local events, imported schedules, and reminders.",
       accentLabel: "Family planning"
     };
   }
@@ -35,9 +35,9 @@ function shellContext(pathname: string) {
   }
 
   return {
-    label: "Overview",
-    title: "Household workspace",
-    description: "A member-friendly home for today, chores, notes, and agenda.",
+    label: "Command Center",
+    title: "Family Command Center",
+    description: "Triage today, keep the household board close, and spot what needs attention next.",
     accentLabel: "Everyday rhythm"
   };
 }

@@ -1,601 +1,498 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-
-type DisplayAgendaItem = {
-  title: string;
-  startsAtUtc: string | null;
-  endsAtUtc: string | null;
-  isAllDay: boolean;
-  description: string | null;
-};
-
-type DisplayAgendaSection = {
-  windowStartUtc: string;
-  windowEndUtc: string;
-  nextItem: DisplayAgendaItem | null;
-  allDayItems: DisplayAgendaItem[];
-  soonItems: DisplayAgendaItem[];
-  laterTodayItems: DisplayAgendaItem[];
-  upcomingDays: Array<{
-    date: string;
-    label: string;
-    totalCount: number;
-    allDayCount: number;
-    timedCount: number;
-    firstStartsAtUtc: string | null;
-  }>;
-  upcomingDayGroups: Array<{
-    date: string;
-    label: string;
-    events: DisplayAgendaItem[];
-  }>;
-  items: DisplayAgendaItem[];
-};
-
-type DisplayReminderItem = {
-  eventTitle: string;
-  minutesBefore: number;
-  dueAtUtc: string;
-};
-
-type DisplayChoreItem = {
-  title: string;
-  assignedMemberName: string | null;
-  recurrenceKind: string;
-};
-
-type DisplayNoteItem = {
-  title: string;
-  body: string | null;
-  authorDisplayName: string;
-};
-
-type DisplaySnapshot = {
-  accessMode: string;
-  deviceName: string;
-  householdName: string;
-  presentationMode: "Balanced" | "FocusNext";
-  agendaDensityMode: "Comfortable" | "Dense";
-  accessTokenHint: string;
-  generatedAtUtc: string;
-  sections: Array<{
-    title: string;
-    body: string;
-  }>;
-  agendaSection: DisplayAgendaSection;
-  upcomingReminders: DisplayReminderItem[];
-  dueChores: DisplayChoreItem[];
-  pinnedNotes: DisplayNoteItem[];
-};
+import { useEffect, useMemo, useState, useTransition } from "react";
+import {
+  HouseholdBoardCard,
+  HouseholdEmptyState,
+  HouseholdMetaBadges
+} from "./household";
+import { Badge, EmptyState } from "@/components/ui";
+import {
+  applyDisplayRefreshFailure,
+  applyDisplayRefreshSuccess,
+  buildDisplayViewModel,
+  createInitialDisplaySurfaceState,
+  getDisplayRefreshIntervalMs,
+  type DisplayAgendaCard,
+  type DisplayChoreCard,
+  type DisplayNoteCard,
+  type DisplayReminderCard,
+  type DisplaySnapshot
+} from "@/lib/family-display";
 
 type DisplaySurfacePanelProps = {
   token: string;
 };
 
-function formatHeadlineTime(item: DisplayAgendaItem) {
-  if (item.isAllDay) {
-    return "All day";
-  }
-
-  if (!item.startsAtUtc) {
-    return "Unscheduled";
-  }
-
-  return new Date(item.startsAtUtc).toLocaleTimeString([], {
-    hour: "numeric",
-    minute: "2-digit"
-  });
-}
-
-function formatAgendaTime(item: DisplayAgendaItem) {
-  if (item.isAllDay) {
-    return "All day";
-  }
-
-  if (!item.startsAtUtc) {
-    return "Unscheduled";
-  }
-
-  const start = new Date(item.startsAtUtc).toLocaleString([], {
-    weekday: "short",
-    hour: "numeric",
-    minute: "2-digit"
-  });
-
-  if (!item.endsAtUtc) {
-    return start;
-  }
-
-  const end = new Date(item.endsAtUtc).toLocaleTimeString([], {
-    hour: "numeric",
-    minute: "2-digit"
-  });
-
-  return `${start} - ${end}`;
-}
-
-function dayLabel(item: DisplayAgendaItem) {
-  if (!item.startsAtUtc) {
-    return "Later";
-  }
-
-  return new Date(item.startsAtUtc).toLocaleDateString([], {
-    weekday: "long",
-    month: "short",
-    day: "numeric"
-  });
-}
-
 const MAX_CONSECUTIVE_FAILURES = 3;
 
-function formatCountdown(startsAtUtc: string, now: Date): string {
-  const diffMs = new Date(startsAtUtc).getTime() - now.getTime();
-  if (diffMs <= 0) return "Now";
-  const totalMinutes = Math.round(diffMs / 60_000);
-  if (totalMinutes < 60) return `in ${totalMinutes} min`;
-  const hours = Math.floor(totalMinutes / 60);
-  const mins = totalMinutes % 60;
-  return mins === 0 ? `in ${hours} hr` : `in ${hours} hr ${mins} min`;
+function DisplayNowCard({ item }: Readonly<{ item: DisplayAgendaCard }>) {
+  return (
+    <div className="display-now-item">
+      <div className="display-now-item-head">
+        <strong>{item.title}</strong>
+        <span className="display-inline-note">{item.timeLabel}</span>
+      </div>
+      {item.description ? (
+        <p className="display-inline-copy">{item.description}</p>
+      ) : null}
+      <HouseholdMetaBadges
+        kind={item.kind}
+        sourceLabel={item.sourceLabel}
+        urgencyState={item.urgencyState}
+      />
+    </div>
+  );
 }
 
-function formatClockTime(date: Date) {
-  return date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+function DisplayAgendaList({
+  items,
+  emptyTitle,
+  emptyMessage
+}: Readonly<{
+  items: DisplayAgendaCard[];
+  emptyTitle: string;
+  emptyMessage: string;
+}>) {
+  if (items.length === 0) {
+    return (
+      <EmptyState
+        className="display-empty-state"
+        title={emptyTitle}
+        message={emptyMessage}
+      />
+    );
+  }
+
+  return (
+    <div className="display-agenda-list">
+      {items.map((item) => (
+        <div className="display-agenda-item" key={item.key}>
+          <div className="display-agenda-time">
+            <div>{item.timeLabel}</div>
+            <div className="display-inline-note">{item.dayLabel}</div>
+          </div>
+          <div className="display-agenda-copy">
+            <strong>{item.title}</strong>
+            {item.description ? (
+              <div className="display-inline-copy">{item.description}</div>
+            ) : null}
+            <HouseholdMetaBadges
+              kind={item.kind}
+              sourceLabel={item.sourceLabel}
+              urgencyState={item.urgencyState}
+            />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
 }
 
-function formatClockDate(date: Date) {
-  return date.toLocaleDateString([], {
-    weekday: "long",
-    month: "long",
-    day: "numeric"
-  });
+function DisplayReminderBoard({ items }: Readonly<{ items: DisplayReminderCard[] }>) {
+  if (items.length === 0) {
+    return <HouseholdEmptyState className="display-empty-state" variant="quiet-day" />;
+  }
+
+  return (
+    <div className="display-board-stack">
+      {items.map((item) => (
+        <HouseholdBoardCard
+          className="display-board-card"
+          key={item.key}
+          tone={item.urgencyState === "overdue" ? "warning" : "accent"}
+          title={item.title}
+          description={`${item.leadLabel} | ${item.dueLabel}`}
+          meta={(
+            <div className="display-board-meta">
+              <HouseholdMetaBadges
+                kind={item.kind}
+                sourceLabel={item.sourceLabel}
+                urgencyState={item.urgencyState}
+              />
+              <div className="display-inline-note">{item.triageLabel}</div>
+            </div>
+          )}
+        />
+      ))}
+    </div>
+  );
+}
+
+function DisplayChoreBoard({ items }: Readonly<{ items: DisplayChoreCard[] }>) {
+  if (items.length === 0) {
+    return <HouseholdEmptyState className="display-empty-state" variant="quiet-day" />;
+  }
+
+  return (
+    <div className="display-board-stack">
+      {items.map((item) => (
+        <HouseholdBoardCard
+          className="display-board-card"
+          key={item.key}
+          title={item.title}
+          description={item.recurrenceLabel}
+          meta={(
+            <HouseholdMetaBadges
+              owner={item.ownerDisplay}
+              kind="chore"
+              sourceLabel={item.sourceLabel}
+              urgencyState={item.urgencyState}
+            />
+          )}
+        />
+      ))}
+    </div>
+  );
+}
+
+function DisplayNoteBoard({ items }: Readonly<{ items: DisplayNoteCard[] }>) {
+  if (items.length === 0) {
+    return <HouseholdEmptyState className="display-empty-state" variant="board-clear" />;
+  }
+
+  return (
+    <div className="display-board-stack">
+      {items.map((item) => (
+        <HouseholdBoardCard
+          className="display-board-card"
+          key={item.key}
+          title={item.title}
+          description={item.body ?? "Pinned for ambient household context."}
+          meta={(
+            <div className="display-board-meta">
+              <HouseholdMetaBadges
+                owner={item.ownerDisplay}
+                kind={item.kind}
+                sourceLabel={item.sourceLabel}
+              />
+              <div className="display-inline-note">{item.authorLabel}</div>
+            </div>
+          )}
+        />
+      ))}
+    </div>
+  );
 }
 
 export function DisplaySurfacePanel({ token }: DisplaySurfacePanelProps) {
-  const [snapshot, setSnapshot] = useState<DisplaySnapshot | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [lastRefreshedAt, setLastRefreshedAt] = useState<Date | null>(null);
+  const [surfaceState, setSurfaceState] = useState(createInitialDisplaySurfaceState);
   const [now, setNow] = useState(() => new Date());
   const [isPending, startTransition] = useTransition();
-  const consecutiveFailuresRef = useRef(0);
 
   useEffect(() => {
-    // Align the first tick to the next whole minute, then tick every 60 s.
-    const msUntilNextMinute = (60 - new Date().getSeconds()) * 1000 - new Date().getMilliseconds();
-    const timeout = setTimeout(() => {
+    const refreshIntervalMs = getDisplayRefreshIntervalMs();
+
+    if (refreshIntervalMs < 60_000) {
+      const interval = window.setInterval(() => setNow(new Date()), refreshIntervalMs);
       setNow(new Date());
-      const interval = setInterval(() => setNow(new Date()), 60_000);
-      return () => clearInterval(interval);
+      return () => window.clearInterval(interval);
+    }
+
+    let minuteInterval: number | undefined;
+    const tick = () => setNow(new Date());
+    const msUntilNextMinute = Math.max(
+      250,
+      (60 - new Date().getSeconds()) * 1_000 - new Date().getMilliseconds()
+    );
+
+    const timeout = window.setTimeout(() => {
+      tick();
+      minuteInterval = window.setInterval(tick, 60_000);
     }, msUntilNextMinute);
-    return () => clearTimeout(timeout);
+
+    return () => {
+      window.clearTimeout(timeout);
+      if (minuteInterval) {
+        window.clearInterval(minuteInterval);
+      }
+    };
   }, []);
 
-  async function refresh() {
-    setError(null);
+  useEffect(() => {
+    let isDisposed = false;
 
-    const response = await fetch(`/api/display/projection/${token}`, {
-      method: "GET",
-      cache: "no-store"
+    async function refreshProjection() {
+      try {
+        const response = await fetch(`/api/display/projection/${token}`, {
+          method: "GET",
+          cache: "no-store"
+        });
+
+        if (!response.ok) {
+          throw new Error(`Display projection request failed with ${response.status}.`);
+        }
+
+        const snapshot = (await response.json()) as DisplaySnapshot;
+        if (isDisposed) {
+          return;
+        }
+
+        setSurfaceState(() =>
+          applyDisplayRefreshSuccess(snapshot, new Date().toISOString())
+        );
+      } catch {
+        if (isDisposed) {
+          return;
+        }
+
+        let shouldReload = false;
+        setSurfaceState((previousState) => {
+          const nextState = applyDisplayRefreshFailure(
+            previousState,
+            new Date().toISOString(),
+            MAX_CONSECUTIVE_FAILURES
+          );
+          shouldReload = nextState.shouldReload;
+          return nextState;
+        });
+
+        if (shouldReload) {
+          window.setTimeout(() => window.location.reload(), 400);
+        }
+      }
+    }
+
+    startTransition(() => {
+      void refreshProjection();
     });
 
-    if (!response.ok) {
-      throw new Error("Display projection request failed.");
-    }
-
-    const nextSnapshot = (await response.json()) as DisplaySnapshot;
-    setSnapshot(nextSnapshot);
-    setLastRefreshedAt(new Date());
-    consecutiveFailuresRef.current = 0;
-  }
-
-  useEffect(() => {
-    function doRefresh() {
+    const interval = window.setInterval(() => {
       startTransition(() => {
-        refresh().catch(() => {
-          consecutiveFailuresRef.current += 1;
-
-          if (consecutiveFailuresRef.current >= MAX_CONSECUTIVE_FAILURES) {
-            window.location.reload();
-            return;
-          }
-
-          setError(
-            `Unable to load the display surface. Retry ${consecutiveFailuresRef.current}/${MAX_CONSECUTIVE_FAILURES - 1} — will reload if this persists.`
-          );
-          setSnapshot(null);
-        });
+        void refreshProjection();
       });
-    }
+    }, getDisplayRefreshIntervalMs());
 
-    doRefresh();
-    const interval = setInterval(doRefresh, 60_000);
-    return () => clearInterval(interval);
+    return () => {
+      isDisposed = true;
+      window.clearInterval(interval);
+    };
   }, [token]);
 
-  const remainingAgendaItems = useMemo(() => {
-    if (!snapshot) {
-      return [];
-    }
+  const viewModel = useMemo(
+    () => (surfaceState.snapshot ? buildDisplayViewModel(surfaceState.snapshot, now) : null),
+    [now, surfaceState.snapshot]
+  );
 
-    const nextKey = snapshot.agendaSection.nextItem
-      ? `${snapshot.agendaSection.nextItem.title}-${snapshot.agendaSection.nextItem.startsAtUtc ?? "none"}`
-      : null;
+  const upcomingDayLimit = viewModel?.agendaDensityMode === "Dense" ? 4 : 3;
+  const todayAgendaLimit = viewModel?.agendaDensityMode === "Dense" ? 6 : 4;
 
-    const filtered = snapshot.agendaSection.items.filter((item) => {
-      if (item.isAllDay) {
-        return false;
-      }
+  if (!viewModel && surfaceState.status === "loading") {
+    return (
+      <section className="display-surface display-surface-loading" data-testid="display-surface-page">
+        <EmptyState
+          className="display-empty-state display-empty-state-screen"
+          title="Waking the household display"
+          message="Pulling the latest household board for this device."
+        />
+      </section>
+    );
+  }
 
-      const itemKey = `${item.title}-${item.startsAtUtc ?? "none"}`;
-      return itemKey !== nextKey;
-    });
-
-    const limit =
-      snapshot.agendaDensityMode === "Dense"
-        ? snapshot.presentationMode === "FocusNext"
-          ? 8
-          : 12
-        : snapshot.presentationMode === "FocusNext"
-          ? 4
-          : 8;
-
-    return filtered.slice(0, limit);
-  }, [snapshot]);
-
-  const daySummaryLimit = snapshot?.agendaDensityMode === "Dense" ? 7 : 4;
-
-  const todayEventCount = useMemo(() => {
-    if (!snapshot) return 0;
-    const todayDate = now.toISOString().slice(0, 10);
-    return snapshot.agendaSection.items.filter(
-      (item) => item.startsAtUtc && item.startsAtUtc.slice(0, 10) === todayDate
-    ).length;
-  }, [snapshot, now]);
+  if (!viewModel) {
+    return (
+      <section className="display-surface display-surface-loading" data-testid="display-surface-page">
+        <EmptyState
+          className="display-empty-state display-empty-state-screen"
+          title="Display unavailable"
+          message={surfaceState.errorMessage ?? "This display token could not load a household board right now."}
+        />
+      </section>
+    );
+  }
 
   return (
-    <section className="display-surface">
+    <section className="display-surface" data-testid="display-surface-page">
+      <div
+        className={`display-status-banner display-status-banner-${surfaceState.status}`}
+        data-testid="display-status-banner"
+      >
+        <div className="display-status-copy">
+          <Badge variant={surfaceState.status === "stale" ? "warning" : "default"}>
+            {surfaceState.status === "stale" ? "Stale" : "Live"}
+          </Badge>
+          <span>
+            {surfaceState.status === "stale"
+              ? surfaceState.errorMessage
+              : `Household board updated ${viewModel.generatedLabel}.`}
+          </span>
+        </div>
+        <div className="display-status-copy">
+          <span>{viewModel.windowLabel}</span>
+          <span>{viewModel.householdTimeZoneId}</span>
+        </div>
+      </div>
+
       <section className="display-hero-card">
         <div className="display-kicker">
-          <span>{snapshot?.householdName ?? "Household display"}</span>
-          <span>{snapshot?.deviceName ?? "Loading device"}</span>
-          {snapshot ? <span>{snapshot.presentationMode}</span> : null}
-          {snapshot ? <span>{snapshot.agendaDensityMode}</span> : null}
+          <span>{viewModel.householdName}</span>
+          <span>{viewModel.deviceName}</span>
+          <span>Display</span>
         </div>
-        <div className="display-clock">
-          <div className="display-clock-time">{formatClockTime(now)}</div>
-          <div className="display-clock-date">{formatClockDate(now)}</div>
-        </div>
-        {snapshot ? (
-          <div className="display-kicker">
-            <span>{todayEventCount === 0 ? "Clear day" : `${todayEventCount} event${todayEventCount === 1 ? "" : "s"} today`}</span>
-            {snapshot.agendaSection.allDayItems.length > 0 ? (
-              <span>{snapshot.agendaSection.allDayItems.length} all-day</span>
-            ) : null}
-          </div>
-        ) : null}
-      </section>
 
-      {snapshot && snapshot.upcomingReminders.length > 0 ? (
-        <section className="display-reminders-strip">
-          <div className="display-reminders-label">Reminders</div>
-          <div className="display-reminders-list">
-            {snapshot.upcomingReminders.map((reminder) => (
-              <div className="display-reminder-chip" key={`${reminder.eventTitle}-${reminder.dueAtUtc}`}>
-                <span className="display-reminder-title">{reminder.eventTitle}</span>
-                <span className="display-reminder-meta">
-                  {reminder.minutesBefore < 60
-                    ? `${reminder.minutesBefore} min`
-                    : reminder.minutesBefore === 60
-                      ? "1 hr"
-                      : `${Math.round(reminder.minutesBefore / 60)} hr`}
-                  {" "}·{" "}
-                  {new Date(reminder.dueAtUtc).toLocaleTimeString([], {
-                    hour: "numeric",
-                    minute: "2-digit"
-                  })}
-                </span>
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      {snapshot && snapshot.dueChores && snapshot.dueChores.length > 0 ? (
-        <section className="display-chores-strip">
-          <div className="display-chores-label">Today&apos;s chores</div>
-          <div className="display-chip-list">
-            {snapshot.dueChores.map((chore) => (
-              <div className="display-chip" key={chore.title}>
-                <span>{chore.title}</span>
-                {chore.assignedMemberName ? (
-                  <span className="display-chore-member"> · {chore.assignedMemberName}</span>
-                ) : null}
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      {snapshot && snapshot.pinnedNotes && snapshot.pinnedNotes.length > 0 ? (
-        <section className="display-notes-strip">
-          <div className="display-notes-label">Pinned notes</div>
-          <div className="display-notes-cards">
-            {snapshot.pinnedNotes.map((note) => (
-              <div className="display-note-card" key={note.title}>
-                <div className="display-note-card-title">{note.title}</div>
-                {note.body ? (
-                  <div className="display-note-card-body">{note.body}</div>
-                ) : null}
-                <div className="display-note-card-author">{note.authorDisplayName}</div>
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      {isPending && !snapshot ? (
-        <article className="panel">
-          <p className="muted">Loading display projection...</p>
-        </article>
-      ) : null}
-
-      {error ? (
-        <article className="panel">
-          <p className="error-text">{error}</p>
-        </article>
-      ) : null}
-
-      {snapshot ? (
-        <>
-          <section className="display-summary-grid">
-            <article className="panel display-panel-hero">
-              <div className="eyebrow">Next up</div>
-              {snapshot.agendaSection.nextItem ? (
-                <>
-                  <div className="display-next-time">
-                    {formatHeadlineTime(snapshot.agendaSection.nextItem)}
-                  </div>
-                  <h3>{snapshot.agendaSection.nextItem.title}</h3>
-                  {snapshot.agendaSection.nextItem.startsAtUtc ? (
-                    <div className="display-countdown">
-                      {formatCountdown(snapshot.agendaSection.nextItem.startsAtUtc, now)}
-                    </div>
-                  ) : null}
-                  {snapshot.agendaSection.nextItem.description ? (
-                    <p className="display-next-description">
-                      {snapshot.agendaSection.nextItem.description}
-                    </p>
-                  ) : null}
-                  <div className="display-meta-row">
-                    <span className="pill">{dayLabel(snapshot.agendaSection.nextItem)}</span>
-                    <span className="pill">{snapshot.presentationMode}</span>
-                    <span className="pill">{snapshot.agendaDensityMode}</span>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <div className="display-next-time">Clear</div>
-                  <h3>No upcoming timed events</h3>
-                  <p className="display-next-description">
-                    The current seven-day display window is quiet right now.
-                  </p>
-                </>
-              )}
-            </article>
-
-            <article className="panel">
-              <div className="eyebrow">All day</div>
-              <h3>Household anchors</h3>
-              {snapshot.agendaSection.allDayItems.length > 0 ? (
-                <div className="display-chip-list">
-                  {snapshot.agendaSection.allDayItems.map((item) => (
-                    <span
-                      className="display-chip"
-                      key={`${item.title}-${item.startsAtUtc ?? "all-day"}`}
-                    >
-                      {item.title}
-                    </span>
-                  ))}
-                </div>
-              ) : (
-                <p className="muted">No all-day items in the current display window.</p>
-              )}
-            </article>
-
-            <article className="panel">
-              <div className="eyebrow">Window</div>
-              <h3>What the display is showing</h3>
-              <dl className="data-list">
-                <div>
-                  <dt>Range</dt>
-                  <dd>
-                    {new Date(snapshot.agendaSection.windowStartUtc).toLocaleDateString()} -{" "}
-                    {new Date(snapshot.agendaSection.windowEndUtc).toLocaleDateString()}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Agenda items</dt>
-                  <dd>{snapshot.agendaSection.items.length}</dd>
-                </div>
-                <div>
-                  <dt>Soon</dt>
-                  <dd>{snapshot.agendaSection.soonItems.length}</dd>
-                </div>
-                <div>
-                  <dt>Updated</dt>
-                  <dd>{new Date(snapshot.generatedAtUtc).toLocaleTimeString()}</dd>
-                </div>
-              </dl>
-            </article>
-          </section>
-
-          <section className="display-summary-grid">
-            <article className="panel">
-              <div className="eyebrow">Soon</div>
-              <h3>Coming up soon</h3>
-              {snapshot.agendaSection.soonItems.length > 0 ? (
-                <div className="display-chip-list">
-                  {snapshot.agendaSection.soonItems
-                    .slice(0, snapshot.agendaDensityMode === "Dense" ? 6 : 3)
-                    .map((item) => (
-                      <span
-                        className="display-chip"
-                        key={`${item.title}-${item.startsAtUtc ?? "soon"}`}
-                      >
-                        {formatHeadlineTime(item)} {item.title}
-                      </span>
-                    ))}
-                </div>
-              ) : (
-                <p className="muted">No additional near-term items after the headline event.</p>
-              )}
-            </article>
-
-            <article className="panel">
-              <div className="eyebrow">Later today</div>
-              <h3>Still ahead today</h3>
-              {snapshot.agendaSection.laterTodayItems.length > 0 ? (
-                <div className="display-agenda-list">
-                  {snapshot.agendaSection.laterTodayItems
-                    .slice(0, snapshot.agendaDensityMode === "Dense" ? 5 : 3)
-                    .map((item) => (
-                      <div
-                        className="display-agenda-item"
-                        key={`${item.title}-${item.startsAtUtc ?? "later-today"}`}
-                      >
-                        <div className="display-agenda-time">{formatAgendaTime(item)}</div>
-                        <div>
-                          <strong>{item.title}</strong>
-                          {item.description ? <div className="muted">{item.description}</div> : null}
-                        </div>
-                      </div>
-                    ))}
-                </div>
-              ) : (
-                <p className="muted">No additional timed items later today.</p>
-              )}
-            </article>
-          </section>
-
-          <article className="panel">
-            <div className="display-section-header">
-              <div>
-                <div className="eyebrow">At a glance</div>
-                <h3>Upcoming day rhythm</h3>
-              </div>
-              <span className="pill">Display-owned summary</span>
+        <div className="display-hero-grid">
+          <div className="display-clock">
+            <div className="display-clock-time">{viewModel.clockTimeLabel}</div>
+            <div className="display-clock-date">{viewModel.clockDateLabel}</div>
+            <div className="display-hero-summary">
+              <span>{viewModel.todayEventCount} events on deck</span>
+              <span>{viewModel.boardCount} board items visible</span>
             </div>
-            <div className="display-day-summary-grid">
-              {snapshot.agendaSection.upcomingDays.slice(0, daySummaryLimit).map((day) => (
-                <div className="stack-card display-day-summary-card" key={day.date}>
-                  <div className="stack-card-header">
-                    <strong>{day.label}</strong>
-                    <span className="pill">{day.totalCount} items</span>
-                  </div>
-                  <div className="muted">
-                    {day.allDayCount} all-day | {day.timedCount} timed
-                  </div>
-                  <div className="muted">
-                    {day.firstStartsAtUtc
-                      ? `Starts around ${new Date(day.firstStartsAtUtc).toLocaleTimeString([], {
-                          hour: "numeric",
-                          minute: "2-digit"
-                        })}`
-                      : "No timed items"}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </article>
+          </div>
 
-          {/* Day-grouped rollup — matches /app "Coming up" shape so a glance
-              at the kiosk shows the actual events per day, not just counts. */}
-          {snapshot.agendaSection.upcomingDayGroups.length > 0 ? (
-            <article className="panel">
-              <div className="display-section-header">
-                <div>
-                  <div className="eyebrow">Day by day</div>
-                  <h3>Coming up</h3>
-                </div>
-                <span className="pill">Grouped by day</span>
-              </div>
-              <div className="stack-list">
-                {snapshot.agendaSection.upcomingDayGroups
-                  .slice(0, daySummaryLimit)
-                  .map((day) => (
-                    <div className="stack-card" key={`group-${day.date}`}>
-                      <div className="stack-card-header">
-                        <strong>{day.label}</strong>
-                        <span className="pill">{day.events.length}</span>
-                      </div>
-                      <div className="display-agenda-list mt-1.5">
-                        {day.events.map((item) => (
-                          <div
-                            className="display-agenda-item"
-                            key={`${day.date}-${item.title}-${item.startsAtUtc ?? "all"}`}
-                          >
-                            <div className="display-agenda-time">
-                              {formatAgendaTime(item)}
-                            </div>
-                            <div>
-                              <strong>{item.title}</strong>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-              </div>
-            </article>
-          ) : null}
-
-          <article className="panel display-agenda-panel">
-            <div className="display-section-header">
-              <div>
-                <div className="eyebrow">Agenda</div>
-                <h3>
-                  {snapshot.presentationMode === "FocusNext"
-                    ? "Immediate household flow"
-                    : "Upcoming household agenda"}
-                </h3>
-              </div>
-              <span className="pill">Token-only display access</span>
-            </div>
-
-            {remainingAgendaItems.length > 0 ? (
-              <div className="display-agenda-list">
-                {remainingAgendaItems.map((item) => (
-                  <div
-                    className="display-agenda-item"
-                    key={`${item.title}-${item.startsAtUtc ?? "none"}`}
-                  >
-                    <div className="display-agenda-time">{formatAgendaTime(item)}</div>
-                    <div>
-                      <strong>{item.title}</strong>
-                      {item.description ? (
-                        <div className="muted">{item.description}</div>
-                      ) : null}
-                    </div>
-                  </div>
+          <article className="display-focus-card" data-testid="display-now-section">
+            <div className="display-section-kicker">Now</div>
+            <h2 className="display-section-title">What is already in motion</h2>
+            {viewModel.nowItems.length > 0 ? (
+              <div className="display-now-stack">
+                {viewModel.nowItems.map((item) => (
+                  <DisplayNowCard item={item} key={item.key} />
                 ))}
               </div>
             ) : (
-              <p className="muted">No additional upcoming items after the current headline event.</p>
+              <EmptyState
+                className="display-empty-state"
+                title="Calm right now"
+                message="Nothing active is pulling attention at this moment."
+              />
             )}
           </article>
 
-          <footer className="display-footer">
-            <span>{snapshot.householdName}</span>
-            <span>{snapshot.deviceName}</span>
-            <span>Token hint {snapshot.accessTokenHint}</span>
-            <span className="display-footer-refresh">
-              {lastRefreshedAt
-                ? `Refreshed ${lastRefreshedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" })}`
-                : "Refreshing…"}
-            </span>
-          </footer>
-        </>
-      ) : null}
+          <article className="display-focus-card display-focus-card-next" data-testid="display-next-section">
+            <div className="display-section-kicker">Next</div>
+            <h2 className="display-section-title">What the household should expect next</h2>
+            {viewModel.nextItem ? (
+              <div className="display-next-block">
+                <div className="display-next-time">{viewModel.nextItem.timeLabel}</div>
+                <div className="display-next-title">{viewModel.nextItem.title}</div>
+                <div className="display-next-meta">
+                  {viewModel.nextItem.relativeLabel ? (
+                    <span className="display-inline-note">{viewModel.nextItem.relativeLabel}</span>
+                  ) : null}
+                  <span className="display-inline-note">{viewModel.nextItem.dayLabel}</span>
+                </div>
+                {viewModel.nextItem.description ? (
+                  <p className="display-next-description">{viewModel.nextItem.description}</p>
+                ) : null}
+                <HouseholdMetaBadges
+                  kind={viewModel.nextItem.kind}
+                  sourceLabel={viewModel.nextItem.sourceLabel}
+                  urgencyState={viewModel.nextItem.urgencyState}
+                />
+              </div>
+            ) : (
+              <EmptyState
+                className="display-empty-state"
+                title="Open runway"
+                message="No timed blocks are queued next in the current display window."
+              />
+            )}
+          </article>
+        </div>
+      </section>
+
+      <section className="display-main-grid">
+        <article className="display-panel" data-testid="display-today-section">
+          <div className="display-panel-header">
+            <div>
+              <div className="display-section-kicker">Today</div>
+              <h2 className="display-section-title">The rest of today at a glance</h2>
+            </div>
+            <div className="display-chip-list">
+              <span className="display-chip">{viewModel.todayLabel}</span>
+              <span className="display-chip">{viewModel.presentationMode}</span>
+              <span className="display-chip">{viewModel.agendaDensityMode}</span>
+            </div>
+          </div>
+
+          {viewModel.allDayItems.length > 0 ? (
+            <div className="display-anchor-strip">
+              <div className="display-anchor-label">All day</div>
+              <div className="display-chip-list">
+                {viewModel.allDayItems.map((item) => (
+                  <span className="display-chip" key={item.key}>
+                    {item.title}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : null}
+
+          <DisplayAgendaList
+            emptyMessage="Nothing else is scheduled for the rest of today."
+            emptyTitle="The day opens up after this"
+            items={viewModel.todayAgenda.slice(0, todayAgendaLimit)}
+          />
+        </article>
+
+        <article className="display-panel" data-testid="display-board-section">
+          <div className="display-panel-header">
+            <div>
+              <div className="display-section-kicker">Board</div>
+              <h2 className="display-section-title">Household board</h2>
+            </div>
+            <span className="display-inline-note">Reminders, chores, and pinned notes</span>
+          </div>
+
+          <div className="display-board-grid">
+            <section className="display-board-column">
+              <h3>Reminders</h3>
+              <DisplayReminderBoard items={viewModel.reminders} />
+            </section>
+
+            <section className="display-board-column">
+              <h3>Chores</h3>
+              <DisplayChoreBoard items={viewModel.chores} />
+            </section>
+
+            <section className="display-board-column">
+              <h3>Pinned notes</h3>
+              <DisplayNoteBoard items={viewModel.notes} />
+            </section>
+          </div>
+        </article>
+      </section>
+
+      <article className="display-panel">
+        <div className="display-panel-header">
+          <div>
+            <div className="display-section-kicker">Coming next</div>
+            <h2 className="display-section-title">How the next few days are shaping up</h2>
+          </div>
+          <span className="display-inline-note">Ambient rhythm across the upcoming window</span>
+        </div>
+
+        {viewModel.upcomingDays.length > 0 ? (
+          <div className="display-upcoming-grid">
+            {viewModel.upcomingDays.slice(0, upcomingDayLimit).map((day) => (
+              <div className="display-upcoming-card" key={day.date}>
+                <div className="display-upcoming-card-head">
+                  <strong>{day.label}</strong>
+                  <span className="display-chip">{day.items.length}</span>
+                </div>
+                <DisplayAgendaList
+                  emptyMessage="Nothing scheduled here yet."
+                  emptyTitle="Open day"
+                  items={day.items}
+                />
+              </div>
+            ))}
+          </div>
+        ) : (
+          <EmptyState
+            className="display-empty-state"
+            title="A quieter week"
+            message="No upcoming day groups are visible beyond today in this display window."
+          />
+        )}
+      </article>
+
+      <footer className="display-footer">
+        <span>{surfaceState.status === "stale" ? "Showing last good household board" : "Live household board"}</span>
+        <span>Token {viewModel.accessTokenHint ?? token.slice(0, 8)}</span>
+        <span>{surfaceState.lastRefreshedAtUtc ? `Refreshed ${viewModel.generatedLabel}` : "Refreshing"}</span>
+        {isPending ? <span>Syncing</span> : null}
+      </footer>
     </section>
   );
 }

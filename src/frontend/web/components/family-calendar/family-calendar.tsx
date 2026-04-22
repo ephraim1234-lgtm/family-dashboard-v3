@@ -574,8 +574,8 @@ function FamilyCalendarBody() {
 
       <PageHeader
         eyebrow="Calendar"
-        title="Family planning surface"
-        description="A warm, week-first schedule view that keeps local, imported, and reminder mental models clear."
+        title="Calendar"
+        description="A warm, week-first schedule for local events, imported plans, and household reminders."
       />
 
       {isLoading ? (

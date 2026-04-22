@@ -83,7 +83,9 @@ public sealed class DisplayProjectionService(
                 i.StartsAtUtc,
                 i.EndsAtUtc,
                 i.IsAllDay,
-                i.Description))
+                i.Description,
+                i.IsImported,
+                i.SourceKind))
             .ToList();
 
         var allDayItems = agendaItems
@@ -192,6 +194,7 @@ public sealed class DisplayProjectionService(
             AccessMode: "DisplayToken",
             DeviceName: result.DeviceName,
             HouseholdName: result.HouseholdName,
+            HouseholdTimeZoneId: result.HouseholdTimeZoneId,
             PresentationMode: result.PresentationMode.ToString(),
             AgendaDensityMode: result.AgendaDensityMode.ToString(),
             AccessTokenHint: result.TokenHint,

@@ -6,8 +6,8 @@ import { usePathname } from "next/navigation";
 const SHELL_TABS = [
   {
     href: "/app",
-    label: "Overview",
-    description: "Today, agenda, chores, and notes",
+    label: "Command Center",
+    description: "Triage today, board context, chores, and agenda",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <path d="M4 6.75h16M4 12h16M4 17.25h10" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
@@ -38,7 +38,7 @@ const SHELL_TABS = [
   {
     href: "/admin",
     label: "Admin",
-    description: "Household setup, devices, and scheduling",
+    description: "Members, displays, scheduling, and household setup",
     icon: (
       <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <path d="M12 4.75 5.75 7.5v4.1c0 3.35 2.45 6.44 6.25 7.65 3.8-1.21 6.25-4.3 6.25-7.65V7.5L12 4.75Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />

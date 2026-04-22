@@ -167,6 +167,13 @@ function eventTime(dateUtc: string | null) {
   return dateUtc ? new Date(dateUtc).getTime() : Number.POSITIVE_INFINITY;
 }
 
+export function createHouseholdOwnerDisplay(label = "Household"): FamilyOwnerDisplay {
+  return {
+    label,
+    kind: "household"
+  };
+}
+
 export function createOwnerDisplay(memberName?: string | null): FamilyOwnerDisplay {
   if (memberName?.trim()) {
     return {
@@ -250,10 +257,7 @@ export function normalizeHomeEvent(event: HomeEvent, index: number, now = new Da
     kind: "event",
     sourceLabel: getSourceLabel(event.isImported),
     urgencyState: getEventUrgencyState(event, now),
-    ownerDisplay: {
-      label: "Household",
-      kind: "household"
-    },
+    ownerDisplay: createHouseholdOwnerDisplay(),
     startsAtUtc: event.startsAtUtc,
     endsAtUtc: event.endsAtUtc,
     isAllDay: event.isAllDay
@@ -272,10 +276,7 @@ export function normalizeUpcomingEvent(
     kind: "event",
     sourceLabel: getSourceLabel(event.isImported),
     urgencyState: getEventUrgencyState(event, now),
-    ownerDisplay: {
-      label: "Household",
-      kind: "household"
-    },
+    ownerDisplay: createHouseholdOwnerDisplay(),
     startsAtUtc: event.startsAtUtc,
     endsAtUtc: event.endsAtUtc,
     isAllDay: event.isAllDay
@@ -290,10 +291,7 @@ export function normalizeHomeReminder(reminder: HomeReminder, now = new Date()):
     kind: "reminder",
     sourceLabel: "household",
     urgencyState: getReminderUrgencyState(reminder, now),
-    ownerDisplay: {
-      label: "Household",
-      kind: "household"
-    },
+    ownerDisplay: createHouseholdOwnerDisplay(),
     dueAtUtc: reminder.dueAtUtc,
     minutesBefore: reminder.minutesBefore
   };
@@ -393,6 +391,19 @@ export function formatReminderDueLabel(utc: string): string {
     " " +
     due.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
   );
+}
+
+export function formatReminderLeadLabel(minutesBefore: number): string {
+  if (minutesBefore < 60) {
+    return `${minutesBefore} min before`;
+  }
+
+  if (minutesBefore === 60) {
+    return "1 hr before";
+  }
+
+  const hours = Math.round(minutesBefore / 60);
+  return `${hours} hr before`;
 }
 
 export function formatReminderTriageState(utc: string, now = new Date()): string {
