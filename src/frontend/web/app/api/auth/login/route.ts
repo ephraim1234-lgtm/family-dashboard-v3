@@ -2,8 +2,9 @@ import { NextRequest } from "next/server";
 import { proxyApi } from "../../../../lib/api-proxy";
 
 export async function POST(request: NextRequest) {
-  return proxyApi(request, "/api/identity/dev-login", {
-    method: "POST"
+  const body = await request.text();
+  return proxyApi(request, "/api/identity/login", {
+    method: "POST",
+    body
   });
 }
-

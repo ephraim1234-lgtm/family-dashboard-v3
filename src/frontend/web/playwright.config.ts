@@ -19,7 +19,7 @@ export default defineConfig({
   globalSetup: "./tests/e2e/global.setup.ts",
   use: {
     baseURL,
-    storageState: "playwright/.auth/dev-user.json",
+    storageState: "playwright/.auth/owner-user.json",
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "retain-on-failure"

@@ -200,9 +200,15 @@ async function mockOverviewRoutes(page: Page) {
       contentType: "application/json",
       body: JSON.stringify({
         isAuthenticated: true,
-        userId: "dev-user",
+        user: {
+          userId: "owner-user",
+          email: "owner@example.com",
+          displayName: "Morgan"
+        },
         activeHouseholdId: "household-1",
-        activeHouseholdRole: "Owner"
+        activeHouseholdRole: "Owner",
+        hasActiveHousehold: true,
+        needsOnboarding: false
       })
     });
   });
@@ -226,9 +232,33 @@ async function mockOverviewRoutes(page: Page) {
       contentType: "application/json",
       body: JSON.stringify({
         items: [
-          { membershipId: "member-morgan", displayName: "Morgan" },
-          { membershipId: "member-jules", displayName: "Jules" }
+          {
+            membershipId: "member-morgan",
+            userId: "owner-user",
+            email: "owner@example.com",
+            displayName: "Morgan",
+            role: "Owner",
+            joinedAtUtc: "2026-04-01T10:00:00.000Z"
+          },
+          {
+            membershipId: "member-jules",
+            userId: "member-jules-user",
+            email: "jules@example.com",
+            displayName: "Jules",
+            role: "Member",
+            joinedAtUtc: "2026-04-03T10:00:00.000Z"
+          }
         ]
+      })
+    });
+  });
+
+  await page.route("**/api/households/invites", async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        items: []
       })
     });
   });

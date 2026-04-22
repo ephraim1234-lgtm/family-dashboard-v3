@@ -8,12 +8,6 @@ public interface IHouseholdMemberService
         Guid householdId,
         CancellationToken cancellationToken);
 
-    Task<HouseholdMemberMutationResult> AddMemberAsync(
-        Guid householdId,
-        AddHouseholdMemberRequest request,
-        DateTimeOffset createdAtUtc,
-        CancellationToken cancellationToken);
-
     Task<HouseholdMemberMutationResult> RemoveMemberAsync(
         Guid householdId,
         Guid membershipId,

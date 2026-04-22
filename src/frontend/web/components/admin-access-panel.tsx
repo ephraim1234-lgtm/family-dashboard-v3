@@ -12,9 +12,15 @@ import {
 
 type SessionState = {
   isAuthenticated: boolean;
-  userId: string | null;
+  user: {
+    userId: string;
+    email: string;
+    displayName: string;
+  } | null;
   activeHouseholdId: string | null;
   activeHouseholdRole: string | null;
+  hasActiveHousehold: boolean;
+  needsOnboarding: boolean;
 };
 
 type AdminOverviewState = {
@@ -24,9 +30,11 @@ type AdminOverviewState = {
 
 const anonymousSession: SessionState = {
   isAuthenticated: false,
-  userId: null,
+  user: null,
   activeHouseholdId: null,
-  activeHouseholdRole: null
+  activeHouseholdRole: null,
+  hasActiveHousehold: false,
+  needsOnboarding: false
 };
 
 export function AdminAccessPanel() {
@@ -49,7 +57,7 @@ export function AdminAccessPanel() {
 
     const isOwnerSession =
       sessionData.isAuthenticated
-      && sessionData.activeHouseholdId != null
+      && sessionData.hasActiveHousehold
       && sessionData.activeHouseholdRole === "Owner";
 
     if (!isOwnerSession) {
@@ -91,19 +99,16 @@ export function AdminAccessPanel() {
     });
   }, []);
 
-  async function runAction(action: "login" | "logout") {
+  async function logout() {
     setError(null);
 
-    const response = await fetch(
-      action === "login" ? "/api/auth/dev-login" : "/api/auth/logout",
-      {
-        method: "POST",
-        credentials: "same-origin"
-      }
-    );
+    const response = await fetch("/api/auth/logout", {
+      method: "POST",
+      credentials: "same-origin"
+    });
 
     if (!response.ok) {
-      setError(`${action} failed with ${response.status}.`);
+      setError(`Logout failed with ${response.status}.`);
       return;
     }
 
@@ -132,10 +137,7 @@ export function AdminAccessPanel() {
           </Badge>
         </div>
         <QuickActions label="Session actions">
-          <ActionButton onClick={() => runAction("login")} disabled={isPending}>
-            Dev login
-          </ActionButton>
-          <ActionButton variant="secondary" onClick={() => runAction("logout")} disabled={isPending}>
+          <ActionButton variant="secondary" onClick={() => logout()} disabled={isPending}>
             Log out
           </ActionButton>
           <ActionButton variant="ghost" onClick={() => refresh()} disabled={isPending}>
@@ -148,7 +150,8 @@ export function AdminAccessPanel() {
       <Card className="space-y-4 ui-card-admin">
         <SectionHeader eyebrow="Session" title="Current context" titleAs="h3" />
         <div className="grid gap-3">
-          <ListCard title="User" description={session.userId ?? "None"} />
+          <ListCard title="User" description={session.user?.displayName ?? "None"} />
+          <ListCard title="Email" description={session.user?.email ?? "None"} />
           <ListCard title="Household" description={session.activeHouseholdId ?? "None"} />
           <ListCard title="Role" description={session.activeHouseholdRole ?? "None"} />
         </div>
@@ -177,7 +180,7 @@ export function AdminAccessPanel() {
           </p>
         ) : (
           <p className="muted">
-            Sign in with an owner-scoped development session to load the admin overview.
+            The admin overview only loads for an authenticated owner session with an active household.
           </p>
         )}
       </Card>

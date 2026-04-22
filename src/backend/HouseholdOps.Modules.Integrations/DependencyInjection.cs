@@ -28,7 +28,7 @@ public static class DependencyInjection
             var code = httpContext.Request.Query["code"].ToString();
             var error = httpContext.Request.Query["error"].ToString();
             var expectedState = httpContext.Request.Cookies[GoogleOAuthStateCookieName];
-            var session = identityAccessService.GetCurrentSession();
+            var access = identityAccessService.GetCurrentAccess();
 
             httpContext.Response.Cookies.Delete(GoogleOAuthStateCookieName, BuildStateCookieOptions(httpContext, clock.UtcNow));
 
@@ -44,14 +44,14 @@ public static class DependencyInjection
                 return Results.Redirect("/admin?google_oauth=invalid-state");
             }
 
-            if (!session.IsAuthenticated
-                || !Guid.TryParse(session.ActiveHouseholdId, out var householdId)
-                || !Guid.TryParse(session.UserId, out var userId))
+            if (!access.IsAuthenticated
+                || !access.ActiveHouseholdId.HasValue
+                || !access.UserId.HasValue)
             {
                 return Results.Redirect("/admin?google_oauth=missing-session");
             }
 
-            if (!string.Equals(session.ActiveHouseholdRole, "Owner", StringComparison.Ordinal))
+            if (!access.IsOwner)
             {
                 return Results.Redirect("/admin?google_oauth=forbidden");
             }
@@ -64,8 +64,8 @@ public static class DependencyInjection
             try
             {
                 await integrationService.CompleteOAuthLinkAsync(
-                    householdId,
-                    userId,
+                    access.ActiveHouseholdId.Value,
+                    access.UserId.Value,
                     code,
                     clock.UtcNow,
                     cancellationToken);
@@ -86,15 +86,14 @@ public static class DependencyInjection
             IGoogleCalendarIntegrationService integrationService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var response = await integrationService.ListAsync(
-                householdId,
+                access.ActiveHouseholdId.Value,
                 cancellationToken);
 
             return Results.Ok(response);
@@ -105,15 +104,14 @@ public static class DependencyInjection
             IGoogleCalendarIntegrationService integrationService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var response = await integrationService.ListOAuthAccountsAsync(
-                householdId,
+                access.ActiveHouseholdId.Value,
                 cancellationToken);
 
             return Results.Ok(response);
@@ -124,15 +122,14 @@ public static class DependencyInjection
             IGoogleCalendarIntegrationService integrationService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var response = await integrationService.ListOAuthCalendarsAsync(
-                householdId,
+                access.ActiveHouseholdId.Value,
                 cancellationToken);
 
             return Results.Ok(response);
@@ -150,15 +147,14 @@ public static class DependencyInjection
                 return Results.BadRequest("A discovered Google calendar request is required.");
             }
 
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var created = await integrationService.CreateManagedLinkAsync(
-                householdId,
+                access.ActiveHouseholdId.Value,
                 request,
                 clock.UtcNow,
                 cancellationToken);
@@ -202,15 +198,14 @@ public static class DependencyInjection
                 return Results.BadRequest("A Google Calendar link request is required.");
             }
 
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var created = await integrationService.CreateAsync(
-                householdId,
+                access.ActiveHouseholdId.Value,
                 request,
                 clock.UtcNow,
                 cancellationToken);
@@ -230,15 +225,14 @@ public static class DependencyInjection
             IGoogleCalendarIntegrationService integrationService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var deleted = await integrationService.DeleteAsync(
-                householdId,
+                access.ActiveHouseholdId.Value,
                 linkId,
                 cancellationToken);
 
@@ -264,15 +258,14 @@ public static class DependencyInjection
                 return Results.BadRequest("Sync settings are required.");
             }
 
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var updated = await integrationService.UpdateSyncSettingsAsync(
-                householdId,
+                access.ActiveHouseholdId.Value,
                 linkId,
                 request,
                 clock.UtcNow,
@@ -294,15 +287,14 @@ public static class DependencyInjection
             IClock clock,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var result = await integrationService.SyncAsync(
-                householdId,
+                access.ActiveHouseholdId.Value,
                 linkId,
                 clock.UtcNow,
                 cancellationToken);

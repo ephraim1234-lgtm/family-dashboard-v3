@@ -21,12 +21,44 @@ public static class DependencyInjection
         group.MapGet("/session", (IIdentityAccessService service) =>
             Results.Ok(service.GetCurrentSession()));
 
-        group.MapPost("/dev-login", async (
+        group.MapPost("/signup", async (
+            SignUpRequest? request,
             IIdentityAccessService service,
             CancellationToken cancellationToken) =>
         {
-            var session = await service.SignInDevelopmentAsync(cancellationToken);
-            return session is null ? Results.NotFound() : Results.Ok(session);
+            if (request is null)
+            {
+                return Results.BadRequest("Request body is required.");
+            }
+
+            var result = await service.SignUpAsync(request, cancellationToken);
+            return result.Status switch
+            {
+                IdentityCommandStatus.Succeeded => Results.Ok(result.Session),
+                IdentityCommandStatus.ValidationFailed => Results.BadRequest(result.Error),
+                IdentityCommandStatus.Conflict => Results.Conflict(result.Error),
+                _ => Results.BadRequest("Unable to create the account.")
+            };
+        });
+
+        group.MapPost("/login", async (
+            LoginRequest? request,
+            IIdentityAccessService service,
+            CancellationToken cancellationToken) =>
+        {
+            if (request is null)
+            {
+                return Results.BadRequest("Request body is required.");
+            }
+
+            var result = await service.LoginAsync(request, cancellationToken);
+            return result.Status switch
+            {
+                IdentityCommandStatus.Succeeded => Results.Ok(result.Session),
+                IdentityCommandStatus.InvalidCredentials => Results.Unauthorized(),
+                IdentityCommandStatus.ValidationFailed => Results.BadRequest(result.Error),
+                _ => Results.BadRequest("Unable to sign in.")
+            };
         });
 
         group.MapPost("/logout", async (

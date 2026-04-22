@@ -5,139 +5,185 @@ using HouseholdOps.Modules.Identity;
 using HouseholdOps.Modules.Identity.Contracts;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using System.Security.Claims;
 
 namespace HouseholdOps.Infrastructure.Auth;
 
 public sealed class IdentityAccessService(
     IHttpContextAccessor httpContextAccessor,
-    IHostEnvironment environment,
     HouseholdOpsDbContext dbContext,
+    IPasswordHasher<User> passwordHasher,
     IOptions<AuthOptions> authOptions) : IIdentityAccessService
 {
-    public SessionResponse GetCurrentSession()
+    public CurrentIdentityAccess GetCurrentAccess()
     {
         var current = new CurrentHouseholdContext(httpContextAccessor);
+        var principal = httpContextAccessor.HttpContext?.User;
 
-        if (!current.IsAuthenticated)
+        return new CurrentIdentityAccess(
+            ParseGuid(current.SessionId),
+            ParseGuid(current.UserId),
+            principal?.FindFirst(ClaimTypes.Email)?.Value,
+            principal?.FindFirst(ClaimTypes.Name)?.Value,
+            ParseGuid(current.HouseholdId),
+            current.HouseholdRole);
+    }
+
+    public SessionResponse GetCurrentSession()
+    {
+        var current = GetCurrentAccess();
+        if (!current.IsAuthenticated
+            || !current.UserId.HasValue
+            || string.IsNullOrWhiteSpace(current.Email)
+            || string.IsNullOrWhiteSpace(current.DisplayName))
         {
-            return new SessionResponse(false, null, null, null);
+            return new SessionResponse(false, null, null, null, false, false);
         }
 
         return new SessionResponse(
             true,
-            current.UserId,
-            current.HouseholdId,
-            current.HouseholdRole);
+            new SessionUserResponse(
+                current.UserId.Value.ToString(),
+                current.Email,
+                current.DisplayName),
+            current.ActiveHouseholdId?.ToString(),
+            current.ActiveHouseholdRole,
+            current.HasActiveHousehold,
+            current.NeedsOnboarding);
     }
 
-    public async Task<SessionResponse?> SignInDevelopmentAsync(CancellationToken cancellationToken)
+    public async Task<IdentityCommandResult> SignUpAsync(
+        SignUpRequest request,
+        CancellationToken cancellationToken)
     {
-        if (!environment.IsDevelopment())
+        var email = NormalizeEmail(request.Email);
+        var displayName = request.DisplayName.Trim();
+        var password = request.Password ?? string.Empty;
+
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return IdentityCommandResult.ValidationFailure("Email is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            return IdentityCommandResult.ValidationFailure("Display name is required.");
+        }
+
+        if (password.Length < 8)
+        {
+            return IdentityCommandResult.ValidationFailure("Password must be at least 8 characters.");
+        }
+
+        var existingUser = await dbContext.Users.SingleOrDefaultAsync(
+            item => item.NormalizedEmail == email,
+            cancellationToken);
+
+        if (existingUser is not null)
+        {
+            return IdentityCommandResult.Conflict("An account with this email already exists.");
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var user = new User
+        {
+            Id = Guid.NewGuid(),
+            Email = request.Email.Trim().ToLowerInvariant(),
+            NormalizedEmail = email,
+            DisplayName = displayName,
+            CreatedAtUtc = now
+        };
+        user.PasswordHash = passwordHasher.HashPassword(user, password);
+
+        dbContext.Users.Add(user);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        var session = await CreateAndSignInSessionAsync(user, cancellationToken);
+        return IdentityCommandResult.Success(session);
+    }
+
+    public async Task<IdentityCommandResult> LoginAsync(
+        LoginRequest request,
+        CancellationToken cancellationToken)
+    {
+        var normalizedEmail = NormalizeEmail(request.Email);
+        if (string.IsNullOrWhiteSpace(normalizedEmail) || string.IsNullOrWhiteSpace(request.Password))
+        {
+            return IdentityCommandResult.InvalidCredentials();
+        }
+
+        var user = await dbContext.Users.SingleOrDefaultAsync(
+            item => item.NormalizedEmail == normalizedEmail,
+            cancellationToken);
+
+        if (user is null || string.IsNullOrWhiteSpace(user.PasswordHash))
+        {
+            return IdentityCommandResult.InvalidCredentials();
+        }
+
+        var verificationResult = passwordHasher.VerifyHashedPassword(
+            user,
+            user.PasswordHash,
+            request.Password);
+
+        if (verificationResult == PasswordVerificationResult.Failed)
+        {
+            return IdentityCommandResult.InvalidCredentials();
+        }
+
+        var session = await CreateAndSignInSessionAsync(user, cancellationToken);
+        return IdentityCommandResult.Success(session);
+    }
+
+    public async Task<SessionResponse?> SetActiveHouseholdAsync(
+        Guid householdId,
+        string householdRole,
+        CancellationToken cancellationToken)
+    {
+        var current = GetCurrentAccess();
+        if (!current.IsAuthenticated || !current.SessionId.HasValue || !current.UserId.HasValue)
         {
             return null;
         }
 
-        var httpContext = httpContextAccessor.HttpContext
-            ?? throw new InvalidOperationException("An active HTTP context is required.");
-
-        var now = DateTimeOffset.UtcNow;
-        const string bootstrapEmail = "owner@bootstrap.householdops.local";
-        const string bootstrapDisplayName = "Bootstrap Owner";
-        const string bootstrapHouseholdName = "Bootstrap Household";
-
-        var user = await dbContext.Users.SingleOrDefaultAsync(
-            x => x.Email == bootstrapEmail,
+        var session = await dbContext.Sessions.SingleOrDefaultAsync(
+            item => item.Id == current.SessionId.Value && item.UserId == current.UserId.Value,
             cancellationToken);
 
-        if (user is null)
+        if (session is null)
         {
-            user = new User
-            {
-                Id = Guid.NewGuid(),
-                Email = bootstrapEmail,
-                DisplayName = bootstrapDisplayName,
-                CreatedAtUtc = now
-            };
-            dbContext.Users.Add(user);
+            return null;
         }
 
-        var household = await dbContext.Households.SingleOrDefaultAsync(
-            x => x.Name == bootstrapHouseholdName,
-            cancellationToken);
-
-        if (household is null)
-        {
-            household = new Household
-            {
-                Id = Guid.NewGuid(),
-                Name = bootstrapHouseholdName,
-                CreatedAtUtc = now
-            };
-            dbContext.Households.Add(household);
-        }
-
-        var membership = await dbContext.Memberships.SingleOrDefaultAsync(
-            x => x.UserId == user.Id && x.HouseholdId == household.Id,
-            cancellationToken);
-
-        if (membership is null)
-        {
-            membership = new Membership
-            {
-                Id = Guid.NewGuid(),
-                UserId = user.Id,
-                HouseholdId = household.Id,
-                Role = HouseholdRole.Owner,
-                CreatedAtUtc = now
-            };
-            dbContext.Memberships.Add(membership);
-        }
-
-        var session = new Session
-        {
-            Id = Guid.NewGuid(),
-            UserId = user.Id,
-            ActiveHouseholdId = household.Id,
-            CreatedAtUtc = now,
-            LastSeenAtUtc = now,
-            ExpiresAtUtc = now.AddDays(authOptions.Value.SessionLifetimeDays)
-        };
-        dbContext.Sessions.Add(session);
-
+        session.ActiveHouseholdId = householdId;
+        session.LastSeenAtUtc = DateTimeOffset.UtcNow;
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        var principal = SessionPrincipalFactory.Create(
+        await RefreshCookieAsync(
             session.Id,
-            user.Id,
-            user.DisplayName,
-            household.Id,
-            membership.Role);
+            current.UserId.Value,
+            current.Email ?? string.Empty,
+            current.DisplayName ?? string.Empty,
+            householdId,
+            ParseHouseholdRole(householdRole));
 
-        await httpContext.SignInAsync(
-            CookieAuthenticationDefaults.AuthenticationScheme,
-            principal);
-
-        return new SessionResponse(
-            true,
-            user.Id.ToString(),
-            household.Id.ToString(),
-            membership.Role.ToString());
+        return GetCurrentSession();
     }
 
     public async Task SignOutAsync(CancellationToken cancellationToken)
     {
-        var current = new CurrentHouseholdContext(httpContextAccessor);
+        var current = GetCurrentAccess();
         var httpContext = httpContextAccessor.HttpContext
             ?? throw new InvalidOperationException("An active HTTP context is required.");
 
-        if (Guid.TryParse(current.SessionId, out var sessionId))
+        if (current.SessionId.HasValue)
         {
             var session = await dbContext.Sessions.SingleOrDefaultAsync(
-                x => x.Id == sessionId,
+                x => x.Id == current.SessionId.Value,
                 cancellationToken);
 
             if (session is not null && session.RevokedAtUtc is null)
@@ -149,5 +195,80 @@ public sealed class IdentityAccessService(
 
         await httpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
     }
+
+    private async Task<SessionResponse> CreateAndSignInSessionAsync(
+        User user,
+        CancellationToken cancellationToken)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var membership = await dbContext.Memberships
+            .Where(item => item.UserId == user.Id)
+            .OrderBy(item => item.CreatedAtUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var session = new Session
+        {
+            Id = Guid.NewGuid(),
+            UserId = user.Id,
+            ActiveHouseholdId = membership?.HouseholdId,
+            CreatedAtUtc = now,
+            LastSeenAtUtc = now,
+            ExpiresAtUtc = now.AddDays(authOptions.Value.SessionLifetimeDays)
+        };
+
+        dbContext.Sessions.Add(session);
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        await RefreshCookieAsync(
+            session.Id,
+            user.Id,
+            user.Email,
+            user.DisplayName,
+            membership?.HouseholdId,
+            membership?.Role);
+
+        return new SessionResponse(
+            true,
+            new SessionUserResponse(user.Id.ToString(), user.Email, user.DisplayName),
+            membership?.HouseholdId.ToString(),
+            membership?.Role.ToString(),
+            membership is not null,
+            membership is null);
+    }
+
+    private async Task RefreshCookieAsync(
+        Guid sessionId,
+        Guid userId,
+        string email,
+        string displayName,
+        Guid? householdId,
+        HouseholdRole? householdRole)
+    {
+        var httpContext = httpContextAccessor.HttpContext
+            ?? throw new InvalidOperationException("An active HTTP context is required.");
+
+        var principal = SessionPrincipalFactory.Create(
+            sessionId,
+            userId,
+            email,
+            displayName,
+            householdId,
+            householdRole);
+
+        await httpContext.SignInAsync(
+            CookieAuthenticationDefaults.AuthenticationScheme,
+            principal);
+    }
+
+    private static Guid? ParseGuid(string? value) =>
+        Guid.TryParse(value, out var parsed) ? parsed : null;
+
+    private static string NormalizeEmail(string? email) =>
+        (email ?? string.Empty).Trim().ToUpperInvariant();
+
+    private static HouseholdRole? ParseHouseholdRole(string? role) =>
+        Enum.TryParse<HouseholdRole>(role, ignoreCase: true, out var parsedRole)
+            ? parsedRole
+            : null;
 }
 

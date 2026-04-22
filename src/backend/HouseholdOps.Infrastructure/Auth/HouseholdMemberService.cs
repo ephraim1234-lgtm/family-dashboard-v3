@@ -1,7 +1,6 @@
 using HouseholdOps.Infrastructure.Persistence;
 using HouseholdOps.Modules.Households;
 using HouseholdOps.Modules.Households.Contracts;
-using HouseholdOps.Modules.Identity;
 using Microsoft.EntityFrameworkCore;
 
 namespace HouseholdOps.Infrastructure.Auth;
@@ -28,78 +27,6 @@ public sealed class HouseholdMemberService(
             .ToListAsync(cancellationToken);
 
         return new HouseholdMemberListResponse(items);
-    }
-
-    public async Task<HouseholdMemberMutationResult> AddMemberAsync(
-        Guid householdId,
-        AddHouseholdMemberRequest request,
-        DateTimeOffset createdAtUtc,
-        CancellationToken cancellationToken)
-    {
-        var email = request.Email.Trim().ToLowerInvariant();
-
-        if (string.IsNullOrWhiteSpace(email))
-        {
-            return HouseholdMemberMutationResult.ValidationFailure("Email is required.");
-        }
-
-        if (string.IsNullOrWhiteSpace(request.DisplayName))
-        {
-            return HouseholdMemberMutationResult.ValidationFailure("Display name is required.");
-        }
-
-        var role = HouseholdRole.Member;
-        if (!string.IsNullOrWhiteSpace(request.Role)
-            && Enum.TryParse<HouseholdRole>(request.Role, ignoreCase: true, out var parsedRole))
-        {
-            role = parsedRole;
-        }
-
-        var user = await dbContext.Users
-            .SingleOrDefaultAsync(u => u.Email == email, cancellationToken);
-
-        if (user is null)
-        {
-            user = new User
-            {
-                Id = Guid.NewGuid(),
-                Email = email,
-                DisplayName = request.DisplayName.Trim(),
-                CreatedAtUtc = createdAtUtc
-            };
-            dbContext.Users.Add(user);
-        }
-
-        var existing = await dbContext.Memberships
-            .SingleOrDefaultAsync(
-                m => m.HouseholdId == householdId && m.UserId == user.Id,
-                cancellationToken);
-
-        if (existing is not null)
-        {
-            return HouseholdMemberMutationResult.Conflict(
-                $"{email} is already a member of this household.");
-        }
-
-        var membership = new Membership
-        {
-            Id = Guid.NewGuid(),
-            HouseholdId = householdId,
-            UserId = user.Id,
-            Role = role,
-            CreatedAtUtc = createdAtUtc
-        };
-        dbContext.Memberships.Add(membership);
-
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        return HouseholdMemberMutationResult.Success(new HouseholdMemberSummary(
-            membership.Id.ToString(),
-            user.Id.ToString(),
-            user.Email,
-            user.DisplayName,
-            membership.Role.ToString(),
-            membership.CreatedAtUtc));
     }
 
     public async Task<HouseholdMemberMutationResult> RemoveMemberAsync(

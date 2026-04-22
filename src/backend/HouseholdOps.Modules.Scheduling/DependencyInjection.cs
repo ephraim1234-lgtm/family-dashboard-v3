@@ -23,18 +23,17 @@ public static class DependencyInjection
             IClock clock,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var windowStart = clock.UtcNow;
             var windowEnd = windowStart.AddDays(30);
 
             var response = await agendaQueryService.GetUpcomingEventsAsync(
-                new UpcomingEventsRequest(householdId, windowStart, windowEnd, IsOwner: true),
+                new UpcomingEventsRequest(access.ActiveHouseholdId.Value, windowStart, windowEnd, IsOwner: true),
                 cancellationToken);
 
             return Results.Ok(response);
@@ -47,11 +46,10 @@ public static class DependencyInjection
             HttpRequest request,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var windowDays = ScheduleWindowQueryParser.ParseWindowDays(request.Query["days"]);
@@ -59,7 +57,7 @@ public static class DependencyInjection
             var windowEnd = windowStart.AddDays(windowDays);
 
             var response = await browseQueryService.GetUpcomingBrowseAsync(
-                new ScheduleBrowseRequest(householdId, windowStart, windowEnd, windowDays),
+                new ScheduleBrowseRequest(access.ActiveHouseholdId.Value, windowStart, windowEnd, windowDays),
                 cancellationToken);
 
             return Results.Ok(response);
@@ -77,15 +75,14 @@ public static class DependencyInjection
                 return Results.BadRequest("Title is required.");
             }
 
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var created = await eventManagementService.CreateEventAsync(
-                householdId,
+                access.ActiveHouseholdId.Value,
                 request,
                 clock.UtcNow,
                 cancellationToken);
@@ -103,15 +100,14 @@ public static class DependencyInjection
             IScheduledEventManagementService eventManagementService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var response = await eventManagementService.ListEventsAsync(
-                householdId,
+                access.ActiveHouseholdId.Value,
                 cancellationToken);
 
             return Results.Ok(response);
@@ -129,15 +125,14 @@ public static class DependencyInjection
                 return Results.BadRequest("Title is required.");
             }
 
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var updated = await eventManagementService.UpdateEventAsync(
-                householdId,
+                access.ActiveHouseholdId.Value,
                 eventId,
                 request,
                 cancellationToken);
@@ -158,15 +153,14 @@ public static class DependencyInjection
             IScheduledEventManagementService eventManagementService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var deleted = await eventManagementService.DeleteEventAsync(
-                householdId,
+                access.ActiveHouseholdId.Value,
                 eventId,
                 cancellationToken);
 
@@ -194,11 +188,10 @@ public static class DependencyInjection
                 return Results.BadRequest("Title is required.");
             }
 
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var createRequest = new CreateScheduledEventRequest(
@@ -210,7 +203,7 @@ public static class DependencyInjection
                 Recurrence: null);
 
             var created = await eventManagementService.CreateEventAsync(
-                householdId,
+                access.ActiveHouseholdId.Value,
                 createRequest,
                 clock.UtcNow,
                 cancellationToken);
@@ -230,11 +223,10 @@ public static class DependencyInjection
             HttpRequest request,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var windowDays = ScheduleWindowQueryParser.ParseWindowDays(
@@ -247,13 +239,10 @@ public static class DependencyInjection
 
             var response = await agendaQueryService.GetUpcomingEventsAsync(
                 new UpcomingEventsRequest(
-                    householdId,
+                    access.ActiveHouseholdId.Value,
                     windowStart,
                     windowEnd,
-                    IsOwner: string.Equals(
-                        session.ActiveHouseholdRole,
-                        "Owner",
-                        StringComparison.Ordinal)),
+                    IsOwner: access.IsOwner),
                 cancellationToken);
 
             return Results.Ok(response);

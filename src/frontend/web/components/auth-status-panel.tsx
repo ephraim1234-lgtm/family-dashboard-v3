@@ -5,9 +5,15 @@ import { Badge, Button, Card } from "@/components/ui";
 
 type SessionState = {
   isAuthenticated: boolean;
-  userId: string | null;
+  user: {
+    userId: string;
+    email: string;
+    displayName: string;
+  } | null;
   activeHouseholdId: string | null;
   activeHouseholdRole: string | null;
+  hasActiveHousehold: boolean;
+  needsOnboarding: boolean;
 };
 
 type HouseholdState = {
@@ -19,9 +25,11 @@ type HouseholdState = {
 
 const anonymousSession: SessionState = {
   isAuthenticated: false,
-  userId: null,
+  user: null,
   activeHouseholdId: null,
-  activeHouseholdRole: null
+  activeHouseholdRole: null,
+  hasActiveHousehold: false,
+  needsOnboarding: false
 };
 
 export function AuthStatusPanel() {
@@ -72,19 +80,16 @@ export function AuthStatusPanel() {
     });
   }, []);
 
-  async function runAction(action: "login" | "logout") {
+  async function logout() {
     setError(null);
 
-    const response = await fetch(
-      action === "login" ? "/api/auth/dev-login" : "/api/auth/logout",
-      {
-        method: "POST",
-        credentials: "same-origin"
-      }
-    );
+    const response = await fetch("/api/auth/logout", {
+      method: "POST",
+      credentials: "same-origin"
+    });
 
     if (!response.ok) {
-      setError(`${action} failed with ${response.status}.`);
+      setError(`Logout failed with ${response.status}.`);
       return;
     }
 
@@ -99,7 +104,7 @@ export function AuthStatusPanel() {
     <section className="grid gap-4 xl:grid-cols-[1.3fr_1fr_1fr]">
       <Card className="space-y-4">
         <div className="eyebrow">Auth Status</div>
-        <h2 className="text-2xl font-semibold tracking-tight">Development session</h2>
+        <h2 className="text-2xl font-semibold tracking-tight">Account session</h2>
         <p className="muted">
           This shell talks to the backend through narrow Next-side proxy routes
           so Dockerized local auth can stay same-origin.
@@ -113,10 +118,7 @@ export function AuthStatusPanel() {
           </Badge>
         </div>
         <div className="flex flex-wrap gap-3">
-          <Button onClick={() => runAction("login")} disabled={isPending}>
-            Dev Login
-          </Button>
-          <Button variant="secondary" onClick={() => runAction("logout")} disabled={isPending}>
+          <Button variant="secondary" onClick={() => logout()} disabled={isPending}>
             Log Out
           </Button>
           <Button variant="ghost" onClick={() => refresh()} disabled={isPending}>
@@ -131,7 +133,11 @@ export function AuthStatusPanel() {
         <dl className="data-list">
           <div>
             <dt>User</dt>
-            <dd>{session.userId ?? "None"}</dd>
+            <dd>{session.user?.displayName ?? "None"}</dd>
+          </div>
+          <div>
+            <dt>Email</dt>
+            <dd>{session.user?.email ?? "None"}</dd>
           </div>
           <div>
             <dt>Household</dt>

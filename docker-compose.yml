@@ -26,6 +26,7 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
       ConnectionStrings__Postgres: Host=postgres;Port=5432;Database=${POSTGRES_DB:-householdops};Username=${POSTGRES_USER:-householdops};Password=${POSTGRES_PASSWORD:-householdops}
+      AppUrls__WebPublicBaseUrl: ${WEB_PUBLIC_BASE_URL:-http://localhost:3000}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       GOOGLE_OAUTH_REDIRECT_URI: ${GOOGLE_OAUTH_REDIRECT_URI:-}
@@ -52,8 +53,9 @@ services:
       dockerfile: ops/docker/web.Dockerfile
     environment:
       NODE_ENV: production
-      NEXT_PUBLIC_API_BASE_URL: http://localhost:3001
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:${API_PORT:-5080}
       API_INTERNAL_BASE_URL: http://api:8080
+      NEXT_PUBLIC_WEB_BASE_URL: ${WEB_PUBLIC_BASE_URL:-http://localhost:3000}
     ports:
       - "${WEB_PORT:-3000}:3000"
     depends_on:

@@ -39,7 +39,6 @@ test("maps legacy overview workspace links into the new command-center sections"
   await expect(page.getByTestId("overview-workspace").getByRole("heading", { name: "Family command center" })).toBeVisible();
   await expect(page.getByTestId("upcoming-section")).toBeVisible();
   await expect(page.getByText("Capture what the household just realized")).toBeVisible();
-  await expect(page.getByText("Development session")).toBeVisible();
 
   await page.goto("/app?workspace=notes");
   await expect(page.getByTestId("household-board-section")).toBeVisible();

@@ -40,14 +40,13 @@ public static class DependencyInjection
             IAdminStatsService adminStatsService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
-            var stats = await adminStatsService.GetStatsAsync(householdId, cancellationToken);
+            var stats = await adminStatsService.GetStatsAsync(access.ActiveHouseholdId.Value, cancellationToken);
             return Results.Ok(stats);
         }).RequireAuthorization("ActiveHouseholdOwner");
 
@@ -56,14 +55,13 @@ public static class DependencyInjection
             IAdminChoreInsightsService adminChoreInsightsService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
-            var insights = await adminChoreInsightsService.GetChoreInsightsAsync(householdId, cancellationToken);
+            var insights = await adminChoreInsightsService.GetChoreInsightsAsync(access.ActiveHouseholdId.Value, cancellationToken);
             return Results.Ok(insights);
         }).RequireAuthorization("ActiveHouseholdOwner");
 

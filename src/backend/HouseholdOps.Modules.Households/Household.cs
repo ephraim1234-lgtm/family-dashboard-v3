@@ -6,6 +6,8 @@ public sealed class Household
 
     public string Name { get; set; } = string.Empty;
 
+    public Guid? CreatedByUserId { get; set; }
+
     // IANA time zone id (e.g. "UTC", "America/New_York"). Controls
     // household-local "today" boundaries and day-grouping on read models.
     public string TimeZoneId { get; set; } = "UTC";

@@ -18,6 +18,8 @@ public sealed class HouseholdOpsDbContext(DbContextOptions<HouseholdOpsDbContext
 
     public DbSet<Membership> Memberships => Set<Membership>();
 
+    public DbSet<HouseholdInvite> HouseholdInvites => Set<HouseholdInvite>();
+
     public DbSet<User> Users => Set<User>();
 
     public DbSet<Session> Sessions => Set<Session>();
@@ -91,10 +93,15 @@ public sealed class HouseholdOpsDbContext(DbContextOptions<HouseholdOpsDbContext
             entity.ToTable("households");
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Name).HasMaxLength(200);
+            entity.Property(x => x.CreatedByUserId);
             entity.Property(x => x.TimeZoneId)
                 .HasMaxLength(100)
                 .HasDefaultValue("UTC");
             entity.Property(x => x.CreatedAtUtc);
+            entity.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(x => x.CreatedByUserId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<User>(entity =>
@@ -102,9 +109,11 @@ public sealed class HouseholdOpsDbContext(DbContextOptions<HouseholdOpsDbContext
             entity.ToTable("users");
             entity.HasKey(x => x.Id);
             entity.Property(x => x.Email).HasMaxLength(320);
+            entity.Property(x => x.NormalizedEmail).HasMaxLength(320);
+            entity.Property(x => x.PasswordHash);
             entity.Property(x => x.DisplayName).HasMaxLength(200);
             entity.Property(x => x.CreatedAtUtc);
-            entity.HasIndex(x => x.Email).IsUnique();
+            entity.HasIndex(x => x.NormalizedEmail).IsUnique();
         });
 
         modelBuilder.Entity<Membership>(entity =>
@@ -124,6 +133,29 @@ public sealed class HouseholdOpsDbContext(DbContextOptions<HouseholdOpsDbContext
                 .OnDelete(DeleteBehavior.Cascade);
         });
 
+        modelBuilder.Entity<HouseholdInvite>(entity =>
+        {
+            entity.ToTable("household_invites");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Email).HasMaxLength(320);
+            entity.Property(x => x.NormalizedEmail).HasMaxLength(320);
+            entity.Property(x => x.Role).HasConversion<string>().HasMaxLength(32);
+            entity.Property(x => x.TokenHash).HasMaxLength(128);
+            entity.Property(x => x.CreatedAtUtc);
+            entity.Property(x => x.ExpiresAtUtc);
+            entity.HasIndex(x => x.TokenHash).IsUnique();
+            entity.HasIndex(x => new { x.HouseholdId, x.NormalizedEmail })
+                .HasDatabaseName("IX_household_invites_household_email");
+            entity.HasOne<Household>()
+                .WithMany()
+                .HasForeignKey(x => x.HouseholdId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<User>()
+                .WithMany()
+                .HasForeignKey(x => x.InvitedByUserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
         modelBuilder.Entity<Session>(entity =>
         {
             entity.ToTable("sessions");
@@ -140,7 +172,7 @@ public sealed class HouseholdOpsDbContext(DbContextOptions<HouseholdOpsDbContext
             entity.HasOne<Household>()
                 .WithMany()
                 .HasForeignKey(x => x.ActiveHouseholdId)
-                .OnDelete(DeleteBehavior.Cascade);
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<DisplayDevice>(entity =>

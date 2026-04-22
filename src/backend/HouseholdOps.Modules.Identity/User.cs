@@ -6,6 +6,10 @@ public sealed class User
 
     public string Email { get; set; } = string.Empty;
 
+    public string NormalizedEmail { get; set; } = string.Empty;
+
+    public string PasswordHash { get; set; } = string.Empty;
+
     public string DisplayName { get; set; } = string.Empty;
 
     public DateTimeOffset CreatedAtUtc { get; set; }

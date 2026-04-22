@@ -3,6 +3,16 @@ import { Card, PageContainer, PageHeader, SectionHeader } from "@/components/ui"
 
 const surfaces = [
   {
+    href: "/login",
+    title: "Log In",
+    body: "Sign in with a real account session and resume your household workspace."
+  },
+  {
+    href: "/signup",
+    title: "Create Account",
+    body: "Create an account, then onboard into your own household instead of using shared bootstrap data."
+  },
+  {
     href: "/app",
     title: "Command Center",
     body: "The member-facing home for daily triage, household context, chores, notes, and agenda."

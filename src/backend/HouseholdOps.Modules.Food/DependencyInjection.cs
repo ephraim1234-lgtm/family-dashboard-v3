@@ -22,10 +22,9 @@ public static class DependencyInjection
             IFoodService foodService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            if (!TryGetActiveHousehold(identityAccessService, out var householdId))
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var response = await foodService.GetDashboardAsync(householdId, cancellationToken);
@@ -39,12 +38,14 @@ public static class DependencyInjection
             IClock clock,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-            if (request is null
-                || !Guid.TryParse(session.ActiveHouseholdId, out var householdId)
-                || !Guid.TryParse(session.UserId, out var userId))
+            if (request is null)
             {
-                return Results.BadRequest("A valid active household and recipe URL are required.");
+                return Results.BadRequest("A valid recipe URL is required.");
+            }
+
+            if (!TryGetActiveHouseholdAndUser(identityAccessService, out var householdId, out var userId))
+            {
+                return Results.Forbid();
             }
 
             var response = await foodService.CreateRecipeImportAsync(
@@ -64,12 +65,14 @@ public static class DependencyInjection
             IClock clock,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-            if (request is null
-                || !Guid.TryParse(session.ActiveHouseholdId, out var householdId)
-                || !Guid.TryParse(session.UserId, out var userId))
+            if (request is null)
             {
-                return Results.BadRequest("A valid active household and recipe payload are required.");
+                return Results.BadRequest("A valid recipe payload is required.");
+            }
+
+            if (!TryGetActiveHouseholdAndUser(identityAccessService, out var householdId, out var userId))
+            {
+                return Results.Forbid();
             }
 
             var response = await foodService.SaveRecipeAsync(
@@ -88,10 +91,9 @@ public static class DependencyInjection
             IFoodService foodService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            if (!TryGetActiveHousehold(identityAccessService, out var householdId))
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var response = await foodService.ListRecipesAsync(householdId, query, cancellationToken);
@@ -104,10 +106,9 @@ public static class DependencyInjection
             IFoodService foodService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            if (!TryGetActiveHousehold(identityAccessService, out var householdId))
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var response = await foodService.GetRecipeAsync(householdId, recipeId, cancellationToken);
@@ -122,12 +123,14 @@ public static class DependencyInjection
             IClock clock,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-            if (request is null
-                || !Guid.TryParse(session.ActiveHouseholdId, out var householdId)
-                || !Guid.TryParse(session.UserId, out var userId))
+            if (request is null)
             {
-                return Results.BadRequest("A valid active household and recipe payload are required.");
+                return Results.BadRequest("A valid recipe payload is required.");
+            }
+
+            if (!TryGetActiveHouseholdAndUser(identityAccessService, out var householdId, out var userId))
+            {
+                return Results.Forbid();
             }
 
             var response = await foodService.UpdateRecipeAsync(
@@ -147,10 +150,9 @@ public static class DependencyInjection
             IFoodService foodService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            if (!TryGetActiveHousehold(identityAccessService, out var householdId))
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var deleted = await foodService.DeleteRecipeAsync(householdId, recipeId, cancellationToken);
@@ -164,11 +166,14 @@ public static class DependencyInjection
             IClock clock,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-            if (request is null
-                || !Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            if (request is null)
             {
                 return Results.BadRequest("A valid pantry item payload is required.");
+            }
+
+            if (!TryGetActiveHousehold(identityAccessService, out var householdId))
+            {
+                return Results.Forbid();
             }
 
             var response = await foodService.CreatePantryItemAsync(
@@ -188,11 +193,14 @@ public static class DependencyInjection
             IClock clock,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-            if (request is null
-                || !Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            if (request is null)
             {
                 return Results.BadRequest("A valid pantry item payload is required.");
+            }
+
+            if (!TryGetActiveHousehold(identityAccessService, out var householdId))
+            {
+                return Results.Forbid();
             }
 
             var response = await foodService.UpdatePantryItemAsync(
@@ -211,10 +219,9 @@ public static class DependencyInjection
             IFoodService foodService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            if (!TryGetActiveHousehold(identityAccessService, out var householdId))
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var deleted = await foodService.DeletePantryItemAsync(householdId, pantryItemId, cancellationToken);
@@ -227,10 +234,9 @@ public static class DependencyInjection
             IFoodService foodService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            if (!TryGetActiveHousehold(identityAccessService, out var householdId))
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var response = await foodService.GetPantryItemHistoryAsync(
@@ -248,11 +254,14 @@ public static class DependencyInjection
             IClock clock,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-            if (request is null
-                || !Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            if (request is null)
             {
                 return Results.BadRequest("A valid meal slot payload is required.");
+            }
+
+            if (!TryGetActiveHousehold(identityAccessService, out var householdId))
+            {
+                return Results.Forbid();
             }
 
             var response = await foodService.CreateMealPlanSlotAsync(
@@ -270,10 +279,9 @@ public static class DependencyInjection
             IFoodService foodService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            if (!TryGetActiveHousehold(identityAccessService, out var householdId))
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var deleted = await foodService.DeleteMealPlanSlotAsync(householdId, slotId, cancellationToken);
@@ -287,10 +295,9 @@ public static class DependencyInjection
             IFoodService foodService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            if (!TryGetActiveHousehold(identityAccessService, out var householdId))
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var removed = await foodService.RemoveRecipeFromMealPlanSlotAsync(
@@ -308,10 +315,9 @@ public static class DependencyInjection
             IFoodService foodService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            if (!TryGetActiveHousehold(identityAccessService, out var householdId))
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var response = await foodService.ListShoppingListsAsync(householdId, status, cancellationToken);
@@ -324,10 +330,9 @@ public static class DependencyInjection
             IFoodService foodService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            if (!TryGetActiveHousehold(identityAccessService, out var householdId))
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var response = await foodService.GetShoppingListAsync(householdId, shoppingListId, cancellationToken);
@@ -341,11 +346,14 @@ public static class DependencyInjection
             IClock clock,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-            if (request is null
-                || !Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            if (request is null)
             {
                 return Results.BadRequest("A valid shopping item payload is required.");
+            }
+
+            if (!TryGetActiveHousehold(identityAccessService, out var householdId))
+            {
+                return Results.Forbid();
             }
 
             var response = await foodService.CreateShoppingListItemAsync(
@@ -364,11 +372,14 @@ public static class DependencyInjection
             IClock clock,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-            if (request is null
-                || !Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            if (request is null)
             {
                 return Results.BadRequest("A valid recipe shopping payload is required.");
+            }
+
+            if (!TryGetActiveHousehold(identityAccessService, out var householdId))
+            {
+                return Results.Forbid();
             }
 
             var response = await foodService.AddItemsFromRecipeAsync(
@@ -387,11 +398,14 @@ public static class DependencyInjection
             IClock clock,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-            if (request is null
-                || !Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            if (request is null)
             {
                 return Results.BadRequest("A valid meal shopping payload is required.");
+            }
+
+            if (!TryGetActiveHousehold(identityAccessService, out var householdId))
+            {
+                return Results.Forbid();
             }
 
             var response = await foodService.AddItemsFromMealPlanSlotAsync(
@@ -410,11 +424,14 @@ public static class DependencyInjection
             IClock clock,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-            if (request is null
-                || !Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            if (request is null)
             {
                 return Results.BadRequest("A valid shopping bulk payload is required.");
+            }
+
+            if (!TryGetActiveHousehold(identityAccessService, out var householdId))
+            {
+                return Results.Forbid();
             }
 
             var response = await foodService.BulkUpdateShoppingItemsAsync(
@@ -432,11 +449,14 @@ public static class DependencyInjection
             IFoodService foodService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-            if (request is null
-                || !Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            if (request is null)
             {
                 return Results.BadRequest("A valid merge preview payload is required.");
+            }
+
+            if (!TryGetActiveHousehold(identityAccessService, out var householdId))
+            {
+                return Results.Forbid();
             }
 
             var response = await foodService.GetShoppingMergePreviewAsync(householdId, request, cancellationToken);
@@ -451,14 +471,17 @@ public static class DependencyInjection
             IClock clock,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-            if (request is null
-                || !Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            if (request is null)
             {
                 return Results.BadRequest("A valid shopping update payload is required.");
             }
 
-            Guid? userId = Guid.TryParse(session.UserId, out var parsedUserId) ? parsedUserId : null;
+            if (!TryGetActiveHousehold(identityAccessService, out var householdId))
+            {
+                return Results.Forbid();
+            }
+
+            var userId = GetCurrentUserId(identityAccessService);
             var response = await foodService.UpdateShoppingListItemAsync(
                 householdId,
                 itemId,
@@ -476,10 +499,9 @@ public static class DependencyInjection
             IFoodService foodService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            if (!TryGetActiveHousehold(identityAccessService, out var householdId))
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var deleted = await foodService.DeleteShoppingListItemAsync(householdId, itemId, cancellationToken);
@@ -494,14 +516,17 @@ public static class DependencyInjection
             IClock clock,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-            if (request is null
-                || !Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            if (request is null)
             {
                 return Results.BadRequest("A valid pantry transfer payload is required.");
             }
 
-            Guid? userId = Guid.TryParse(session.UserId, out var parsedUserId) ? parsedUserId : null;
+            if (!TryGetActiveHousehold(identityAccessService, out var householdId))
+            {
+                return Results.Forbid();
+            }
+
+            var userId = GetCurrentUserId(identityAccessService);
             var response = await foodService.TransferShoppingListItemsToPantryAsync(
                 householdId,
                 shoppingListId,
@@ -521,13 +546,12 @@ public static class DependencyInjection
             IClock clock,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            if (!TryGetActiveHousehold(identityAccessService, out var householdId))
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
-            Guid? userId = Guid.TryParse(session.UserId, out var parsedUserId) ? parsedUserId : null;
+            var userId = GetCurrentUserId(identityAccessService);
             var response = await foodService.CompleteShoppingListAsync(
                 householdId,
                 shoppingListId,
@@ -546,14 +570,17 @@ public static class DependencyInjection
             IClock clock,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-            if (request is null
-                || !Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            if (request is null)
             {
                 return Results.BadRequest("A valid cooking-session payload is required.");
             }
 
-            Guid? userId = Guid.TryParse(session.UserId, out var parsedUserId) ? parsedUserId : null;
+            if (!TryGetActiveHousehold(identityAccessService, out var householdId))
+            {
+                return Results.Forbid();
+            }
+
+            var userId = GetCurrentUserId(identityAccessService);
             var response = await foodService.StartCookingSessionAsync(
                 householdId,
                 userId,
@@ -570,10 +597,9 @@ public static class DependencyInjection
             IFoodService foodService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            if (!TryGetActiveHousehold(identityAccessService, out var householdId))
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var response = await foodService.GetCookingSessionAsync(householdId, sessionId, cancellationToken);
@@ -588,11 +614,14 @@ public static class DependencyInjection
             IClock clock,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-            if (request is null
-                || !Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            if (request is null)
             {
                 return Results.BadRequest("A valid cooking-session payload is required.");
+            }
+
+            if (!TryGetActiveHousehold(identityAccessService, out var householdId))
+            {
+                return Results.Forbid();
             }
 
             var response = await foodService.UpdateCookingSessionAsync(
@@ -614,11 +643,14 @@ public static class DependencyInjection
             IClock clock,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-            if (request is null
-                || !Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            if (request is null)
             {
                 return Results.BadRequest("A valid cooking ingredient payload is required.");
+            }
+
+            if (!TryGetActiveHousehold(identityAccessService, out var householdId))
+            {
+                return Results.Forbid();
             }
 
             var response = await foodService.UpdateCookingIngredientAsync(
@@ -641,11 +673,14 @@ public static class DependencyInjection
             IClock clock,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-            if (request is null
-                || !Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            if (request is null)
             {
                 return Results.BadRequest("A valid cooking step payload is required.");
+            }
+
+            if (!TryGetActiveHousehold(identityAccessService, out var householdId))
+            {
+                return Results.Forbid();
             }
 
             var response = await foodService.UpdateCookingStepAsync(
@@ -667,10 +702,9 @@ public static class DependencyInjection
             IClock clock,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            if (!TryGetActiveHousehold(identityAccessService, out var householdId))
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var response = await foodService.CompleteCookingSessionAsync(
@@ -690,10 +724,9 @@ public static class DependencyInjection
             IClock clock,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            if (!TryGetActiveHousehold(identityAccessService, out var householdId))
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var deleted = await foodService.DeleteCookingSessionAsync(
@@ -713,11 +746,9 @@ public static class DependencyInjection
             IClock clock,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId)
-                || !Guid.TryParse(session.UserId, out var userId))
+            if (!TryGetActiveHouseholdAndUser(identityAccessService, out var householdId, out var userId))
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var response = await foodService.PromoteCookingSessionToRecipeAsync(
@@ -737,10 +768,9 @@ public static class DependencyInjection
             IFoodService foodService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            if (!TryGetActiveHousehold(identityAccessService, out var householdId))
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var response = await foodService.GetTvCookingDisplayAsync(householdId, sessionId, cancellationToken);
@@ -748,5 +778,31 @@ public static class DependencyInjection
         });
 
         return app;
+    }
+
+    private static Guid? GetCurrentUserId(IIdentityAccessService identityAccessService)
+    {
+        var access = identityAccessService.GetCurrentAccess();
+        return access.UserId;
+    }
+
+    private static bool TryGetActiveHousehold(
+        IIdentityAccessService identityAccessService,
+        out Guid householdId)
+    {
+        var access = identityAccessService.GetCurrentAccess();
+        householdId = access.ActiveHouseholdId ?? Guid.Empty;
+        return access.ActiveHouseholdId.HasValue;
+    }
+
+    private static bool TryGetActiveHouseholdAndUser(
+        IIdentityAccessService identityAccessService,
+        out Guid householdId,
+        out Guid userId)
+    {
+        var access = identityAccessService.GetCurrentAccess();
+        householdId = access.ActiveHouseholdId ?? Guid.Empty;
+        userId = access.UserId ?? Guid.Empty;
+        return access.ActiveHouseholdId.HasValue && access.UserId.HasValue;
     }
 }

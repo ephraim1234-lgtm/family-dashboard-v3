@@ -1,6 +1,5 @@
-using Microsoft.AspNetCore.Authentication;
 using HouseholdOps.Infrastructure.Persistence;
-using HouseholdOps.Modules.Households;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
@@ -39,7 +38,6 @@ public sealed class PersistedSessionCookieEvents(
     public override async Task ValidatePrincipal(CookieValidatePrincipalContext context)
     {
         var rawSessionId = context.Principal?.FindFirst(SessionClaimTypes.SessionId)?.Value;
-
         if (!Guid.TryParse(rawSessionId, out var sessionId))
         {
             logger.LogWarning("Rejecting cookie principal because session_id claim was missing or invalid.");
@@ -48,31 +46,54 @@ public sealed class PersistedSessionCookieEvents(
         }
 
         var now = DateTimeOffset.UtcNow;
-
         var sessionData = await (
             from session in dbContext.Sessions
             join user in dbContext.Users on session.UserId equals user.Id
-            join household in dbContext.Households on session.ActiveHouseholdId equals household.Id
-            join membership in dbContext.Memberships
-                on new { session.UserId, HouseholdId = session.ActiveHouseholdId }
-                equals new { membership.UserId, membership.HouseholdId }
             where session.Id == sessionId
                 && session.RevokedAtUtc == null
                 && session.ExpiresAtUtc > now
             select new
             {
                 Session = session,
-                User = user,
-                Household = household,
-                Membership = membership
+                User = user
             })
             .SingleOrDefaultAsync(context.HttpContext.RequestAborted);
 
         if (sessionData is null)
         {
             logger.LogWarning("Rejecting cookie principal because persisted session {SessionId} was invalid.", sessionId);
-            await RejectAsync(context, "Persisted session was not found, expired, or lost membership.");
+            await RejectAsync(context, "Persisted session was not found or expired.");
             return;
+        }
+
+        HouseholdOps.Modules.Households.HouseholdRole? householdRole = null;
+        Guid? householdId = null;
+
+        if (sessionData.Session.ActiveHouseholdId.HasValue)
+        {
+            householdId = sessionData.Session.ActiveHouseholdId.Value;
+
+            var membership = await dbContext.Memberships.SingleOrDefaultAsync(
+                item => item.UserId == sessionData.Session.UserId
+                    && item.HouseholdId == householdId.Value,
+                context.HttpContext.RequestAborted);
+
+            var householdExists = await dbContext.Households.AnyAsync(
+                item => item.Id == householdId.Value,
+                context.HttpContext.RequestAborted);
+
+            if (!householdExists || membership is null)
+            {
+                logger.LogWarning(
+                    "Rejecting cookie principal because session {SessionId} lost access to household {HouseholdId}.",
+                    sessionId,
+                    householdId);
+
+                await RejectAsync(context, "Persisted session lost access to the active household.");
+                return;
+            }
+
+            householdRole = membership.Role;
         }
 
         sessionData.Session.LastSeenAtUtc = now;
@@ -81,9 +102,10 @@ public sealed class PersistedSessionCookieEvents(
         context.ReplacePrincipal(SessionPrincipalFactory.Create(
             sessionData.Session.Id,
             sessionData.User.Id,
+            sessionData.User.Email,
             sessionData.User.DisplayName,
-            sessionData.Household.Id,
-            sessionData.Membership.Role));
+            householdId,
+            householdRole));
         context.ShouldRenew = true;
     }
 

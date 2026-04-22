@@ -100,14 +100,6 @@ function LegacyDisplayAccessPanel({ token }: DisplayAccessPanelProps) {
     }
   }
 
-  async function devLogin() {
-    await fetch("/api/auth/dev-login", {
-      method: "POST"
-    });
-
-    await refresh();
-  }
-
   async function logout() {
     await fetch("/api/auth/logout", {
       method: "POST"
@@ -135,14 +127,6 @@ function LegacyDisplayAccessPanel({ token }: DisplayAccessPanelProps) {
         </p>
 
         <div className="action-row">
-          <button
-            className="action-button"
-            type="button"
-            onClick={devLogin}
-            disabled={isPending}
-          >
-            Dev Login
-          </button>
           <button
             className="action-button action-button-secondary"
             type="button"

@@ -22,14 +22,13 @@ public static class DependencyInjection
             INotesService notesService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
-            var result = await notesService.ListNotesAsync(householdId, cancellationToken);
+            var result = await notesService.ListNotesAsync(access.ActiveHouseholdId.Value, cancellationToken);
             return Results.Ok(result);
         });
 
@@ -45,16 +44,18 @@ public static class DependencyInjection
                 return Results.BadRequest("Request body is required.");
             }
 
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId)
-                || !Guid.TryParse(session.UserId, out var userId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue || !access.UserId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var (result, item) = await notesService.UpdateNoteAsync(
-                householdId, noteId, userId, request, cancellationToken);
+                access.ActiveHouseholdId.Value,
+                noteId,
+                access.UserId.Value,
+                request,
+                cancellationToken);
 
             return result.Status switch
             {
@@ -78,16 +79,18 @@ public static class DependencyInjection
                 return Results.BadRequest("Title is required.");
             }
 
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId)
-                || !Guid.TryParse(session.UserId, out var userId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue || !access.UserId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var (result, item) = await notesService.CreateNoteAsync(
-                householdId, userId, request, clock.UtcNow, cancellationToken);
+                access.ActiveHouseholdId.Value,
+                access.UserId.Value,
+                request,
+                clock.UtcNow,
+                cancellationToken);
 
             return result.Status switch
             {
@@ -106,14 +109,13 @@ public static class DependencyInjection
             INotesService notesService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
-            var result = await notesService.DeleteNoteAsync(householdId, noteId, cancellationToken);
+            var result = await notesService.DeleteNoteAsync(access.ActiveHouseholdId.Value, noteId, cancellationToken);
 
             return result.Status switch
             {
@@ -129,14 +131,13 @@ public static class DependencyInjection
             INotesService notesService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
-            var (result, item) = await notesService.TogglePinAsync(householdId, noteId, cancellationToken);
+            var (result, item) = await notesService.TogglePinAsync(access.ActiveHouseholdId.Value, noteId, cancellationToken);
 
             return result.Status switch
             {

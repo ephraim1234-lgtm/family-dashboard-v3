@@ -22,6 +22,7 @@ using HouseholdOps.Modules.Notifications;
 using HouseholdOps.Modules.Scheduling;
 using HouseholdOps.SharedKernel.Time;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -43,9 +44,11 @@ public static class DependencyInjection
 
         services.AddScoped<CurrentHouseholdContext>();
         services.AddScoped<PersistedSessionCookieEvents>();
+        services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
         services.AddScoped<IIdentityAccessService, IdentityAccessService>();
         services.AddScoped<IHouseholdContextService, HouseholdContextService>();
         services.AddScoped<IHouseholdMemberService, HouseholdMemberService>();
+        services.AddScoped<IHouseholdInviteService, HouseholdInviteService>();
         services.AddScoped<IDisplayProjectionService, DisplayProjectionService>();
         services.AddScoped<IDisplayManagementService, DisplayManagementService>();
         services.AddScoped<IAgendaQueryService, AgendaQueryService>();

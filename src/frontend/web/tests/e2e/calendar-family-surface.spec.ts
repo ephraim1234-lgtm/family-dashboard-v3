@@ -302,9 +302,15 @@ async function mockCalendarRoutes(page: Page, role: SessionRole = "Owner") {
       contentType: "application/json",
       body: JSON.stringify({
         isAuthenticated: true,
-        userId: "dev-user",
+        user: {
+          userId: "owner-user",
+          email: "owner@example.com",
+          displayName: "Morgan"
+        },
         activeHouseholdId: "household-1",
-        activeHouseholdRole: role
+        activeHouseholdRole: role,
+        hasActiveHousehold: true,
+        needsOnboarding: false
       })
     });
   });

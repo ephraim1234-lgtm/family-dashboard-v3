@@ -6,7 +6,7 @@ public sealed class Session
 
     public Guid UserId { get; set; }
 
-    public Guid ActiveHouseholdId { get; set; }
+    public Guid? ActiveHouseholdId { get; set; }
 
     public DateTimeOffset CreatedAtUtc { get; set; }
 

@@ -23,14 +23,13 @@ public static class DependencyInjection
             IChoreService choreService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
-            var response = await choreService.ListChoresAsync(householdId, cancellationToken);
+            var response = await choreService.ListChoresAsync(access.ActiveHouseholdId.Value, cancellationToken);
             return Results.Ok(response);
         });
 
@@ -45,14 +44,13 @@ public static class DependencyInjection
                 return Results.BadRequest("A chore request is required.");
             }
 
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
-            var (result, item) = await choreService.CreateChoreAsync(householdId, request, cancellationToken);
+            var (result, item) = await choreService.CreateChoreAsync(access.ActiveHouseholdId.Value, request, cancellationToken);
 
             return result.Status switch
             {
@@ -74,14 +72,13 @@ public static class DependencyInjection
                 return Results.BadRequest("An update request is required.");
             }
 
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
-            var (result, item) = await choreService.UpdateChoreAsync(householdId, choreId, request, cancellationToken);
+            var (result, item) = await choreService.UpdateChoreAsync(access.ActiveHouseholdId.Value, choreId, request, cancellationToken);
 
             return result.Status switch
             {
@@ -98,14 +95,13 @@ public static class DependencyInjection
             IChoreService choreService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
-            var result = await choreService.DeleteChoreAsync(householdId, choreId, cancellationToken);
+            var result = await choreService.DeleteChoreAsync(access.ActiveHouseholdId.Value, choreId, cancellationToken);
 
             return result.Status switch
             {
@@ -129,15 +125,14 @@ public static class DependencyInjection
                 return Results.BadRequest("A reassignment request is required.");
             }
 
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var (result, item) = await choreService.ReassignChoreAsync(
-                householdId, choreId, request.AssignedMembershipId, cancellationToken);
+                access.ActiveHouseholdId.Value, choreId, request.AssignedMembershipId, cancellationToken);
 
             return result.Status switch
             {
@@ -153,14 +148,13 @@ public static class DependencyInjection
             IChoreService choreService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
-            var response = await choreService.ListRecentCompletionsAsync(householdId, cancellationToken);
+            var response = await choreService.ListRecentCompletionsAsync(access.ActiveHouseholdId.Value, cancellationToken);
             return Results.Ok(response);
         });
 
@@ -172,15 +166,13 @@ public static class DependencyInjection
             IChoreService choreService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId)
-                || !Guid.TryParse(session.UserId, out var userId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue || !access.UserId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
-            var response = await choreService.ListMyChoresAsync(householdId, userId, cancellationToken);
+            var response = await choreService.ListMyChoresAsync(access.ActiveHouseholdId.Value, access.UserId.Value, cancellationToken);
             return Results.Ok(response);
         });
 
@@ -191,16 +183,18 @@ public static class DependencyInjection
             IChoreService choreService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId)
-                || !Guid.TryParse(session.UserId, out var userId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue || !access.UserId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var (result, item) = await choreService.CompleteChoreAsync(
-                householdId, choreId, userId, request ?? new CompleteChoreRequest(null), cancellationToken);
+                access.ActiveHouseholdId.Value,
+                choreId,
+                access.UserId.Value,
+                request ?? new CompleteChoreRequest(null),
+                cancellationToken);
 
             return result.Status switch
             {

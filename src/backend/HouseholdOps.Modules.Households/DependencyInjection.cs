@@ -4,6 +4,7 @@ using HouseholdOps.SharedKernel.Time;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace HouseholdOps.Modules.Households;
@@ -16,6 +17,26 @@ public static class DependencyInjection
     {
         var group = app.MapGroup("/api/households");
 
+        group.MapPost("/onboarding", async (
+            CreateHouseholdRequest? request,
+            IHouseholdContextService service,
+            CancellationToken cancellationToken) =>
+        {
+            if (request is null)
+            {
+                return Results.BadRequest("Request body is required.");
+            }
+
+            var result = await service.CreateAsync(request, cancellationToken);
+            return result.Status switch
+            {
+                HouseholdContextMutationStatus.Succeeded => Results.Ok(result.Household),
+                HouseholdContextMutationStatus.ValidationFailed => Results.BadRequest(result.Error),
+                HouseholdContextMutationStatus.Conflict => Results.Conflict(result.Error),
+                _ => Results.Unauthorized()
+            };
+        }).RequireAuthorization();
+
         group.MapGet("/current", async (
             IHouseholdContextService service,
             CancellationToken cancellationToken) =>
@@ -24,7 +45,7 @@ public static class DependencyInjection
 
             if (householdContext is null)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             return Results.Ok(householdContext);
@@ -78,22 +99,39 @@ public static class DependencyInjection
             IHouseholdMemberService memberService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
+            var access = identityAccessService.GetCurrentAccess();
 
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            if (!access.ActiveHouseholdId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
-            var result = await memberService.ListMembersAsync(householdId, cancellationToken);
+            var result = await memberService.ListMembersAsync(access.ActiveHouseholdId.Value, cancellationToken);
 
             return Results.Ok(result);
         }).RequireAuthorization("ActiveHouseholdOwner");
 
-        group.MapPost("/members", async (
-            AddHouseholdMemberRequest? request,
+        group.MapGet("/invites", async (
             IIdentityAccessService identityAccessService,
-            IHouseholdMemberService memberService,
+            IHouseholdInviteService inviteService,
+            CancellationToken cancellationToken) =>
+        {
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
+            {
+                return Results.Forbid();
+            }
+
+            var result = await inviteService.ListAsync(access.ActiveHouseholdId.Value, cancellationToken);
+            return Results.Ok(result);
+        }).RequireAuthorization("ActiveHouseholdOwner");
+
+        group.MapPost("/invites", async (
+            CreateHouseholdInviteRequest? request,
+            HttpRequest httpRequest,
+            IIdentityAccessService identityAccessService,
+            IHouseholdInviteService inviteService,
+            IConfiguration configuration,
             IClock clock,
             CancellationToken cancellationToken) =>
         {
@@ -102,25 +140,54 @@ public static class DependencyInjection
                 return Results.BadRequest("Request body is required.");
             }
 
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue || !access.UserId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
-            var result = await memberService.AddMemberAsync(
-                householdId,
+            var acceptUrlBase = ResolveInviteBaseUrl(
+                httpRequest,
+                configuration["AppUrls:WebPublicBaseUrl"]);
+            var result = await inviteService.CreateAsync(
+                access.ActiveHouseholdId.Value,
+                access.UserId.Value,
                 request,
+                acceptUrlBase,
                 clock.UtcNow,
                 cancellationToken);
 
             return result.Status switch
             {
-                HouseholdMemberMutationStatus.Succeeded => Results.Ok(result.Member),
-                HouseholdMemberMutationStatus.ValidationFailed => Results.BadRequest(result.Error),
-                HouseholdMemberMutationStatus.Conflict => Results.Conflict(result.Error),
-                _ => Results.BadRequest("Unable to add member.")
+                HouseholdInviteMutationStatus.Created => Results.Ok(result.CreatedInvite),
+                HouseholdInviteMutationStatus.ValidationFailed => Results.BadRequest(result.Error),
+                HouseholdInviteMutationStatus.Conflict => Results.Conflict(result.Error),
+                _ => Results.BadRequest("Unable to create invite.")
+            };
+        }).RequireAuthorization("ActiveHouseholdOwner");
+
+        group.MapDelete("/invites/{inviteId:guid}", async (
+            Guid inviteId,
+            IIdentityAccessService identityAccessService,
+            IHouseholdInviteService inviteService,
+            CancellationToken cancellationToken) =>
+        {
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
+            {
+                return Results.Forbid();
+            }
+
+            var result = await inviteService.RevokeAsync(
+                access.ActiveHouseholdId.Value,
+                inviteId,
+                cancellationToken);
+
+            return result.Status switch
+            {
+                HouseholdInviteMutationStatus.Deleted => Results.NoContent(),
+                HouseholdInviteMutationStatus.NotFound => Results.NotFound(),
+                _ => Results.BadRequest("Unable to revoke invite.")
             };
         }).RequireAuthorization("ActiveHouseholdOwner");
 
@@ -130,15 +197,14 @@ public static class DependencyInjection
             IHouseholdMemberService memberService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var result = await memberService.RemoveMemberAsync(
-                householdId,
+                access.ActiveHouseholdId.Value,
                 membershipId,
                 cancellationToken);
 
@@ -151,6 +217,55 @@ public static class DependencyInjection
             };
         }).RequireAuthorization("ActiveHouseholdOwner");
 
+        app.MapGet("/api/household-invites/{token}/preview", async (
+            string token,
+            IHouseholdInviteService inviteService,
+            CancellationToken cancellationToken) =>
+        {
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                return Results.BadRequest("Invite token is required.");
+            }
+
+            var preview = await inviteService.PreviewAsync(token, cancellationToken);
+            return preview is null ? Results.NotFound() : Results.Ok(preview);
+        });
+
+        app.MapPost("/api/household-invites/accept", async (
+            AcceptHouseholdInviteRequest? request,
+            IIdentityAccessService identityAccessService,
+            IHouseholdInviteService inviteService,
+            IClock clock,
+            CancellationToken cancellationToken) =>
+        {
+            if (request is null || string.IsNullOrWhiteSpace(request.Token))
+            {
+                return Results.BadRequest("Invite token is required.");
+            }
+
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.UserId.HasValue)
+            {
+                return Results.Unauthorized();
+            }
+
+            var result = await inviteService.AcceptAsync(
+                access.UserId.Value,
+                request.Token,
+                clock.UtcNow,
+                cancellationToken);
+
+            return result.Status switch
+            {
+                HouseholdInviteMutationStatus.Accepted => Results.Ok(result.Household),
+                HouseholdInviteMutationStatus.ValidationFailed => Results.BadRequest(result.Error),
+                HouseholdInviteMutationStatus.Conflict => Results.Conflict(result.Error),
+                HouseholdInviteMutationStatus.NotFound => Results.NotFound(),
+                HouseholdInviteMutationStatus.Unauthorized => Results.Unauthorized(),
+                _ => Results.BadRequest("Unable to accept invite.")
+            };
+        }).RequireAuthorization();
+
         var appGroup = app.MapGroup("/api/app")
             .RequireAuthorization();
 
@@ -159,14 +274,13 @@ public static class DependencyInjection
             IActivityFeedService activityFeedService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
-            var result = await activityFeedService.GetRecentActivityAsync(householdId, cancellationToken);
+            var result = await activityFeedService.GetRecentActivityAsync(access.ActiveHouseholdId.Value, cancellationToken);
             return Results.Ok(result);
         });
 
@@ -175,14 +289,13 @@ public static class DependencyInjection
             IHouseholdTodayService todayService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
-            var result = await todayService.GetTodayAsync(householdId, cancellationToken);
+            var result = await todayService.GetTodayAsync(access.ActiveHouseholdId.Value, cancellationToken);
             return Results.Ok(result);
         });
 
@@ -191,25 +304,56 @@ public static class DependencyInjection
             IHouseholdHomeService homeService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
-            var isOwner = string.Equals(
-                session.ActiveHouseholdRole,
-                "Owner",
-                StringComparison.Ordinal);
-
             var result = await homeService.GetHomeAsync(
-                householdId,
-                isOwner,
+                access.ActiveHouseholdId.Value,
+                access.IsOwner,
                 cancellationToken);
             return Results.Ok(result);
         });
 
         return app;
+    }
+
+    private static string ResolveInviteBaseUrl(
+        HttpRequest httpRequest,
+        string? configuredWebPublicBaseUrl)
+    {
+        var configuredWebBaseUrl = NormalizeAbsoluteHttpUrl(configuredWebPublicBaseUrl);
+        if (!string.IsNullOrWhiteSpace(configuredWebBaseUrl))
+        {
+            return $"{configuredWebBaseUrl}/invite";
+        }
+
+        return $"{httpRequest.Scheme}://{httpRequest.Host}/invite";
+    }
+
+    private static string? NormalizeAbsoluteHttpUrl(string? url)
+    {
+        var configuredValue = url?.Trim();
+        if (string.IsNullOrWhiteSpace(configuredValue))
+        {
+            return null;
+        }
+
+        if (!Uri.TryCreate(configuredValue, UriKind.Absolute, out var uri)
+            || (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps))
+        {
+            throw new InvalidOperationException(
+                "AppUrls:WebPublicBaseUrl must be an absolute http or https URL.");
+        }
+
+        var builder = new UriBuilder(uri)
+        {
+            Query = string.Empty,
+            Fragment = string.Empty
+        };
+
+        return builder.Uri.ToString().TrimEnd('/');
     }
 }

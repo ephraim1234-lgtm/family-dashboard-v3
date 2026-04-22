@@ -4,16 +4,24 @@ import { useEffect, useState } from "react";
 
 export type AdminOwnerSessionState = {
   isAuthenticated: boolean;
-  userId: string | null;
+  user: {
+    userId: string;
+    email: string;
+    displayName: string;
+  } | null;
   activeHouseholdId: string | null;
   activeHouseholdRole: string | null;
+  hasActiveHousehold: boolean;
+  needsOnboarding: boolean;
 };
 
 const anonymousSession: AdminOwnerSessionState = {
   isAuthenticated: false,
-  userId: null,
+  user: null,
   activeHouseholdId: null,
-  activeHouseholdRole: null
+  activeHouseholdRole: null,
+  hasActiveHousehold: false,
+  needsOnboarding: false
 };
 
 export function useAdminOwnerSession() {
@@ -61,7 +69,7 @@ export function useAdminOwnerSession() {
 
   const isOwner =
     session.isAuthenticated
-    && session.activeHouseholdId != null
+    && session.hasActiveHousehold
     && session.activeHouseholdRole === "Owner";
 
   return {

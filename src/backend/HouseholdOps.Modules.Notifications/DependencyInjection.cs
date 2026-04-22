@@ -24,16 +24,15 @@ public static class DependencyInjection
             IEventReminderService reminderService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var response = await reminderService.ListRemindersAsync(
-                householdId,
-                string.Equals(session.ActiveHouseholdRole, "Owner", StringComparison.Ordinal),
+                access.ActiveHouseholdId.Value,
+                access.IsOwner,
                 cancellationToken);
 
             return Results.Ok(response);
@@ -54,15 +53,14 @@ public static class DependencyInjection
                 return Results.BadRequest("A reminder request is required.");
             }
 
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var result = await reminderService.CreateReminderAsync(
-                householdId,
+                access.ActiveHouseholdId.Value,
                 request,
                 clock.UtcNow,
                 cancellationToken);
@@ -81,15 +79,14 @@ public static class DependencyInjection
             IEventReminderService reminderService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var result = await reminderService.DismissReminderAsync(
-                householdId,
+                access.ActiveHouseholdId.Value,
                 reminderId,
                 cancellationToken);
 
@@ -114,15 +111,14 @@ public static class DependencyInjection
                 return Results.BadRequest("A snooze request is required.");
             }
 
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var result = await reminderService.SnoozeReminderAsync(
-                householdId,
+                access.ActiveHouseholdId.Value,
                 reminderId,
                 request.SnoozeMinutes,
                 clock.UtcNow,
@@ -143,15 +139,14 @@ public static class DependencyInjection
             IEventReminderService reminderService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var deleted = await reminderService.DeleteReminderAsync(
-                householdId,
+                access.ActiveHouseholdId.Value,
                 reminderId,
                 cancellationToken);
 

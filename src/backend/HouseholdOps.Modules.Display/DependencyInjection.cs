@@ -33,15 +33,14 @@ public static class DependencyInjection
             IDisplayManagementService displayManagementService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var response = await displayManagementService.ListDevicesAsync(
-                householdId,
+                access.ActiveHouseholdId.Value,
                 cancellationToken);
 
             return Results.Ok(response);
@@ -53,15 +52,14 @@ public static class DependencyInjection
             IDisplayManagementService displayManagementService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             var response = await displayManagementService.CreateDeviceAsync(
-                householdId,
+                access.ActiveHouseholdId.Value,
                 request?.Name,
                 cancellationToken);
 
@@ -75,11 +73,10 @@ public static class DependencyInjection
             IDisplayManagementService displayManagementService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             if (!Enum.TryParse<DisplayPresentationMode>(
@@ -91,7 +88,7 @@ public static class DependencyInjection
             }
 
             var response = await displayManagementService.UpdatePresentationModeAsync(
-                householdId,
+                access.ActiveHouseholdId.Value,
                 deviceId,
                 presentationMode,
                 cancellationToken);
@@ -106,11 +103,10 @@ public static class DependencyInjection
             IDisplayManagementService displayManagementService,
             CancellationToken cancellationToken) =>
         {
-            var session = identityAccessService.GetCurrentSession();
-
-            if (!Guid.TryParse(session.ActiveHouseholdId, out var householdId))
+            var access = identityAccessService.GetCurrentAccess();
+            if (!access.ActiveHouseholdId.HasValue)
             {
-                return Results.Unauthorized();
+                return Results.Forbid();
             }
 
             if (!Enum.TryParse<DisplayAgendaDensityMode>(
@@ -122,7 +118,7 @@ public static class DependencyInjection
             }
 
             var response = await displayManagementService.UpdateAgendaDensityModeAsync(
-                householdId,
+                access.ActiveHouseholdId.Value,
                 deviceId,
                 agendaDensityMode,
                 cancellationToken);
