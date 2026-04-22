@@ -13,6 +13,7 @@ import {
   applySuggestedEnd,
   buildMemberEventRequest,
   createDefaultMemberEventDraft,
+  createMemberEventDraftForDate,
   getMemberEventValidationIssues
 } from "../member-event-draft";
 import { useAdminOwnerSession } from "../use-admin-owner-session";
@@ -32,7 +33,11 @@ import {
 } from "../scheduling";
 import {
   addDaysUtc,
+  addMonthsUtc,
   buildFamilyCalendarViewModel,
+  getDefaultSelectedDateForMonth,
+  getMonthGridStartUtc,
+  getMonthStartUtc,
   getWeekStartUtc,
   type CalendarEventItem,
   type CalendarReminderItem,
@@ -62,6 +67,9 @@ type FamilyCalendarContextValue = {
   viewMode: CalendarViewMode;
   setViewMode: (value: CalendarViewMode) => void;
   weekStartUtc: string;
+  monthStartUtc: string;
+  selectedDate: string;
+  selectDate: (date: string) => void;
   viewModel: FamilyCalendarViewModel | null;
   homeData: HomeResponse | null;
   selectedDetail: CalendarDetailSelection | null;
@@ -82,10 +90,15 @@ type FamilyCalendarContextValue = {
   setEventEnd: (value: string) => void;
   eventValidationIssues: string[];
   resetEventDraft: () => void;
+  resetEventDraftForSelectedDate: () => void;
+  prefillEventDraftForSelectedDate: () => void;
   handleAddEvent: () => void;
   goToPreviousWeek: () => void;
   goToNextWeek: () => void;
   goToCurrentWeek: () => void;
+  goToPreviousMonth: () => void;
+  goToNextMonth: () => void;
+  goToCurrentMonth: () => void;
   selectedSeriesItem: ScheduledEventSeriesItem | null;
   seriesEditorState: SchedulingEditorState;
   setSeriesEditorState: (patch: Partial<SchedulingEditorState>) => void;
@@ -128,10 +141,10 @@ async function fetchHome() {
   return (await response.json()) as HomeResponse;
 }
 
-async function fetchAgenda(weekStartUtc: string) {
+async function fetchAgenda(windowStartUtc: string, days: number) {
   const searchParams = new URLSearchParams({
-    startUtc: weekStartUtc,
-    days: "7"
+    startUtc: windowStartUtc,
+    days: days.toString()
   });
   const response = await fetch(`/api/scheduling/agenda?${searchParams.toString()}`, {
     credentials: "same-origin",
@@ -195,7 +208,12 @@ export function FamilyCalendarProvider({
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<CalendarViewMode>("week");
   const [weekStartUtc, setWeekStartUtc] = useState(() => getWeekStartUtc(new Date()));
-  const [selectedDetail, setSelectedDetail] = useState<CalendarDetailSelection | null>(null);
+  const [monthStartUtc, setMonthStartUtc] = useState(() => getMonthStartUtc(new Date()));
+  const [selectedDate, setSelectedDate] = useState(() => {
+    const now = new Date();
+    return getDefaultSelectedDateForMonth(getMonthStartUtc(now), now);
+  });
+  const [selectedDetail, setSelectedDetailRaw] = useState<CalendarDetailSelection | null>(null);
   const [detailEditorOpen, setDetailEditorOpen] = useState(false);
   const [seriesEditorState, setSeriesEditorStateRaw] = useState<SchedulingEditorState>(
     createDefaultSchedulingEditorState()
@@ -212,6 +230,10 @@ export function FamilyCalendarProvider({
   const [eventEnd, setEventEnd] = useState(defaultEventDraft.endsAtLocal);
 
   const isAuthenticated = session.isAuthenticated;
+  const monthGridStartUtc = useMemo(
+    () => getMonthGridStartUtc(monthStartUtc),
+    [monthStartUtc]
+  );
 
   const homeQuery = useQuery({
     queryKey: ["calendar", "home"],
@@ -219,9 +241,15 @@ export function FamilyCalendarProvider({
     enabled: !isSessionLoading && isAuthenticated
   });
 
-  const agendaQuery = useQuery({
-    queryKey: ["calendar", "agenda", weekStartUtc],
-    queryFn: () => fetchAgenda(weekStartUtc),
+  const weekAgendaQuery = useQuery({
+    queryKey: ["calendar", "agenda", "week", weekStartUtc],
+    queryFn: () => fetchAgenda(weekStartUtc, 7),
+    enabled: !isSessionLoading && isAuthenticated
+  });
+
+  const monthAgendaQuery = useQuery({
+    queryKey: ["calendar", "agenda", "month", monthGridStartUtc],
+    queryFn: () => fetchAgenda(monthGridStartUtc, 42),
     enabled: !isSessionLoading && isAuthenticated
   });
 
@@ -244,6 +272,10 @@ export function FamilyCalendarProvider({
 
     return (seriesQuery.data ?? []).find((item) => item.id === selectedDetail.item.id) ?? null;
   }, [selectedDetail, seriesQuery.data]);
+
+  useEffect(() => {
+    setSelectedDate(getDefaultSelectedDateForMonth(monthStartUtc, new Date()));
+  }, [monthStartUtc]);
 
   useEffect(() => {
     if (!selectedDetail || selectedDetail.type !== "event" || !selectedSeriesItem) {
@@ -281,11 +313,25 @@ export function FamilyCalendarProvider({
     });
   }
 
-  function resetEventDraft() {
-    const nextDraft = createDefaultMemberEventDraft();
+  function applyEventDraft(nextDraft: ReturnType<typeof createDefaultMemberEventDraft>) {
     setEventTitle(nextDraft.title);
     setEventDesc("");
     setEventAllDay(nextDraft.isAllDay);
+    setEventAllDayDate(nextDraft.allDayDate);
+    setEventStart(nextDraft.startsAtLocal);
+    setEventEnd(nextDraft.endsAtLocal);
+  }
+
+  function resetEventDraft() {
+    applyEventDraft(createDefaultMemberEventDraft());
+  }
+
+  function resetEventDraftForSelectedDate() {
+    applyEventDraft(createMemberEventDraftForDate(selectedDate));
+  }
+
+  function prefillEventDraftForSelectedDate() {
+    const nextDraft = createMemberEventDraftForDate(selectedDate);
     setEventAllDayDate(nextDraft.allDayDate);
     setEventStart(nextDraft.startsAtLocal);
     setEventEnd(nextDraft.endsAtLocal);
@@ -445,7 +491,7 @@ export function FamilyCalendarProvider({
     }
 
     showSuccess("Series deleted.");
-    setSelectedDetail(null);
+    setSelectedDetailRaw(null);
     await refreshCalendar();
   }
 
@@ -520,14 +566,26 @@ export function FamilyCalendarProvider({
   const viewModel = useMemo(
     () =>
       buildFamilyCalendarViewModel({
-        agenda: agendaQuery.data ?? null,
+        weekAgenda: weekAgendaQuery.data ?? null,
+        monthAgenda: monthAgendaQuery.data ?? null,
         reminders: reminderQuery.data ?? [],
         home: homeQuery.data ?? null,
         seriesItems: seriesQuery.data ?? [],
         isOwner,
+        visibleMonthStartUtc: monthStartUtc,
+        selectedDate,
         now: new Date()
       }),
-    [agendaQuery.data, homeQuery.data, isOwner, reminderQuery.data, seriesQuery.data]
+    [
+      homeQuery.data,
+      isOwner,
+      monthAgendaQuery.data,
+      monthStartUtc,
+      reminderQuery.data,
+      selectedDate,
+      seriesQuery.data,
+      weekAgendaQuery.data
+    ]
   );
 
   const eventValidationIssues = useMemo(
@@ -572,13 +630,19 @@ export function FamilyCalendarProvider({
 
   const error =
     actionError
-    ?? (agendaQuery.error instanceof Error ? agendaQuery.error.message : null)
+    ?? (weekAgendaQuery.error instanceof Error ? weekAgendaQuery.error.message : null)
+    ?? (monthAgendaQuery.error instanceof Error ? monthAgendaQuery.error.message : null)
     ?? (homeQuery.error instanceof Error ? homeQuery.error.message : null)
     ?? (reminderQuery.error instanceof Error ? reminderQuery.error.message : null)
     ?? (seriesQuery.error instanceof Error ? seriesQuery.error.message : null);
 
-  const value = useMemo<FamilyCalendarContextValue>(() => ({
-    isLoading: isSessionLoading || agendaQuery.isLoading || homeQuery.isLoading || reminderQuery.isLoading,
+  const value: FamilyCalendarContextValue = {
+    isLoading:
+      isSessionLoading
+      || weekAgendaQuery.isLoading
+      || monthAgendaQuery.isLoading
+      || homeQuery.isLoading
+      || reminderQuery.isLoading,
     isPending,
     error,
     successMessage,
@@ -587,11 +651,14 @@ export function FamilyCalendarProvider({
     viewMode,
     setViewMode,
     weekStartUtc,
+    monthStartUtc,
+    selectedDate,
+    selectDate: setSelectedDate,
     viewModel,
     homeData: homeQuery.data ?? null,
     selectedDetail,
     setSelectedDetail: (detail) => {
-      setSelectedDetail(detail);
+      setSelectedDetailRaw(detail);
       setDetailEditorOpen(false);
       setReminderError(null);
     },
@@ -611,6 +678,8 @@ export function FamilyCalendarProvider({
     setEventEnd,
     eventValidationIssues,
     resetEventDraft,
+    resetEventDraftForSelectedDate,
+    prefillEventDraftForSelectedDate,
     handleAddEvent: () => {
       if (eventValidationIssues.length > 0) {
         return;
@@ -621,6 +690,9 @@ export function FamilyCalendarProvider({
     goToPreviousWeek: () => setWeekStartUtc((current) => addDaysUtc(current, -7)),
     goToNextWeek: () => setWeekStartUtc((current) => addDaysUtc(current, 7)),
     goToCurrentWeek: () => setWeekStartUtc(getWeekStartUtc(new Date())),
+    goToPreviousMonth: () => setMonthStartUtc((current) => addMonthsUtc(current, -1)),
+    goToNextMonth: () => setMonthStartUtc((current) => addMonthsUtc(current, 1)),
+    goToCurrentMonth: () => setMonthStartUtc(getMonthStartUtc(new Date())),
     selectedSeriesItem,
     seriesEditorState,
     setSeriesEditorState,
@@ -651,39 +723,7 @@ export function FamilyCalendarProvider({
       runAction(() => dismissReminder(reminderId), "Unable to dismiss reminder."),
     handleSnoozeReminder: (reminderId, snoozeMinutes) =>
       runAction(() => snoozeReminder(reminderId, snoozeMinutes), "Unable to snooze reminder.")
-  }), [
-    agendaQuery.isLoading,
-    clearSeriesWeeklyDays,
-    detailEditorOpen,
-    error,
-    eventAllDay,
-    eventAllDayDate,
-    eventDesc,
-    eventEnd,
-    eventStart,
-    eventTitle,
-    eventValidationIssues,
-    homeQuery.data,
-    homeQuery.isLoading,
-    isAuthenticated,
-    isOwner,
-    isPending,
-    isSessionLoading,
-    reminderError,
-    reminderMinutesBefore,
-    reminderQuery.data,
-    reminderQuery.isLoading,
-    selectedDetail,
-    selectedEventReminders,
-    selectedSeriesItem,
-    seriesEditorState,
-    seriesEditorSummary,
-    seriesValidationIssues,
-    successMessage,
-    viewMode,
-    viewModel,
-    weekStartUtc
-  ]);
+  };
 
   return (
     <FamilyCalendarContext.Provider value={value}>

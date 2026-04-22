@@ -445,6 +445,11 @@ textarea {
   flex-direction: column;
 }
 
+.family-calendar-mobile-stack {
+  display: grid;
+  gap: 1.5rem;
+}
+
 .family-calendar-rail {
   flex-direction: column;
 }
@@ -469,6 +474,117 @@ textarea {
   margin-bottom: 0.25rem;
 }
 
+.family-calendar-month-header,
+.family-calendar-selected-day-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.family-calendar-month-weekdays,
+.family-calendar-month-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.family-calendar-month-weekday {
+  text-align: center;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.family-calendar-month-day {
+  appearance: none;
+  display: grid;
+  align-content: space-between;
+  gap: 0.45rem;
+  min-height: 4.3rem;
+  border: 1px solid var(--surface-line);
+  border-radius: 1rem;
+  padding: 0.55rem 0.4rem 0.45rem;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--text);
+  text-align: left;
+  transition: border-color 0.16s ease, background 0.16s ease, transform 0.16s ease;
+}
+
+.family-calendar-month-day:hover {
+  transform: translateY(-1px);
+  border-color: var(--surface-line-strong);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.family-calendar-month-day-muted {
+  color: var(--text-faint);
+  background: rgba(255, 255, 255, 0.42);
+}
+
+.family-calendar-month-day-today {
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent-primary) 20%, transparent);
+}
+
+.family-calendar-month-day-selected {
+  border-color: color-mix(in oklab, var(--accent-primary) 36%, var(--surface-line));
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(239, 248, 245, 0.9));
+  box-shadow: 0 10px 20px rgba(37, 95, 83, 0.12);
+}
+
+.family-calendar-month-day-number {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.family-calendar-month-indicators {
+  display: flex;
+  align-items: center;
+  gap: 0.22rem;
+  min-height: 0.55rem;
+}
+
+.family-calendar-month-indicators-empty {
+  opacity: 0.35;
+}
+
+.family-calendar-month-indicator {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+}
+
+.family-calendar-month-indicator-local {
+  background: var(--accent-primary);
+}
+
+.family-calendar-month-indicator-imported {
+  background: var(--accent-admin);
+}
+
+.family-calendar-month-indicator-reminder {
+  background: var(--accent-warning);
+}
+
+.family-calendar-month-overflow {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--text-faint);
+}
+
+.family-calendar-selected-day-card {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  border-radius: 1.4rem;
+  border: 1px solid color-mix(in oklab, var(--accent-primary) 18%, transparent);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(247, 242, 233, 0.88));
+}
+
 @media (min-width: 1100px) {
   .family-calendar-layout {
     grid-template-columns: minmax(0, 2fr) minmax(18rem, 24rem);
@@ -487,7 +603,9 @@ textarea {
   }
 
   .family-calendar-summary-row,
-  .family-calendar-day-head {
+  .family-calendar-day-head,
+  .family-calendar-month-header,
+  .family-calendar-selected-day-head {
     flex-direction: column;
   }
 }

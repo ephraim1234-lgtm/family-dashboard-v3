@@ -25,8 +25,13 @@ function getNextRoundedHour(now = new Date()) {
   return rounded;
 }
 
-export function createDefaultMemberEventDraft() {
-  const startsAt = getNextRoundedHour();
+function applyLocalDateToDateTime(localDate: string, localDateTime: string) {
+  const time = localDateTime.split("T")[1] ?? "09:00";
+  return `${localDate}T${time}`;
+}
+
+export function createDefaultMemberEventDraft(now = new Date()) {
+  const startsAt = getNextRoundedHour(now);
   const endsAt = new Date(startsAt);
   endsAt.setHours(endsAt.getHours() + 1);
 
@@ -37,6 +42,20 @@ export function createDefaultMemberEventDraft() {
     allDayDate: formatLocalDateInputValue(startsAt),
     startsAtLocal: formatLocalDateTimeInputValue(startsAt),
     endsAtLocal: formatLocalDateTimeInputValue(endsAt)
+  };
+}
+
+export function createMemberEventDraftForDate(
+  localDate: string,
+  now = new Date()
+) {
+  const draft = createDefaultMemberEventDraft(now);
+
+  return {
+    ...draft,
+    allDayDate: localDate,
+    startsAtLocal: applyLocalDateToDateTime(localDate, draft.startsAtLocal),
+    endsAtLocal: applyLocalDateToDateTime(localDate, draft.endsAtLocal)
   };
 }
 

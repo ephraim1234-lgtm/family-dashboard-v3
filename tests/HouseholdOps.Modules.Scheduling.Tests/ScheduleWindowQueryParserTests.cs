@@ -20,6 +20,7 @@ public class ScheduleWindowQueryParserTests
         Assert.Equal(7, ScheduleWindowQueryParser.ParseWindowDays("7"));
         Assert.Equal(14, ScheduleWindowQueryParser.ParseWindowDays("14"));
         Assert.Equal(30, ScheduleWindowQueryParser.ParseWindowDays("30"));
+        Assert.Equal(42, ScheduleWindowQueryParser.ParseWindowDays("42"));
     }
 
     [Fact]

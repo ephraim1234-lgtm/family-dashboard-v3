@@ -1,5 +1,5 @@
 import type { Page, Route } from "@playwright/test";
-import { expect, test } from "./fixtures";
+import { expect, test, useMobileViewport } from "./fixtures";
 import type { HomeResponse } from "../../lib/family-command-center";
 
 type SessionRole = "Owner" | "Member";
@@ -10,13 +10,27 @@ async function freezeClientDate(page: Page, isoDate: string) {
     const RealDate = Date;
 
     class MockDate extends RealDate {
-      constructor(...args: any[]) {
+      constructor(...args: unknown[]) {
         if (args.length === 0) {
           super(fixedTime);
           return;
         }
 
-        super(...args);
+        if (args.length === 1) {
+          super(args[0] as string | number | Date);
+          return;
+        }
+
+        const [year, month, date, hours, minutes, seconds, milliseconds] = args as [
+          number,
+          number,
+          number?,
+          number?,
+          number?,
+          number?,
+          number?
+        ];
+        super(year, month, date, hours, minutes, seconds, milliseconds);
       }
 
       static now() {
@@ -83,7 +97,21 @@ function buildHomeResponse(): HomeResponse {
 }
 
 async function mockCalendarRoutes(page: Page, role: SessionRole = "Owner") {
-  let agendaItems = [
+  let agendaItems: Array<{
+    id: string;
+    title: string;
+    description: string | null;
+    isAllDay: boolean;
+    startsAtUtc: string | null;
+    endsAtUtc: string | null;
+    isImported: boolean;
+    sourceKind: string | null;
+    isGoogleMirrorEnabled: boolean;
+    googleSyncStatus: string | null;
+    googleSyncError: string | null;
+    googleTargetDisplayName: string | null;
+    lastGoogleSyncSucceededAtUtc: string | null;
+  }> = [
     {
       id: "evt-local",
       title: "Morning dropoff",
@@ -92,7 +120,12 @@ async function mockCalendarRoutes(page: Page, role: SessionRole = "Owner") {
       startsAtUtc: "2026-04-20T14:30:00.000Z",
       endsAtUtc: "2026-04-20T15:00:00.000Z",
       isImported: false,
-      sourceKind: null
+      sourceKind: null,
+      isGoogleMirrorEnabled: false,
+      googleSyncStatus: null,
+      googleSyncError: null,
+      googleTargetDisplayName: null,
+      lastGoogleSyncSucceededAtUtc: null
     },
     {
       id: "evt-imported",
@@ -102,7 +135,12 @@ async function mockCalendarRoutes(page: Page, role: SessionRole = "Owner") {
       startsAtUtc: "2026-04-22T23:00:00.000Z",
       endsAtUtc: "2026-04-23T00:00:00.000Z",
       isImported: true,
-      sourceKind: "GoogleCalendarIcs"
+      sourceKind: "GoogleCalendarIcs",
+      isGoogleMirrorEnabled: false,
+      googleSyncStatus: null,
+      googleSyncError: null,
+      googleTargetDisplayName: null,
+      lastGoogleSyncSucceededAtUtc: null
     },
     {
       id: "evt-next",
@@ -112,7 +150,12 @@ async function mockCalendarRoutes(page: Page, role: SessionRole = "Owner") {
       startsAtUtc: "2026-04-28T16:00:00.000Z",
       endsAtUtc: "2026-04-28T17:30:00.000Z",
       isImported: false,
-      sourceKind: null
+      sourceKind: null,
+      isGoogleMirrorEnabled: false,
+      googleSyncStatus: null,
+      googleSyncError: null,
+      googleTargetDisplayName: null,
+      lastGoogleSyncSucceededAtUtc: null
     }
   ];
 
@@ -131,6 +174,11 @@ async function mockCalendarRoutes(page: Page, role: SessionRole = "Owner") {
       recursUntilUtc: null,
       isImported: false,
       sourceKind: null,
+      isGoogleMirrorEnabled: false,
+      googleSyncStatus: null,
+      googleSyncError: null,
+      googleTargetDisplayName: null,
+      lastGoogleSyncSucceededAtUtc: null,
       nextOccurrenceStartsAtUtc: "2026-04-20T14:30:00.000Z",
       createdAtUtc: "2026-04-01T10:00:00.000Z"
     }
@@ -269,17 +317,28 @@ async function mockCalendarRoutes(page: Page, role: SessionRole = "Owner") {
   });
 
   await page.route("**/api/scheduling/events/member", async (route) => {
-    const body = route.request().postDataJSON() as { title: string };
+    const body = route.request().postDataJSON() as {
+      title: string;
+      description: string | null;
+      isAllDay: boolean;
+      startsAtUtc: string | null;
+      endsAtUtc: string | null;
+    };
     agendaItems = [
       {
         id: "evt-new",
         title: body.title,
-        description: null,
-        isAllDay: false,
-        startsAtUtc: "2026-04-24T16:00:00.000Z",
-        endsAtUtc: "2026-04-24T17:00:00.000Z",
+        description: body.description,
+        isAllDay: body.isAllDay,
+        startsAtUtc: body.startsAtUtc,
+        endsAtUtc: body.endsAtUtc,
         isImported: false,
-        sourceKind: null
+        sourceKind: null,
+        isGoogleMirrorEnabled: false,
+        googleSyncStatus: null,
+        googleSyncError: null,
+        googleTargetDisplayName: null,
+        lastGoogleSyncSucceededAtUtc: null
       },
       ...agendaItems
     ];
@@ -320,7 +379,7 @@ async function mockCalendarRoutes(page: Page, role: SessionRole = "Owner") {
   });
 }
 
-test("renders a week-first family calendar with local, imported, and reminder distinctions", async ({ page }) => {
+test("renders a week-first family calendar with local, imported, and reminder distinctions on desktop", async ({ page }) => {
   await freezeClientDate(page, "2026-04-20T14:00:00.000Z");
   await mockCalendarRoutes(page, "Owner");
 
@@ -336,7 +395,7 @@ test("renders a week-first family calendar with local, imported, and reminder di
   await expect(page.getByRole("button", { name: "Edit series" })).toHaveCount(0);
 });
 
-test("supports week navigation, agenda switching, local editing, and reminder actions for owners", async ({ page }) => {
+test("supports week navigation, agenda switching, local editing, and reminder actions for owners on desktop", async ({ page }) => {
   await freezeClientDate(page, "2026-04-20T14:00:00.000Z");
   await mockCalendarRoutes(page, "Owner");
 
@@ -373,7 +432,7 @@ test("supports week navigation, agenda switching, local editing, and reminder ac
   await expect(page.getByText("Series deleted.")).toBeVisible();
 });
 
-test("lets non-owner members view the calendar while keeping local item edits read-only", async ({ page }) => {
+test("lets non-owner members view the desktop calendar while keeping local item edits read-only", async ({ page }) => {
   await freezeClientDate(page, "2026-04-20T14:00:00.000Z");
   await mockCalendarRoutes(page, "Member");
 
@@ -383,4 +442,59 @@ test("lets non-owner members view the calendar while keeping local item edits re
   await page.getByTestId("calendar-entry-event-evt-local").click();
   await expect(page.getByTestId("calendar-detail-drawer")).toContainText("Local events stay visible here while owner edits remain protected in this slice.");
   await expect(page.getByRole("button", { name: "Edit series" })).toHaveCount(0);
+});
+
+test("renders a mobile month-first planner with month navigation and selected-day detail", async ({ page }) => {
+  await useMobileViewport(page);
+  await freezeClientDate(page, "2026-04-20T14:00:00.000Z");
+  await mockCalendarRoutes(page, "Owner");
+
+  await page.goto("/app/calendar");
+
+  await expect(page.getByTestId("family-calendar-mobile-month")).toBeVisible();
+  await expect(page.getByTestId("family-calendar-week-grid")).toHaveCount(0);
+  await expect(page.getByTestId("calendar-month-label")).toHaveText("April 2026");
+  await expect(page.getByTestId("calendar-selected-day")).toContainText("Monday, Apr 20");
+  await expect(page.getByTestId("calendar-selected-day")).toContainText("Morning dropoff");
+
+  await page.getByRole("button", { name: "Next month" }).click();
+  await expect(page.getByTestId("calendar-month-label")).toHaveText("May 2026");
+  await expect(page.getByTestId("calendar-selected-day-add")).toContainText("May 1");
+
+  await page.getByRole("button", { name: "This month" }).click();
+  await expect(page.getByTestId("calendar-month-label")).toHaveText("April 2026");
+
+  await page.getByTestId("calendar-month-day-2026-04-22").click();
+  await expect(page.getByTestId("calendar-selected-day")).toContainText("Soccer practice");
+  await expect(page.getByTestId("calendar-selected-day")).toContainText("Read only");
+});
+
+test("supports create-from-day and keeps local, imported, and reminder distinctions visible on mobile", async ({ page }) => {
+  await useMobileViewport(page);
+  await freezeClientDate(page, "2026-04-20T14:00:00.000Z");
+  await mockCalendarRoutes(page, "Owner");
+
+  await page.goto("/app/calendar");
+
+  await page.getByTestId("calendar-month-day-2026-04-20").click();
+  await expect(page.getByTestId("calendar-selected-day")).toContainText("Morning dropoff");
+  await expect(page.getByTestId("calendar-selected-day")).toContainText("Pending");
+  await expect(page.getByTestId("calendar-selected-day")).toContainText("Editable");
+
+  await page.getByTestId("calendar-entry-reminder-rem-1").click();
+  await expect(page.getByTestId("calendar-detail-drawer")).toContainText("Reminder");
+  await page.getByRole("button", { name: "Close" }).click();
+
+  await page.getByTestId("calendar-month-day-2026-04-22").click();
+  await page.getByTestId("calendar-selected-day-add").click();
+
+  await expect(page.getByTestId("calendar-mobile-quick-create")).toBeVisible();
+  await expect(page.getByLabel("Calendar event starts")).toHaveValue("2026-04-22T15:00");
+  await expect(page.getByLabel("Calendar event ends")).toHaveValue("2026-04-22T16:00");
+
+  await page.getByLabel("Calendar event title").fill("Neighborhood potluck");
+  await page.getByRole("button", { name: "Add event" }).click();
+
+  await expect(page.getByText("Event added to the family calendar.")).toBeVisible();
+  await expect(page.getByTestId("calendar-selected-day")).toContainText("Neighborhood potluck");
 });

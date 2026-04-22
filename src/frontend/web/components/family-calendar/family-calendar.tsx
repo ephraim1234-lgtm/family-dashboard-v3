@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { applySuggestedEnd } from "../member-event-draft";
 import { HouseholdBoardCard, HouseholdEmptyState, HouseholdMetaBadges, HouseholdSection } from "../household";
 import { FamilyCalendarProvider, useFamilyCalendarContext } from "./family-calendar-context";
@@ -15,8 +16,100 @@ import {
   SegmentedToggle,
   StatusMessage
 } from "@/components/ui";
-import { type CalendarDayGroup } from "@/lib/family-calendar";
 import { formatReminderTriageState } from "@/lib/family-command-center";
+import {
+  type CalendarDayEntry,
+  type CalendarDayGroup,
+  type CalendarMonthDay
+} from "@/lib/family-calendar";
+
+function useIsMobileCalendarLayout() {
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === "undefined") {
+      return false;
+    }
+
+    return window.matchMedia("(max-width: 760px)").matches;
+  });
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia("(max-width: 760px)");
+    const updateMatch = () => setIsMobile(mediaQuery.matches);
+
+    updateMatch();
+
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", updateMatch);
+      return () => mediaQuery.removeEventListener("change", updateMatch);
+    }
+
+    mediaQuery.addListener(updateMatch);
+    return () => mediaQuery.removeListener(updateMatch);
+  }, []);
+
+  return isMobile;
+}
+
+function CalendarEntryButton({
+  item
+}: {
+  item: CalendarDayEntry;
+}) {
+  const { setSelectedDetail } = useFamilyCalendarContext();
+
+  return (
+    <button
+      className={`family-calendar-item-card family-calendar-item-card-${item.kind}`}
+      data-testid={`calendar-entry-${item.kind}-${item.id}`}
+      onClick={() => setSelectedDetail(
+        item.kind === "event"
+          ? { type: "event", item }
+          : { type: "reminder", item }
+      )}
+      type="button"
+    >
+      <div className="family-calendar-item-head">
+        <div className="min-w-0 flex-1">
+          <strong>{item.title}</strong>
+          <div className="muted">
+            {item.kind === "event" ? item.timeLabel : item.dueLabel}
+          </div>
+        </div>
+        <span className="pill">
+          {item.kind === "event" ? item.timeLabel : item.status}
+        </span>
+      </div>
+      <div className="muted">{item.detailLabel}</div>
+      <HouseholdMetaBadges
+        owner={item.ownerDisplay}
+        kind={item.kind}
+        sourceLabel={item.sourceLabel}
+        urgencyState={item.urgencyState}
+        accessLabel={item.accessState === "editable" ? "Editable" : "Read only"}
+      />
+    </button>
+  );
+}
+
+function CalendarItemList({
+  items,
+  emptyMessage
+}: {
+  items: CalendarDayEntry[];
+  emptyMessage: string;
+}) {
+  if (items.length === 0) {
+    return <p className="muted mb-0">{emptyMessage}</p>;
+  }
+
+  return (
+    <div className="family-calendar-item-list">
+      {items.map((item) => (
+        <CalendarEntryButton key={item.key} item={item} />
+      ))}
+    </div>
+  );
+}
 
 function CalendarDayCard({
   date,
@@ -28,10 +121,8 @@ function CalendarDayCard({
   eventCount,
   reminderCount
 }: CalendarDayGroup) {
-  const { setSelectedDetail } = useFamilyCalendarContext();
-
   return (
-    <div className={`family-calendar-day-card${isToday ? " family-calendar-day-card-today" : ""}`}>
+    <div className={`family-calendar-day-card${isToday ? " family-calendar-day-card-today" : ""}`} key={date}>
       <div className="family-calendar-day-head">
         <div>
           <div className="eyebrow">{shortLabel}</div>
@@ -40,7 +131,7 @@ function CalendarDayCard({
         <div className="family-calendar-day-summary">
           <span className="pill">{busyLabel}</span>
           {(eventCount > 0 || reminderCount > 0) ? (
-            <span className="pill">{eventCount} events · {reminderCount} prompts</span>
+            <span className="pill">{eventCount} events, {reminderCount} prompts</span>
           ) : null}
         </div>
       </div>
@@ -52,37 +143,7 @@ function CalendarDayCard({
       ) : (
         <div className="family-calendar-item-list">
           {items.map((item) => (
-            <button
-              key={item.key}
-              className={`family-calendar-item-card family-calendar-item-card-${item.kind}`}
-              data-testid={`calendar-entry-${item.kind}-${item.id}`}
-              onClick={() => setSelectedDetail(
-                item.kind === "event"
-                  ? { type: "event", item }
-                  : { type: "reminder", item }
-              )}
-              type="button"
-            >
-              <div className="family-calendar-item-head">
-                <div className="min-w-0 flex-1">
-                  <strong>{item.title}</strong>
-                  <div className="muted">
-                    {item.kind === "event" ? item.timeLabel : item.dueLabel}
-                  </div>
-                </div>
-                <span className="pill">
-                  {item.kind === "event" ? item.timeLabel : item.status}
-                </span>
-              </div>
-              <div className="muted">{item.detailLabel}</div>
-              <HouseholdMetaBadges
-                owner={item.ownerDisplay}
-                kind={item.kind}
-                sourceLabel={item.sourceLabel}
-                urgencyState={item.urgencyState}
-                accessLabel={item.accessState === "editable" ? "Editable" : "Read only"}
-              />
-            </button>
+            <CalendarEntryButton key={item.key} item={item} />
           ))}
         </div>
       )}
@@ -95,7 +156,6 @@ function WeekPlanningSection() {
     viewModel,
     viewMode,
     setViewMode,
-    setSelectedDetail,
     goToPreviousWeek,
     goToNextWeek,
     goToCurrentWeek
@@ -158,46 +218,12 @@ function WeekPlanningSection() {
                   <strong>{day.label}</strong>
                   <div className="muted">{day.busyLabel}</div>
                 </div>
-                <span className="pill">{day.eventCount} events · {day.reminderCount} prompts</span>
+                <span className="pill">{day.eventCount} events, {day.reminderCount} prompts</span>
               </div>
-              {day.items.length === 0 ? (
-                <p className="muted mb-0">Nothing is scheduled or prompted on this day.</p>
-              ) : (
-                <div className="family-calendar-item-list">
-                  {day.items.map((item) => (
-                    <button
-                      key={item.key}
-                      className={`family-calendar-item-card family-calendar-item-card-${item.kind}`}
-                      data-testid={`calendar-entry-${item.kind}-${item.id}`}
-                      onClick={() => setSelectedDetail(
-                        item.kind === "event"
-                          ? { type: "event", item }
-                          : { type: "reminder", item }
-                      )}
-                      type="button"
-                    >
-                      <div className="family-calendar-item-head">
-                        <div className="min-w-0 flex-1">
-                          <strong>{item.title}</strong>
-                          <div className="muted">
-                            {item.kind === "event" ? item.timeLabel : item.dueLabel}
-                          </div>
-                        </div>
-                        <span className="pill">
-                          {item.kind === "event" ? item.timeLabel : item.status}
-                        </span>
-                      </div>
-                      <HouseholdMetaBadges
-                        owner={item.ownerDisplay}
-                        kind={item.kind}
-                        sourceLabel={item.sourceLabel}
-                        urgencyState={item.urgencyState}
-                        accessLabel={item.accessState === "editable" ? "Editable" : "Read only"}
-                      />
-                    </button>
-                  ))}
-                </div>
-              )}
+              <CalendarItemList
+                items={day.items}
+                emptyMessage="Nothing is scheduled or prompted on this day."
+              />
             </div>
           ))}
         </div>
@@ -206,10 +232,18 @@ function WeekPlanningSection() {
   );
 }
 
-function ContextRail() {
+function QuickCreateSection({
+  title,
+  description,
+  resetForSelectedDate = false,
+  testId
+}: {
+  title: string;
+  description: string;
+  resetForSelectedDate?: boolean;
+  testId?: string;
+}) {
   const {
-    viewModel,
-    homeData,
     eventTitle,
     setEventTitle,
     eventDesc,
@@ -225,149 +259,306 @@ function ContextRail() {
     eventValidationIssues,
     handleAddEvent,
     isPending,
-    resetEventDraft
+    resetEventDraft,
+    resetEventDraftForSelectedDate
   } = useFamilyCalendarContext();
+
+  return (
+    <HouseholdSection
+      eyebrow="Quick create"
+      title={title}
+      description={description}
+      data-testid={testId}
+    >
+      <div className="family-calendar-quick-add">
+        <input
+          aria-label="Calendar event title"
+          value={eventTitle}
+          onChange={(event) => setEventTitle(event.target.value)}
+          placeholder="Event title"
+        />
+        <input
+          aria-label="Calendar event description"
+          value={eventDesc}
+          onChange={(event) => setEventDesc(event.target.value)}
+          placeholder="Optional description"
+        />
+        <label className="family-checkbox-row">
+          <input
+            type="checkbox"
+            checked={eventAllDay}
+            onChange={(event) => {
+              const nextIsAllDay = event.target.checked;
+              setEventAllDay(nextIsAllDay);
+              if (nextIsAllDay) {
+                setEventEnd("");
+              } else if (!eventEnd && eventStart) {
+                setEventEnd(applySuggestedEnd(eventStart, 60));
+              }
+            }}
+          />
+          <span>All day</span>
+        </label>
+        {eventAllDay ? (
+          <input
+            aria-label="Calendar all day date"
+            type="date"
+            value={eventAllDayDate}
+            onChange={(event) => setEventAllDayDate(event.target.value)}
+          />
+        ) : (
+          <>
+            <input
+              aria-label="Calendar event starts"
+              type="datetime-local"
+              value={eventStart}
+              onChange={(event) => setEventStart(event.target.value)}
+            />
+            <input
+              aria-label="Calendar event ends"
+              type="datetime-local"
+              value={eventEnd}
+              onChange={(event) => setEventEnd(event.target.value)}
+            />
+          </>
+        )}
+        {eventValidationIssues.length > 0 ? (
+          <div className="scheduling-validation-list">
+            {eventValidationIssues.map((issue) => (
+              <div className="error-text" key={issue}>{issue}</div>
+            ))}
+          </div>
+        ) : null}
+        <div className="action-row compact-action-row">
+          <ActionButton
+            onClick={handleAddEvent}
+            disabled={isPending || eventValidationIssues.length > 0}
+          >
+            Add event
+          </ActionButton>
+          <ActionButton
+            variant="ghost"
+            onClick={resetForSelectedDate ? resetEventDraftForSelectedDate : resetEventDraft}
+            disabled={isPending}
+          >
+            Reset
+          </ActionButton>
+        </div>
+      </div>
+    </HouseholdSection>
+  );
+}
+
+function TodaySummarySection() {
+  const { viewModel } = useFamilyCalendarContext();
 
   if (!viewModel) {
     return null;
   }
 
   return (
-    <div className="family-calendar-rail">
-      <HouseholdSection
-        eyebrow="Today"
-        title={viewModel.focusSummary.todayLabel}
-        description="A compact planning rail so Calendar still feels connected to the command center."
-      >
-        <div className="family-calendar-today-card">
-          <span className="pill">{viewModel.focusSummary.todayEventCount} events</span>
-          <span className="pill">{viewModel.focusSummary.todayReminderCount} prompts</span>
-          <span className="pill">{viewModel.focusSummary.noteCount} notes</span>
-        </div>
-        {viewModel.focusSummary.nextEvent ? (
-          <HouseholdBoardCard
-            tone="accent"
-            title={viewModel.focusSummary.nextEvent.title}
-            description={viewModel.focusSummary.nextEvent.timeLabel}
-            meta={(
-              <HouseholdMetaBadges
-                kind={viewModel.focusSummary.nextEvent.kind}
-                sourceLabel={viewModel.focusSummary.nextEvent.sourceLabel}
-                accessLabel={viewModel.focusSummary.nextEvent.accessState === "editable" ? "Editable" : "Read only"}
-              />
-            )}
-          />
-        ) : (
-          <HouseholdEmptyState variant="quiet-day" />
-        )}
-      </HouseholdSection>
+    <HouseholdSection
+      eyebrow="Today"
+      title={viewModel.focusSummary.todayLabel}
+      description="A compact planning rail so Calendar still feels connected to the command center."
+    >
+      <div className="family-calendar-today-card">
+        <span className="pill">{viewModel.focusSummary.todayEventCount} events</span>
+        <span className="pill">{viewModel.focusSummary.todayReminderCount} prompts</span>
+        <span className="pill">{viewModel.focusSummary.noteCount} notes</span>
+      </div>
+      {viewModel.focusSummary.nextEvent ? (
+        <HouseholdBoardCard
+          tone="accent"
+          title={viewModel.focusSummary.nextEvent.title}
+          description={viewModel.focusSummary.nextEvent.timeLabel}
+          meta={(
+            <HouseholdMetaBadges
+              kind={viewModel.focusSummary.nextEvent.kind}
+              sourceLabel={viewModel.focusSummary.nextEvent.sourceLabel}
+              accessLabel={viewModel.focusSummary.nextEvent.accessState === "editable" ? "Editable" : "Read only"}
+            />
+          )}
+        />
+      ) : (
+        <HouseholdEmptyState variant="quiet-day" />
+      )}
+    </HouseholdSection>
+  );
+}
 
-      <HouseholdSection
-        eyebrow="Quick create"
+function BoardContextSection() {
+  const { homeData } = useFamilyCalendarContext();
+
+  return (
+    <HouseholdSection
+      eyebrow="Household board"
+      title="Pinned context"
+      description="Lightweight notes and reminders stay nearby while planning."
+    >
+      {homeData?.pinnedNotes.length ? (
+        homeData.pinnedNotes.slice(0, 2).map((note) => (
+          <HouseholdBoardCard
+            key={note.id}
+            title={note.title}
+            description={note.body}
+            meta={<span className="pill">{note.authorDisplayName}</span>}
+          />
+        ))
+      ) : (
+        <HouseholdEmptyState variant="board-clear" />
+      )}
+      {homeData?.pendingReminders.slice(0, 2).map((reminder) => (
+        <HouseholdBoardCard
+          key={reminder.id}
+          tone="warning"
+          title={reminder.eventTitle}
+          description={formatReminderTriageState(reminder.dueAtUtc)}
+          meta={<span className="pill">{reminder.minutesBefore} min before</span>}
+        />
+      ))}
+    </HouseholdSection>
+  );
+}
+
+function ContextRail() {
+  return (
+    <div className="family-calendar-rail">
+      <TodaySummarySection />
+      <QuickCreateSection
         title="Add a local event"
         description="Members can capture a new household block without leaving the planning surface."
-      >
-        <div className="family-calendar-quick-add">
-          <input
-            aria-label="Calendar event title"
-            value={eventTitle}
-            onChange={(event) => setEventTitle(event.target.value)}
-            placeholder="Event title"
-          />
-          <input
-            aria-label="Calendar event description"
-            value={eventDesc}
-            onChange={(event) => setEventDesc(event.target.value)}
-            placeholder="Optional description"
-          />
-          <label className="family-checkbox-row">
-            <input
-              type="checkbox"
-              checked={eventAllDay}
-              onChange={(event) => {
-                const nextIsAllDay = event.target.checked;
-                setEventAllDay(nextIsAllDay);
-                if (nextIsAllDay) {
-                  setEventEnd("");
-                } else if (!eventEnd && eventStart) {
-                  setEventEnd(applySuggestedEnd(eventStart, 60));
-                }
-              }}
-            />
-            <span>All day</span>
-          </label>
-          {eventAllDay ? (
-            <input
-              aria-label="Calendar all day date"
-              type="date"
-              value={eventAllDayDate}
-              onChange={(event) => setEventAllDayDate(event.target.value)}
-            />
-          ) : (
-            <>
-              <input
-                aria-label="Calendar event starts"
-                type="datetime-local"
-                value={eventStart}
-                onChange={(event) => setEventStart(event.target.value)}
-              />
-              <input
-                aria-label="Calendar event ends"
-                type="datetime-local"
-                value={eventEnd}
-                onChange={(event) => setEventEnd(event.target.value)}
-              />
-            </>
-          )}
-          {eventValidationIssues.length > 0 ? (
-            <div className="scheduling-validation-list">
-              {eventValidationIssues.map((issue) => (
-                <div className="error-text" key={issue}>{issue}</div>
-              ))}
-            </div>
-          ) : null}
-          <div className="action-row compact-action-row">
-            <ActionButton
-              onClick={handleAddEvent}
-              disabled={isPending || eventValidationIssues.length > 0}
-            >
-              Add event
-            </ActionButton>
-            <ActionButton variant="ghost" onClick={resetEventDraft} disabled={isPending}>
-              Reset
-            </ActionButton>
-          </div>
-        </div>
-      </HouseholdSection>
-
-      <HouseholdSection
-        eyebrow="Household board"
-        title="Pinned context"
-        description="Lightweight notes and reminders stay nearby while planning."
-      >
-        {homeData?.pinnedNotes.length ? (
-          homeData.pinnedNotes.slice(0, 2).map((note) => (
-            <HouseholdBoardCard
-              key={note.id}
-              title={note.title}
-              description={note.body}
-              meta={<span className="pill">{note.authorDisplayName}</span>}
-            />
-          ))
-        ) : (
-          <HouseholdEmptyState variant="board-clear" />
-        )}
-        {homeData?.pendingReminders.slice(0, 2).map((reminder) => (
-          <HouseholdBoardCard
-            key={reminder.id}
-            tone="warning"
-            title={reminder.eventTitle}
-            description={formatReminderTriageState(reminder.dueAtUtc)}
-            meta={<span className="pill">{reminder.minutesBefore} min before</span>}
-          />
-        ))}
-      </HouseholdSection>
+      />
+      <BoardContextSection />
     </div>
+  );
+}
+
+function MobileMonthDayButton({
+  day
+}: {
+  day: CalendarMonthDay;
+}) {
+  const { selectDate } = useFamilyCalendarContext();
+  const itemCount = day.eventCount + day.reminderCount;
+
+  return (
+    <button
+      aria-label={`${day.date}: ${day.eventCount} events and ${day.reminderCount} prompts`}
+      className={[
+        "family-calendar-month-day",
+        day.isCurrentMonth ? null : "family-calendar-month-day-muted",
+        day.isToday ? "family-calendar-month-day-today" : null,
+        day.isSelected ? "family-calendar-month-day-selected" : null
+      ].filter(Boolean).join(" ")}
+      data-testid={`calendar-month-day-${day.date}`}
+      onClick={() => selectDate(day.date)}
+      type="button"
+    >
+      <span className="family-calendar-month-day-number">{day.dayNumber}</span>
+      {itemCount > 0 ? (
+        <span className="family-calendar-month-indicators" aria-hidden="true">
+          {day.indicatorTones.map((tone, index) => (
+            <span
+              className={`family-calendar-month-indicator family-calendar-month-indicator-${tone}`}
+              key={`${day.date}-${tone}-${index}`}
+            />
+          ))}
+          {day.overflowCount > 0 ? (
+            <span className="family-calendar-month-overflow">+{day.overflowCount}</span>
+          ) : null}
+        </span>
+      ) : (
+        <span className="family-calendar-month-indicators family-calendar-month-indicators-empty" aria-hidden="true" />
+      )}
+    </button>
+  );
+}
+
+function MobileMonthPlannerSection({
+  onCreateFromSelectedDay
+}: {
+  onCreateFromSelectedDay: () => void;
+}) {
+  const {
+    viewModel,
+    goToPreviousMonth,
+    goToNextMonth,
+    goToCurrentMonth
+  } = useFamilyCalendarContext();
+
+  if (!viewModel) {
+    return null;
+  }
+
+  const { mobileMonth } = viewModel;
+  const selectedDay = mobileMonth.selectedDay;
+
+  return (
+    <HouseholdSection
+      eyebrow="Planning"
+      title="Family calendar"
+      description="A compact month planner for daily household browsing on mobile."
+      actions={(
+        <div className="family-calendar-toolbar">
+          <ActionButton variant="ghost" size="sm" onClick={goToPreviousMonth}>
+            Previous month
+          </ActionButton>
+          <ActionButton variant="ghost" size="sm" onClick={goToCurrentMonth}>
+            This month
+          </ActionButton>
+          <ActionButton variant="ghost" size="sm" onClick={goToNextMonth}>
+            Next month
+          </ActionButton>
+        </div>
+      )}
+      data-testid="family-calendar-mobile-month"
+    >
+      <div className="family-calendar-month-header">
+        <h2 className="family-calendar-range" data-testid="calendar-month-label">
+          {mobileMonth.monthLabel}
+        </h2>
+        <div className="family-calendar-day-summary">
+          <span className="pill">{selectedDay.eventCount} events</span>
+          <span className="pill">{selectedDay.reminderCount} prompts</span>
+        </div>
+      </div>
+
+      <div className="family-calendar-month-weekdays">
+        {mobileMonth.weekdayHeaders.map((weekday) => (
+          <span className="family-calendar-month-weekday" key={weekday}>
+            {weekday}
+          </span>
+        ))}
+      </div>
+
+      <div className="family-calendar-month-grid" data-testid="calendar-month-grid">
+        {mobileMonth.days.map((day) => (
+          <MobileMonthDayButton key={day.date} day={day} />
+        ))}
+      </div>
+
+      <div className="family-calendar-selected-day-card" data-testid="calendar-selected-day">
+        <div className="family-calendar-selected-day-head">
+          <div>
+            <div className="eyebrow">Selected day</div>
+            <h3 className="family-calendar-day-title">{selectedDay.fullLabel}</h3>
+            <p className="muted mb-0">{selectedDay.busyLabel}</p>
+          </div>
+          <ActionButton
+            onClick={onCreateFromSelectedDay}
+            size="sm"
+            data-testid="calendar-selected-day-add"
+          >
+            Add event on {selectedDay.createLabel}
+          </ActionButton>
+        </div>
+        <CalendarItemList
+          items={selectedDay.items}
+          emptyMessage="Nothing is scheduled or prompted on this day."
+        />
+      </div>
+    </HouseholdSection>
   );
 }
 
@@ -524,7 +715,7 @@ function CalendarDetailDrawer() {
             <p className="muted">
               {selectedDetail.item.googleSyncLabel ?? "Mirrored to Google"}
               {selectedDetail.item.googleTargetDisplayName
-                ? ` Â· ${selectedDetail.item.googleTargetDisplayName}`
+                ? ` - ${selectedDetail.item.googleTargetDisplayName}`
                 : ""}
             </p>
             {selectedDetail.item.googleSyncError ? (
@@ -546,7 +737,7 @@ function CalendarDetailDrawer() {
           <div className="stack-card">
             <div className="eyebrow">Reminder</div>
             <p className="muted">
-              {selectedDetail.item.status} · {selectedDetail.item.minutesBefore} minutes before the related event.
+              {selectedDetail.item.status} - {selectedDetail.item.minutesBefore} minutes before the related event.
             </p>
             {isOwner ? (
               <div className="action-row compact-action-row">
@@ -592,7 +783,24 @@ function CalendarDetailDrawer() {
 }
 
 function FamilyCalendarBody() {
-  const { isLoading, error, successMessage, isAuthenticated, viewModel } = useFamilyCalendarContext();
+  const {
+    isLoading,
+    error,
+    successMessage,
+    isAuthenticated,
+    viewModel,
+    prefillEventDraftForSelectedDate
+  } = useFamilyCalendarContext();
+  const isMobileCalendarLayout = useIsMobileCalendarLayout();
+  const mobileQuickCreateRef = useRef<HTMLDivElement | null>(null);
+
+  function handleCreateFromSelectedDay() {
+    prefillEventDraftForSelectedDate();
+    mobileQuickCreateRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "start"
+    });
+  }
 
   return (
     <PageContainer className="family-calendar-page">
@@ -602,7 +810,7 @@ function FamilyCalendarBody() {
       <PageHeader
         eyebrow="Calendar"
         title="Calendar"
-        description="A warm, week-first schedule for local events, imported plans, and household reminders."
+        description="A warm family planner that stays week-first on larger screens and becomes month-first on mobile."
       />
 
       {isLoading ? (
@@ -614,11 +822,28 @@ function FamilyCalendarBody() {
           <EmptyState message="Sign in to see your family calendar." />
         </Card>
       ) : viewModel ? (
-        <div className="family-calendar-layout" data-testid="family-calendar-page">
-          <WeekPlanningSection />
-          <ContextRail />
-          <CalendarDetailDrawer />
-        </div>
+        isMobileCalendarLayout ? (
+          <div className="family-calendar-mobile-stack" data-testid="family-calendar-page">
+            <MobileMonthPlannerSection onCreateFromSelectedDay={handleCreateFromSelectedDay} />
+            <div ref={mobileQuickCreateRef}>
+              <QuickCreateSection
+                title={`Add an event on ${viewModel.mobileMonth.selectedDay.createLabel}`}
+                description="Use the selected day as the default date, then create through the same local event flow."
+                resetForSelectedDate
+                testId="calendar-mobile-quick-create"
+              />
+            </div>
+            <TodaySummarySection />
+            <BoardContextSection />
+            <CalendarDetailDrawer />
+          </div>
+        ) : (
+          <div className="family-calendar-layout" data-testid="family-calendar-page">
+            <WeekPlanningSection />
+            <ContextRail />
+            <CalendarDetailDrawer />
+          </div>
+        )
       ) : (
         <Card>
           <EmptyState message="Calendar details are not available yet." />

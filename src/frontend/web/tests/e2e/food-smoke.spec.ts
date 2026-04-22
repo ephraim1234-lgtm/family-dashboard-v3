@@ -6,13 +6,27 @@ async function freezeClientDate(page: Parameters<typeof gotoFood>[0], isoDate: s
     const RealDate = Date;
 
     class MockDate extends RealDate {
-      constructor(...args: any[]) {
+      constructor(...args: unknown[]) {
         if (args.length === 0) {
           super(fixedTime);
           return;
         }
 
-        super(...args);
+        if (args.length === 1) {
+          super(args[0] as string | number | Date);
+          return;
+        }
+
+        const [year, month, date, hours, minutes, seconds, milliseconds] = args as [
+          number,
+          number,
+          number?,
+          number?,
+          number?,
+          number?,
+          number?
+        ];
+        super(year, month, date, hours, minutes, seconds, milliseconds);
       }
 
       static now() {

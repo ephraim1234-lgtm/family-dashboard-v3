@@ -16,6 +16,7 @@ public static class ScheduleWindowQueryParser
             7 => 7,
             14 => 14,
             30 => 30,
+            42 => 42,
             _ => fallbackDays
         };
     }

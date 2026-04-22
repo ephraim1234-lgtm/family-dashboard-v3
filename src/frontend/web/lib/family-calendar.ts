@@ -74,6 +74,28 @@ export type CalendarDayGroup = {
   reminderCount: number;
 };
 
+export type CalendarMonthIndicatorTone = "local" | "imported" | "reminder";
+
+export type CalendarMonthDay = {
+  date: string;
+  dayNumber: string;
+  isCurrentMonth: boolean;
+  isToday: boolean;
+  isSelected: boolean;
+  items: CalendarDayEntry[];
+  busyLabel: string;
+  eventCount: number;
+  reminderCount: number;
+  indicatorTones: CalendarMonthIndicatorTone[];
+  overflowCount: number;
+};
+
+export type CalendarSelectedDay = CalendarDayGroup & {
+  title: string;
+  fullLabel: string;
+  createLabel: string;
+};
+
 export type FamilyCalendarViewModel = {
   weekStartUtc: string;
   weekEndUtc: string;
@@ -90,16 +112,37 @@ export type FamilyCalendarViewModel = {
     nextEvent: CalendarEventItem | null;
     noteCount: number;
   };
+  mobileMonth: {
+    monthStartUtc: string;
+    monthLabel: string;
+    weekdayHeaders: string[];
+    selectedDate: string;
+    days: CalendarMonthDay[];
+    selectedDay: CalendarSelectedDay;
+  };
 };
 
 type BuildFamilyCalendarViewModelArgs = {
-  agenda: UpcomingEventsResponse | null;
+  weekAgenda: UpcomingEventsResponse | null;
+  monthAgenda: UpcomingEventsResponse | null;
   reminders: EventReminderItem[];
   home: HomeResponse | null;
   seriesItems: ScheduledEventSeriesItem[];
   isOwner: boolean;
+  visibleMonthStartUtc?: string;
+  selectedDate?: string | null;
   now?: Date;
 };
+
+const monthWeekdayHeaders = [
+  "Mon",
+  "Tue",
+  "Wed",
+  "Thu",
+  "Fri",
+  "Sat",
+  "Sun"
+] as const;
 
 function startOfUtcDay(value: string | Date) {
   const date = typeof value === "string" ? new Date(value) : new Date(value);
@@ -118,6 +161,34 @@ export function addDaysUtc(startUtc: string, days: number) {
   const date = startOfUtcDay(startUtc);
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString();
+}
+
+export function getMonthStartUtc(anchor = new Date()) {
+  const current = startOfUtcDay(anchor);
+  current.setUTCDate(1);
+  return current.toISOString();
+}
+
+export function addMonthsUtc(monthStartUtc: string, months: number) {
+  const date = startOfUtcDay(monthStartUtc);
+  date.setUTCDate(1);
+  date.setUTCMonth(date.getUTCMonth() + months);
+  return date.toISOString();
+}
+
+export function getMonthGridStartUtc(monthStartUtc: string) {
+  const monthStart = startOfUtcDay(monthStartUtc);
+  const day = monthStart.getUTCDay();
+  const offset = day === 0 ? -6 : 1 - day;
+  monthStart.setUTCDate(monthStart.getUTCDate() + offset);
+  return monthStart.toISOString();
+}
+
+export function getMonthLabel(monthStartUtc: string) {
+  return new Date(monthStartUtc).toLocaleDateString([], {
+    month: "long",
+    year: "numeric"
+  });
 }
 
 export function getWeekRangeLabel(weekStartUtc: string, days: number) {
@@ -148,6 +219,40 @@ function dateKeyFromUtc(isoString: string | null) {
   const month = `${date.getUTCMonth() + 1}`.padStart(2, "0");
   const day = `${date.getUTCDate()}`.padStart(2, "0");
   return `${date.getUTCFullYear()}-${month}-${day}`;
+}
+
+function isSameUtcMonth(leftUtc: string, rightUtc: string) {
+  const left = new Date(leftUtc);
+  const right = new Date(rightUtc);
+
+  return left.getUTCFullYear() === right.getUTCFullYear()
+    && left.getUTCMonth() === right.getUTCMonth();
+}
+
+function formatMonthDayLabel(date: string) {
+  return new Date(`${date}T00:00:00Z`).toLocaleDateString([], {
+    month: "short",
+    day: "numeric"
+  });
+}
+
+function formatSelectedDayLabel(date: string) {
+  return new Date(`${date}T00:00:00Z`).toLocaleDateString([], {
+    weekday: "long",
+    month: "short",
+    day: "numeric"
+  });
+}
+
+export function getDefaultSelectedDateForMonth(
+  visibleMonthStartUtc: string,
+  now = new Date()
+) {
+  if (isSameUtcMonth(visibleMonthStartUtc, now.toISOString())) {
+    return dateKeyFromUtc(now.toISOString()) ?? visibleMonthStartUtc.slice(0, 10);
+  }
+
+  return visibleMonthStartUtc.slice(0, 10);
 }
 
 export function getCalendarAccessState(isOwner: boolean, isImported: boolean): CalendarAccessState {
@@ -275,56 +380,181 @@ export function buildCalendarReminderItem(
   };
 }
 
+function sortCalendarDayEntries(left: CalendarDayEntry, right: CalendarDayEntry) {
+  const leftTime = left.kind === "event"
+    ? new Date(left.startsAtUtc ?? "9999-12-31T00:00:00.000Z").getTime()
+    : new Date(left.dueAtUtc).getTime();
+  const rightTime = right.kind === "event"
+    ? new Date(right.startsAtUtc ?? "9999-12-31T00:00:00.000Z").getTime()
+    : new Date(right.dueAtUtc).getTime();
+
+  return leftTime - rightTime;
+}
+
+function buildEntriesByDate(items: CalendarDayEntry[]) {
+  const entriesByDate = new Map<string, CalendarDayEntry[]>();
+
+  for (const item of items) {
+    const date = item.kind === "event"
+      ? dateKeyFromUtc(item.startsAtUtc)
+      : dateKeyFromUtc(item.dueAtUtc);
+
+    if (!date) {
+      continue;
+    }
+
+    const existing = entriesByDate.get(date) ?? [];
+    existing.push(item);
+    entriesByDate.set(date, existing);
+  }
+
+  return entriesByDate;
+}
+
+function buildCalendarDayGroup(
+  date: string,
+  entriesByDate: Map<string, CalendarDayEntry[]>,
+  now = new Date()
+): CalendarDayGroup {
+  const items = [...(entriesByDate.get(date) ?? [])].sort(sortCalendarDayEntries);
+  const eventCount = items.filter((item) => item.kind === "event").length;
+  const reminderCount = items.filter((item) => item.kind === "reminder").length;
+
+  return {
+    date,
+    label: formatDayLabel(date),
+    shortLabel: new Date(`${date}T00:00:00Z`).toLocaleDateString([], {
+      weekday: "short"
+    }),
+    isToday: dateKeyFromUtc(now.toISOString()) === date,
+    items,
+    busyLabel: getCalendarBusyLabel(items.length),
+    eventCount,
+    reminderCount
+  };
+}
+
+function getIndicatorTone(item: CalendarDayEntry): CalendarMonthIndicatorTone {
+  if (item.kind === "reminder") {
+    return "reminder";
+  }
+
+  return item.isImported ? "imported" : "local";
+}
+
+function buildMonthIndicatorSummary(items: CalendarDayEntry[]) {
+  const counts = new Map<CalendarMonthIndicatorTone, number>([
+    ["reminder", 0],
+    ["local", 0],
+    ["imported", 0]
+  ]);
+
+  for (const item of items) {
+    const tone = getIndicatorTone(item);
+    counts.set(tone, (counts.get(tone) ?? 0) + 1);
+  }
+
+  const tones: CalendarMonthIndicatorTone[] = [];
+  const order: CalendarMonthIndicatorTone[] = ["reminder", "local", "imported"];
+
+  for (const tone of order) {
+    if ((counts.get(tone) ?? 0) > 0) {
+      tones.push(tone);
+    }
+  }
+
+  while (tones.length < 3 && tones.length < items.length) {
+    for (const tone of order) {
+      const totalForTone = counts.get(tone) ?? 0;
+      const currentForTone = tones.filter((value) => value === tone).length;
+      if (totalForTone > currentForTone && tones.length < 3) {
+        tones.push(tone);
+      }
+    }
+  }
+
+  return {
+    indicatorTones: tones,
+    overflowCount: Math.max(items.length - tones.length, 0)
+  };
+}
+
+function buildMonthDay(
+  date: string,
+  entriesByDate: Map<string, CalendarDayEntry[]>,
+  visibleMonthStartUtc: string,
+  selectedDate: string,
+  now = new Date()
+): CalendarMonthDay {
+  const dayGroup = buildCalendarDayGroup(date, entriesByDate, now);
+  const indicatorSummary = buildMonthIndicatorSummary(dayGroup.items);
+
+  return {
+    date,
+    dayNumber: new Date(`${date}T00:00:00Z`).getUTCDate().toString(),
+    isCurrentMonth: date.startsWith(visibleMonthStartUtc.slice(0, 7)),
+    isToday: dayGroup.isToday,
+    isSelected: date === selectedDate,
+    items: dayGroup.items,
+    busyLabel: dayGroup.busyLabel,
+    eventCount: dayGroup.eventCount,
+    reminderCount: dayGroup.reminderCount,
+    indicatorTones: indicatorSummary.indicatorTones,
+    overflowCount: indicatorSummary.overflowCount
+  };
+}
+
 export function buildFamilyCalendarViewModel({
-  agenda,
+  weekAgenda,
+  monthAgenda,
   reminders,
   home,
   seriesItems,
   isOwner,
+  visibleMonthStartUtc,
+  selectedDate,
   now = new Date()
 }: BuildFamilyCalendarViewModelArgs): FamilyCalendarViewModel {
-  const weekStartUtc = agenda?.windowStartUtc ?? getWeekStartUtc(now);
-  const weekEndUtc = agenda?.windowEndUtc ?? addDaysUtc(weekStartUtc, 7);
+  const weekStartUtc = weekAgenda?.windowStartUtc ?? getWeekStartUtc(now);
+  const weekEndUtc = weekAgenda?.windowEndUtc ?? addDaysUtc(weekStartUtc, 7);
   const seriesById = new Map(seriesItems.map((item) => [item.id, item]));
-  const events = (agenda?.items ?? []).map((item) =>
+  const weekEvents = (weekAgenda?.items ?? []).map((item) =>
+    buildCalendarEventItem(item, seriesById.get(item.id) ?? null, isOwner, now)
+  );
+  const monthEvents = (monthAgenda?.items ?? []).map((item) =>
     buildCalendarEventItem(item, seriesById.get(item.id) ?? null, isOwner, now)
   );
   const reminderItems = reminders
     .filter((item) => item.status !== "Dismissed")
     .map((item) => buildCalendarReminderItem(item, isOwner, now));
+  const weekEntriesByDate = buildEntriesByDate([...weekEvents, ...reminderItems]);
+  const visibleMonth = visibleMonthStartUtc ?? getMonthStartUtc(now);
+  const resolvedSelectedDate = selectedDate ?? getDefaultSelectedDateForMonth(visibleMonth, now);
+  const monthEntriesByDate = buildEntriesByDate([...monthEvents, ...reminderItems]);
 
   const days: CalendarDayGroup[] = Array.from({ length: 7 }, (_, index) => {
     const date = addDaysUtc(weekStartUtc, index).slice(0, 10);
-    const dayEvents = events.filter((item) => dateKeyFromUtc(item.startsAtUtc) === date);
-    const dayReminders = reminderItems.filter((item) => dateKeyFromUtc(item.dueAtUtc) === date);
-    const items = [...dayEvents, ...dayReminders].sort((left, right) => {
-      const leftTime = left.kind === "event"
-        ? new Date(left.startsAtUtc ?? weekStartUtc).getTime()
-        : new Date(left.dueAtUtc).getTime();
-      const rightTime = right.kind === "event"
-        ? new Date(right.startsAtUtc ?? weekStartUtc).getTime()
-        : new Date(right.dueAtUtc).getTime();
-
-      return leftTime - rightTime;
-    });
-    const isToday = dateKeyFromUtc(now.toISOString()) === date;
-
-    return {
-      date,
-      label: formatDayLabel(date),
-      shortLabel: new Date(`${date}T00:00:00Z`).toLocaleDateString([], {
-        weekday: "short"
-      }),
-      isToday,
-      items,
-      busyLabel: getCalendarBusyLabel(items.length),
-      eventCount: dayEvents.length,
-      reminderCount: dayReminders.length
-    };
+    return buildCalendarDayGroup(date, weekEntriesByDate, now);
   });
 
+  const monthGridStartUtc = monthAgenda?.windowStartUtc ?? getMonthGridStartUtc(visibleMonth);
+  const monthDays = Array.from({ length: 42 }, (_, index) => {
+    const date = addDaysUtc(monthGridStartUtc, index).slice(0, 10);
+    return buildMonthDay(
+      date,
+      monthEntriesByDate,
+      visibleMonth,
+      resolvedSelectedDate,
+      now
+    );
+  });
+  const selectedDayGroup = buildCalendarDayGroup(
+    resolvedSelectedDate,
+    monthEntriesByDate,
+    now
+  );
   const todayDay = days.find((day) => day.isToday) ?? days[0];
-  const nextEvent = events
+  const nextEvent = weekEvents
     .filter((item) => item.startsAtUtc && new Date(item.startsAtUtc).getTime() >= now.getTime())
     .sort((left, right) => new Date(left.startsAtUtc!).getTime() - new Date(right.startsAtUtc!).getTime())[0] ?? null;
 
@@ -332,10 +562,10 @@ export function buildFamilyCalendarViewModel({
     weekStartUtc,
     weekEndUtc,
     weekRangeLabel: getWeekRangeLabel(weekStartUtc, 7),
-    totalEvents: events.length,
-    importedCount: events.filter((item) => item.isImported).length,
+    totalEvents: weekEvents.length,
+    importedCount: weekEvents.filter((item) => item.isImported).length,
     reminderCount: reminderItems.length,
-    editableCount: events.filter((item) => item.accessState === "editable").length,
+    editableCount: weekEvents.filter((item) => item.accessState === "editable").length,
     days,
     focusSummary: {
       todayLabel: todayDay?.label ?? "Today",
@@ -343,6 +573,19 @@ export function buildFamilyCalendarViewModel({
       todayReminderCount: todayDay?.reminderCount ?? 0,
       nextEvent,
       noteCount: home?.pinnedNotes.length ?? 0
+    },
+    mobileMonth: {
+      monthStartUtc: visibleMonth,
+      monthLabel: getMonthLabel(visibleMonth),
+      weekdayHeaders: [...monthWeekdayHeaders],
+      selectedDate: resolvedSelectedDate,
+      days: monthDays,
+      selectedDay: {
+        ...selectedDayGroup,
+        title: formatDayLabel(resolvedSelectedDate),
+        fullLabel: formatSelectedDayLabel(resolvedSelectedDate),
+        createLabel: formatMonthDayLabel(resolvedSelectedDate)
+      }
     }
   };
 }
