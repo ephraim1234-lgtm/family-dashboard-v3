@@ -242,7 +242,13 @@ public static class DependencyInjection
                 linkId,
                 cancellationToken);
 
-            return deleted ? Results.NoContent() : Results.NotFound();
+            return deleted.Status switch
+            {
+                GoogleCalendarLinkMutationStatus.Succeeded => Results.NoContent(),
+                GoogleCalendarLinkMutationStatus.Conflict => Results.Conflict(deleted.Error),
+                GoogleCalendarLinkMutationStatus.NotFound => Results.NotFound(),
+                _ => Results.BadRequest("Unable to delete the linked Google Calendar.")
+            };
         });
 
         group.MapPut("/google-calendar-links/{linkId:guid}/sync-settings", async (
@@ -275,6 +281,7 @@ public static class DependencyInjection
             return updated.Status switch
             {
                 GoogleCalendarLinkMutationStatus.Succeeded => Results.Ok(updated.Link),
+                GoogleCalendarLinkMutationStatus.NotFound => Results.NotFound(),
                 GoogleCalendarLinkMutationStatus.ValidationFailed => Results.BadRequest(updated.Error),
                 _ => Results.NotFound()
             };

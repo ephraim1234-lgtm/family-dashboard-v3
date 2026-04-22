@@ -21,6 +21,8 @@ public sealed class GoogleCalendarConnection
 
     public string? GoogleCalendarTimeZone { get; set; }
 
+    public bool OutboundSyncEnabled { get; set; }
+
     public DateTimeOffset CreatedAtUtc { get; init; }
 
     public bool AutoSyncEnabled { get; set; } = true;

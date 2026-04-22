@@ -233,7 +233,7 @@ public class GoogleCalendarIntegrationServiceTests
         var updated = await service.UpdateSyncSettingsAsync(
             HouseholdId,
             created.Link!.Id,
-            new UpdateGoogleCalendarLinkSyncSettingsRequest(false, 60),
+            new UpdateGoogleCalendarLinkSyncSettingsRequest(false, 60, false),
             CreatedAtUtc.AddMinutes(2),
             CancellationToken.None);
 
@@ -260,14 +260,14 @@ public class GoogleCalendarIntegrationServiceTests
         await service.UpdateSyncSettingsAsync(
             HouseholdId,
             created.Link!.Id,
-            new UpdateGoogleCalendarLinkSyncSettingsRequest(false, 30),
+            new UpdateGoogleCalendarLinkSyncSettingsRequest(false, 30, false),
             CreatedAtUtc.AddMinutes(1),
             CancellationToken.None);
 
         var updated = await service.UpdateSyncSettingsAsync(
             HouseholdId,
             created.Link.Id,
-            new UpdateGoogleCalendarLinkSyncSettingsRequest(true, 15),
+            new UpdateGoogleCalendarLinkSyncSettingsRequest(true, 15, false),
             CreatedAtUtc.AddMinutes(3),
             CancellationToken.None);
 
@@ -305,7 +305,7 @@ public class GoogleCalendarIntegrationServiceTests
         await service.UpdateSyncSettingsAsync(
             HouseholdId,
             created.Link!.Id,
-            new UpdateGoogleCalendarLinkSyncSettingsRequest(false, 30),
+            new UpdateGoogleCalendarLinkSyncSettingsRequest(false, 30, false),
             CreatedAtUtc.AddMinutes(1),
             CancellationToken.None);
 
@@ -541,7 +541,8 @@ public class GoogleCalendarIntegrationServiceTests
         var importSyncService = new ImportedScheduledEventSyncService(dbContext);
         var schedulingService = new ScheduledEventManagementService(
             dbContext,
-            new FakeClock(CreatedAtUtc));
+            new FakeClock(CreatedAtUtc),
+            new NoOpGoogleCalendarIntegrationService());
 
         await importSyncService.SyncAsync(
             HouseholdId,
@@ -586,7 +587,8 @@ public class GoogleCalendarIntegrationServiceTests
         var importSyncService = new ImportedScheduledEventSyncService(dbContext);
         var schedulingService = new ScheduledEventManagementService(
             dbContext,
-            new FakeClock(CreatedAtUtc));
+            new FakeClock(CreatedAtUtc),
+            new NoOpGoogleCalendarIntegrationService());
 
         await importSyncService.SyncAsync(
             HouseholdId,
@@ -616,6 +618,440 @@ public class GoogleCalendarIntegrationServiceTests
 
         Assert.Equal(ScheduledEventMutationStatus.ReadOnly, deleted.Status);
         Assert.Single(dbContext.ScheduledEvents);
+    }
+
+    [Fact]
+    public async Task CreateEventAsync_QueuesOutboundSync_AndWorkerCreatesGoogleEvent()
+    {
+        await using var dbContext = CreateDbContext();
+        var oauthClient = new FakeGoogleOAuthClient();
+        var service = new GoogleCalendarIntegrationService(
+            dbContext,
+            CreateConfiguration(),
+            oauthClient,
+            new FakeFeedFetcher("BEGIN:VCALENDAR\r\nEND:VCALENDAR"),
+            new ImportedScheduledEventSyncService(dbContext));
+        var managementService = new ScheduledEventManagementService(
+            dbContext,
+            new FakeClock(CreatedAtUtc),
+            service);
+
+        var accountLinkId = await SeedWritableAccountAsync(dbContext);
+        var managedLink = await service.CreateManagedLinkAsync(
+            HouseholdId,
+            new CreateManagedGoogleCalendarLinkRequest(
+                accountLinkId,
+                "family@example.com",
+                "Family Calendar",
+                "America/Chicago"),
+            CreatedAtUtc,
+            CancellationToken.None);
+
+        await service.UpdateSyncSettingsAsync(
+            HouseholdId,
+            managedLink.Link!.Id,
+            new UpdateGoogleCalendarLinkSyncSettingsRequest(true, 30, true),
+            CreatedAtUtc,
+            CancellationToken.None);
+
+        var created = await managementService.CreateEventAsync(
+            HouseholdId,
+            new CreateScheduledEventRequest(
+                "Daily prep",
+                "Kitchen reset",
+                false,
+                new DateTimeOffset(2026, 4, 24, 12, 0, 0, TimeSpan.Zero),
+                new DateTimeOffset(2026, 4, 24, 12, 30, 0, TimeSpan.Zero),
+                new ScheduledEventRecurrenceRequest(
+                    "Daily",
+                    null,
+                    new DateTimeOffset(2026, 4, 26, 12, 0, 0, TimeSpan.Zero))),
+            CreatedAtUtc,
+            CancellationToken.None);
+
+        var queued = await dbContext.GoogleCalendarLocalEventSyncs.SingleAsync();
+        Assert.Equal(GoogleCalendarSyncStatuses.Pending, queued.SyncStatus);
+        Assert.Equal(GoogleCalendarSyncOperations.Upsert, queued.PendingOperation);
+        Assert.Equal(created.Event!.Id, queued.ScheduledEventId);
+
+        var result = await service.SyncDueLocalEventsAsync(
+            CreatedAtUtc.AddMinutes(1),
+            CancellationToken.None);
+
+        Assert.Equal(1, result.DueCount);
+        Assert.Equal(1, result.SucceededCount);
+
+        var remoteCreate = Assert.Single(oauthClient.CreatedEvents);
+        Assert.Equal($"hhops{created.Event.Id:N}", remoteCreate.EventId);
+        Assert.Contains(remoteCreate.Recurrence, item => item.Contains("RRULE:FREQ=DAILY", StringComparison.Ordinal));
+        Assert.Equal("UTC", remoteCreate.TimeZoneId);
+        Assert.Equal(created.Event.Id.ToString("D"), remoteCreate.PrivateExtendedProperties["householdopsScheduledEventId"]);
+
+        var persisted = await dbContext.GoogleCalendarLocalEventSyncs.SingleAsync();
+        Assert.Equal(GoogleCalendarSyncStatuses.Succeeded, persisted.SyncStatus);
+        Assert.Equal(GoogleCalendarSyncOperations.None, persisted.PendingOperation);
+        Assert.NotNull(persisted.LastSucceededAtUtc);
+        Assert.Null(persisted.LastError);
+    }
+
+    [Fact]
+    public async Task UpdateEventAsync_QueuesOutboundSync_AndWorkerUpdatesGoogleEvent()
+    {
+        await using var dbContext = CreateDbContext();
+        var oauthClient = new FakeGoogleOAuthClient();
+        var service = new GoogleCalendarIntegrationService(
+            dbContext,
+            CreateConfiguration(),
+            oauthClient,
+            new FakeFeedFetcher("BEGIN:VCALENDAR\r\nEND:VCALENDAR"),
+            new ImportedScheduledEventSyncService(dbContext));
+        var managementService = new ScheduledEventManagementService(
+            dbContext,
+            new FakeClock(CreatedAtUtc),
+            service);
+
+        var accountLinkId = await SeedWritableAccountAsync(dbContext);
+        var managedLink = await service.CreateManagedLinkAsync(
+            HouseholdId,
+            new CreateManagedGoogleCalendarLinkRequest(
+                accountLinkId,
+                "family@example.com",
+                "Family Calendar",
+                "America/Chicago"),
+            CreatedAtUtc,
+            CancellationToken.None);
+
+        await service.UpdateSyncSettingsAsync(
+            HouseholdId,
+            managedLink.Link!.Id,
+            new UpdateGoogleCalendarLinkSyncSettingsRequest(true, 30, true),
+            CreatedAtUtc,
+            CancellationToken.None);
+
+        var created = await managementService.CreateEventAsync(
+            HouseholdId,
+            new CreateScheduledEventRequest(
+                "School pickup",
+                null,
+                false,
+                new DateTimeOffset(2026, 4, 24, 20, 0, 0, TimeSpan.Zero),
+                new DateTimeOffset(2026, 4, 24, 20, 30, 0, TimeSpan.Zero),
+                null),
+            CreatedAtUtc,
+            CancellationToken.None);
+
+        await service.SyncDueLocalEventsAsync(
+            CreatedAtUtc.AddMinutes(1),
+            CancellationToken.None);
+
+        oauthClient.CreatedEvents.Clear();
+
+        var updated = await managementService.UpdateEventAsync(
+            HouseholdId,
+            created.Event!.Id,
+            new UpdateScheduledEventRequest(
+                "School pickup updated",
+                "Bring snacks",
+                false,
+                new DateTimeOffset(2026, 4, 24, 20, 30, 0, TimeSpan.Zero),
+                new DateTimeOffset(2026, 4, 24, 21, 0, 0, TimeSpan.Zero),
+                null),
+            CancellationToken.None);
+
+        var queued = await dbContext.GoogleCalendarLocalEventSyncs.SingleAsync();
+        Assert.Equal(GoogleCalendarSyncStatuses.Pending, queued.SyncStatus);
+        Assert.Equal(GoogleCalendarSyncOperations.Upsert, queued.PendingOperation);
+
+        var result = await service.SyncDueLocalEventsAsync(
+            CreatedAtUtc.AddMinutes(2),
+            CancellationToken.None);
+
+        Assert.Equal(1, result.DueCount);
+        Assert.Equal(1, result.SucceededCount);
+        Assert.Empty(oauthClient.CreatedEvents);
+        var persisted = await dbContext.GoogleCalendarLocalEventSyncs.SingleAsync();
+        Assert.Equal(GoogleCalendarSyncStatuses.Succeeded, persisted.SyncStatus);
+        Assert.Equal($"hhops{updated.Event!.Id:N}", persisted.RemoteEventId);
+    }
+
+    [Fact]
+    public async Task DeleteEventAsync_QueuesOutboundDelete_AndWorkerDeletesGoogleEvent()
+    {
+        await using var dbContext = CreateDbContext();
+        var oauthClient = new FakeGoogleOAuthClient();
+        var service = new GoogleCalendarIntegrationService(
+            dbContext,
+            CreateConfiguration(),
+            oauthClient,
+            new FakeFeedFetcher("BEGIN:VCALENDAR\r\nEND:VCALENDAR"),
+            new ImportedScheduledEventSyncService(dbContext));
+        var managementService = new ScheduledEventManagementService(
+            dbContext,
+            new FakeClock(CreatedAtUtc),
+            service);
+
+        var accountLinkId = await SeedWritableAccountAsync(dbContext);
+        var managedLink = await service.CreateManagedLinkAsync(
+            HouseholdId,
+            new CreateManagedGoogleCalendarLinkRequest(
+                accountLinkId,
+                "family@example.com",
+                "Family Calendar",
+                "America/Chicago"),
+            CreatedAtUtc,
+            CancellationToken.None);
+
+        await service.UpdateSyncSettingsAsync(
+            HouseholdId,
+            managedLink.Link!.Id,
+            new UpdateGoogleCalendarLinkSyncSettingsRequest(true, 30, true),
+            CreatedAtUtc,
+            CancellationToken.None);
+
+        var created = await managementService.CreateEventAsync(
+            HouseholdId,
+            new CreateScheduledEventRequest(
+                "Dentist",
+                null,
+                false,
+                new DateTimeOffset(2026, 4, 24, 14, 0, 0, TimeSpan.Zero),
+                new DateTimeOffset(2026, 4, 24, 15, 0, 0, TimeSpan.Zero),
+                null),
+            CreatedAtUtc,
+            CancellationToken.None);
+
+        await service.SyncDueLocalEventsAsync(
+            CreatedAtUtc.AddMinutes(1),
+            CancellationToken.None);
+
+        var deleted = await managementService.DeleteEventAsync(
+            HouseholdId,
+            created.Event!.Id,
+            CancellationToken.None);
+
+        Assert.Equal(ScheduledEventMutationStatus.Succeeded, deleted.Status);
+        var pendingDelete = await dbContext.GoogleCalendarLocalEventSyncs.SingleAsync();
+        Assert.Equal(GoogleCalendarSyncOperations.Delete, pendingDelete.PendingOperation);
+
+        var result = await service.SyncDueLocalEventsAsync(
+            CreatedAtUtc.AddMinutes(2),
+            CancellationToken.None);
+
+        Assert.Equal(1, result.DueCount);
+        Assert.Equal(1, result.SucceededCount);
+        Assert.Empty(dbContext.GoogleCalendarLocalEventSyncs);
+    }
+
+    [Fact]
+    public async Task SyncDueLocalEventsAsync_TreatsMissingRemoteDelete_AsSuccessfulCleanup()
+    {
+        await using var dbContext = CreateDbContext();
+        var oauthClient = new FakeGoogleOAuthClient(
+            deleteCalendarEventException: new GoogleOAuthClientException("missing", 404));
+        var service = new GoogleCalendarIntegrationService(
+            dbContext,
+            CreateConfiguration(),
+            oauthClient,
+            new FakeFeedFetcher("BEGIN:VCALENDAR\r\nEND:VCALENDAR"),
+            new ImportedScheduledEventSyncService(dbContext));
+        var managementService = new ScheduledEventManagementService(
+            dbContext,
+            new FakeClock(CreatedAtUtc),
+            service);
+
+        var accountLinkId = await SeedWritableAccountAsync(dbContext);
+        var managedLink = await service.CreateManagedLinkAsync(
+            HouseholdId,
+            new CreateManagedGoogleCalendarLinkRequest(
+                accountLinkId,
+                "family@example.com",
+                "Family Calendar",
+                "America/Chicago"),
+            CreatedAtUtc,
+            CancellationToken.None);
+
+        await service.UpdateSyncSettingsAsync(
+            HouseholdId,
+            managedLink.Link!.Id,
+            new UpdateGoogleCalendarLinkSyncSettingsRequest(true, 30, true),
+            CreatedAtUtc,
+            CancellationToken.None);
+
+        var created = await managementService.CreateEventAsync(
+            HouseholdId,
+            new CreateScheduledEventRequest(
+                "Doctor",
+                null,
+                false,
+                new DateTimeOffset(2026, 4, 24, 18, 0, 0, TimeSpan.Zero),
+                new DateTimeOffset(2026, 4, 24, 18, 30, 0, TimeSpan.Zero),
+                null),
+            CreatedAtUtc,
+            CancellationToken.None);
+
+        await service.SyncDueLocalEventsAsync(
+            CreatedAtUtc.AddMinutes(1),
+            CancellationToken.None);
+
+        await managementService.DeleteEventAsync(
+            HouseholdId,
+            created.Event!.Id,
+            CancellationToken.None);
+
+        var result = await service.SyncDueLocalEventsAsync(
+            CreatedAtUtc.AddMinutes(2),
+            CancellationToken.None);
+
+        Assert.Equal(1, result.DueCount);
+        Assert.Equal(1, result.SucceededCount);
+        Assert.Empty(dbContext.GoogleCalendarLocalEventSyncs);
+    }
+
+    [Fact]
+    public async Task SyncDueLocalEventsAsync_PersistsFailure_ForRetry()
+    {
+        await using var dbContext = CreateDbContext();
+        var oauthClient = new FakeGoogleOAuthClient(
+            createCalendarEventException: new InvalidOperationException("temporary network failure"));
+        var service = new GoogleCalendarIntegrationService(
+            dbContext,
+            CreateConfiguration(),
+            oauthClient,
+            new FakeFeedFetcher("BEGIN:VCALENDAR\r\nEND:VCALENDAR"),
+            new ImportedScheduledEventSyncService(dbContext));
+        var managementService = new ScheduledEventManagementService(
+            dbContext,
+            new FakeClock(CreatedAtUtc),
+            service);
+
+        var accountLinkId = await SeedWritableAccountAsync(dbContext);
+        var managedLink = await service.CreateManagedLinkAsync(
+            HouseholdId,
+            new CreateManagedGoogleCalendarLinkRequest(
+                accountLinkId,
+                "family@example.com",
+                "Family Calendar",
+                "America/Chicago"),
+            CreatedAtUtc,
+            CancellationToken.None);
+
+        await service.UpdateSyncSettingsAsync(
+            HouseholdId,
+            managedLink.Link!.Id,
+            new UpdateGoogleCalendarLinkSyncSettingsRequest(true, 30, true),
+            CreatedAtUtc,
+            CancellationToken.None);
+
+        await managementService.CreateEventAsync(
+            HouseholdId,
+            new CreateScheduledEventRequest(
+                "Bus stop",
+                null,
+                false,
+                new DateTimeOffset(2026, 4, 24, 11, 0, 0, TimeSpan.Zero),
+                new DateTimeOffset(2026, 4, 24, 11, 15, 0, TimeSpan.Zero),
+                null),
+            CreatedAtUtc,
+            CancellationToken.None);
+
+        var result = await service.SyncDueLocalEventsAsync(
+            CreatedAtUtc.AddMinutes(1),
+            CancellationToken.None);
+
+        Assert.Equal(1, result.FailedCount);
+        var failed = await dbContext.GoogleCalendarLocalEventSyncs.SingleAsync();
+        Assert.Equal(GoogleCalendarSyncStatuses.Failed, failed.SyncStatus);
+        Assert.Equal(GoogleCalendarSyncOperations.Upsert, failed.PendingOperation);
+        Assert.Contains("temporary network failure", failed.LastError!, StringComparison.OrdinalIgnoreCase);
+        Assert.NotNull(failed.NextAttemptAtUtc);
+        Assert.True(failed.NextAttemptAtUtc > CreatedAtUtc.AddMinutes(1));
+    }
+
+    [Fact]
+    public async Task UpdateSyncSettingsAsync_RejectsOutboundTarget_WhenLinkedAccountLacksWriteScope()
+    {
+        await using var dbContext = CreateDbContext();
+        var accountLinkId = await SeedReadonlyAccountAsync(dbContext);
+        var service = CreateService(dbContext, "BEGIN:VCALENDAR\r\nEND:VCALENDAR");
+
+        var managedLink = await service.CreateManagedLinkAsync(
+            HouseholdId,
+            new CreateManagedGoogleCalendarLinkRequest(
+                accountLinkId,
+                "readonly@example.com",
+                "Read-only Calendar",
+                "America/Chicago"),
+            CreatedAtUtc,
+            CancellationToken.None);
+
+        var updated = await service.UpdateSyncSettingsAsync(
+            HouseholdId,
+            managedLink.Link!.Id,
+            new UpdateGoogleCalendarLinkSyncSettingsRequest(true, 30, true),
+            CreatedAtUtc.AddMinutes(1),
+            CancellationToken.None);
+
+        Assert.Equal(GoogleCalendarLinkMutationStatus.ValidationFailed, updated.Status);
+        Assert.Contains("Reconnect", updated.Error!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task SyncDueLocalEventsAsync_ExportsWeeklyRecurrenceRule_ForLocalSeries()
+    {
+        await using var dbContext = CreateDbContext();
+        var oauthClient = new FakeGoogleOAuthClient();
+        var service = new GoogleCalendarIntegrationService(
+            dbContext,
+            CreateConfiguration(),
+            oauthClient,
+            new FakeFeedFetcher("BEGIN:VCALENDAR\r\nEND:VCALENDAR"),
+            new ImportedScheduledEventSyncService(dbContext));
+        var managementService = new ScheduledEventManagementService(
+            dbContext,
+            new FakeClock(CreatedAtUtc),
+            service);
+
+        var household = await dbContext.Households.SingleAsync();
+        household.TimeZoneId = "America/Chicago";
+        await dbContext.SaveChangesAsync();
+
+        var accountLinkId = await SeedWritableAccountAsync(dbContext);
+        var managedLink = await service.CreateManagedLinkAsync(
+            HouseholdId,
+            new CreateManagedGoogleCalendarLinkRequest(
+                accountLinkId,
+                "family@example.com",
+                "Family Calendar",
+                "America/Chicago"),
+            CreatedAtUtc,
+            CancellationToken.None);
+
+        await service.UpdateSyncSettingsAsync(
+            HouseholdId,
+            managedLink.Link!.Id,
+            new UpdateGoogleCalendarLinkSyncSettingsRequest(true, 30, true),
+            CreatedAtUtc,
+            CancellationToken.None);
+
+        await managementService.CreateEventAsync(
+            HouseholdId,
+            new CreateScheduledEventRequest(
+                "Carpool",
+                null,
+                false,
+                new DateTimeOffset(2026, 4, 27, 21, 0, 0, TimeSpan.Zero),
+                new DateTimeOffset(2026, 4, 27, 21, 30, 0, TimeSpan.Zero),
+                new ScheduledEventRecurrenceRequest("Weekly", ["Monday", "Wednesday"], null)),
+            CreatedAtUtc,
+            CancellationToken.None);
+
+        await service.SyncDueLocalEventsAsync(
+            CreatedAtUtc.AddMinutes(1),
+            CancellationToken.None);
+
+        var remoteCreate = Assert.Single(oauthClient.CreatedEvents);
+        Assert.Contains("RRULE:FREQ=WEEKLY;BYDAY=MO,WE", remoteCreate.Recurrence);
+        Assert.Equal("America/Chicago", remoteCreate.TimeZoneId);
     }
 
     [Fact]
@@ -879,6 +1315,52 @@ public class GoogleCalendarIntegrationServiceTests
             new FakeGoogleOAuthClient(),
             new FakeFeedFetcher(feedContent),
             new ImportedScheduledEventSyncService(dbContext));
+    }
+
+    private static async Task<Guid> SeedWritableAccountAsync(HouseholdOpsDbContext dbContext)
+    {
+        var accountLinkId = Guid.NewGuid();
+        dbContext.GoogleOAuthAccountLinks.Add(new GoogleOAuthAccountLink
+        {
+            Id = accountLinkId,
+            HouseholdId = HouseholdId,
+            LinkedByUserId = Guid.Parse("44444444-4444-4444-4444-444444444444"),
+            GoogleUserId = $"google-user-{accountLinkId:N}",
+            Email = $"owner-{accountLinkId:N}@example.com",
+            DisplayName = "Owner Example",
+            AccessToken = "access-token",
+            RefreshToken = "refresh-token",
+            TokenType = "Bearer",
+            Scope = "openid email profile https://www.googleapis.com/auth/calendar",
+            AccessTokenExpiresAtUtc = CreatedAtUtc.AddHours(1),
+            CreatedAtUtc = CreatedAtUtc,
+            UpdatedAtUtc = CreatedAtUtc
+        });
+        await dbContext.SaveChangesAsync();
+        return accountLinkId;
+    }
+
+    private static async Task<Guid> SeedReadonlyAccountAsync(HouseholdOpsDbContext dbContext)
+    {
+        var accountLinkId = Guid.NewGuid();
+        dbContext.GoogleOAuthAccountLinks.Add(new GoogleOAuthAccountLink
+        {
+            Id = accountLinkId,
+            HouseholdId = HouseholdId,
+            LinkedByUserId = Guid.Parse("44444444-4444-4444-4444-444444444444"),
+            GoogleUserId = $"google-user-{accountLinkId:N}",
+            Email = $"owner-{accountLinkId:N}@example.com",
+            DisplayName = "Owner Example",
+            AccessToken = "access-token",
+            RefreshToken = "refresh-token",
+            TokenType = "Bearer",
+            Scope = "openid email profile https://www.googleapis.com/auth/calendar.readonly",
+            AccessTokenExpiresAtUtc = CreatedAtUtc.AddHours(1),
+            CreatedAtUtc = CreatedAtUtc,
+            UpdatedAtUtc = CreatedAtUtc
+        });
+        await dbContext.SaveChangesAsync();
+        return accountLinkId;
     }
 
     [Fact]
@@ -1360,6 +1842,9 @@ public class GoogleCalendarIntegrationServiceTests
         GoogleOAuthUserProfile? userProfile = null,
         IReadOnlyList<GoogleOAuthCalendarSummary>? calendars = null,
         IReadOnlyList<GoogleOAuthCalendarEvent>? events = null,
+        Exception? createCalendarEventException = null,
+        Exception? updateCalendarEventException = null,
+        Exception? deleteCalendarEventException = null,
         Exception? refreshAccessTokenException = null,
         Exception? getCalendarsException = null,
         Exception? getCalendarEventsException = null) : IGoogleOAuthClient
@@ -1389,6 +1874,12 @@ public class GoogleCalendarIntegrationServiceTests
             ?? [];
 
         public int RefreshCalls { get; private set; }
+
+        public List<GoogleOAuthCalendarEventUpsertRequest> CreatedEvents { get; } = [];
+
+        public List<(string EventId, GoogleOAuthCalendarEventUpsertRequest Request)> UpdatedEvents { get; } = [];
+
+        public List<string> DeletedEventIds { get; } = [];
 
         public string BuildAuthorizationUrl(string state) =>
             $"https://accounts.google.com/o/oauth2/v2/auth?state={state}";
@@ -1428,11 +1919,133 @@ public class GoogleCalendarIntegrationServiceTests
             getCalendarEventsException is null
                 ? Task.FromResult(discoveredEvents)
                 : Task.FromException<IReadOnlyList<GoogleOAuthCalendarEvent>>(getCalendarEventsException);
+
+        public Task<GoogleOAuthCalendarEvent> CreateCalendarEventAsync(
+            string accessToken,
+            string calendarId,
+            GoogleOAuthCalendarEventUpsertRequest request,
+            CancellationToken cancellationToken)
+        {
+            CreatedEvents.Add(request);
+
+            if (createCalendarEventException is not null)
+            {
+                return Task.FromException<GoogleOAuthCalendarEvent>(createCalendarEventException);
+            }
+
+            return Task.FromResult(new GoogleOAuthCalendarEvent(
+                request.EventId,
+                request.Summary,
+                request.Description,
+                "confirmed",
+                request.IsAllDay ? request.StartsAtUtc.UtcDateTime.ToString("yyyy-MM-dd") : null,
+                request.IsAllDay ? null : request.StartsAtUtc.UtcDateTime.ToString("O"),
+                request.TimeZoneId,
+                request.IsAllDay
+                    ? (request.EndsAtUtc ?? request.StartsAtUtc).UtcDateTime.Date.AddDays(1).ToString("yyyy-MM-dd")
+                    : null,
+                request.IsAllDay ? null : (request.EndsAtUtc ?? request.StartsAtUtc).UtcDateTime.ToString("O"),
+                request.TimeZoneId,
+                request.Recurrence,
+                null));
+        }
+
+        public Task<GoogleOAuthCalendarEvent> UpdateCalendarEventAsync(
+            string accessToken,
+            string calendarId,
+            string eventId,
+            GoogleOAuthCalendarEventUpsertRequest request,
+            CancellationToken cancellationToken)
+        {
+            UpdatedEvents.Add((eventId, request));
+
+            if (updateCalendarEventException is not null)
+            {
+                return Task.FromException<GoogleOAuthCalendarEvent>(updateCalendarEventException);
+            }
+
+            return Task.FromResult(new GoogleOAuthCalendarEvent(
+                eventId,
+                request.Summary,
+                request.Description,
+                "confirmed",
+                request.IsAllDay ? request.StartsAtUtc.UtcDateTime.ToString("yyyy-MM-dd") : null,
+                request.IsAllDay ? null : request.StartsAtUtc.UtcDateTime.ToString("O"),
+                request.TimeZoneId,
+                request.IsAllDay
+                    ? (request.EndsAtUtc ?? request.StartsAtUtc).UtcDateTime.Date.AddDays(1).ToString("yyyy-MM-dd")
+                    : null,
+                request.IsAllDay ? null : (request.EndsAtUtc ?? request.StartsAtUtc).UtcDateTime.ToString("O"),
+                request.TimeZoneId,
+                request.Recurrence,
+                null));
+        }
+
+        public Task DeleteCalendarEventAsync(
+            string accessToken,
+            string calendarId,
+            string eventId,
+            CancellationToken cancellationToken)
+        {
+            DeletedEventIds.Add(eventId);
+
+            return deleteCalendarEventException is null
+                ? Task.CompletedTask
+                : Task.FromException(deleteCalendarEventException);
+        }
     }
 
     private sealed class FakeClock(DateTimeOffset utcNow) : HouseholdOps.SharedKernel.Time.IClock
     {
         public DateTimeOffset UtcNow { get; } = utcNow;
+    }
+
+    private sealed class NoOpGoogleCalendarIntegrationService : IGoogleCalendarIntegrationService
+    {
+        public Task<GoogleCalendarLinkListResponse> ListAsync(Guid householdId, CancellationToken cancellationToken) =>
+            Task.FromResult(new GoogleCalendarLinkListResponse([]));
+
+        public GoogleOAuthReadinessResponse GetOAuthReadiness() =>
+            new(false, false, false, false, null);
+
+        public Task<GoogleOAuthAccountLinkListResponse> ListOAuthAccountsAsync(Guid householdId, CancellationToken cancellationToken) =>
+            Task.FromResult(new GoogleOAuthAccountLinkListResponse([]));
+
+        public Task<GoogleOAuthCalendarListResponse> ListOAuthCalendarsAsync(Guid householdId, CancellationToken cancellationToken) =>
+            Task.FromResult(new GoogleOAuthCalendarListResponse([]));
+
+        public GoogleOAuthStartResponse BeginOAuthLink(string state) =>
+            new(string.Empty);
+
+        public Task CompleteOAuthLinkAsync(Guid householdId, Guid linkedByUserId, string code, DateTimeOffset completedAtUtc, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+
+        public Task<GoogleCalendarLinkMutationResult> CreateAsync(Guid householdId, CreateGoogleCalendarLinkRequest request, DateTimeOffset createdAtUtc, CancellationToken cancellationToken) =>
+            Task.FromResult(GoogleCalendarLinkMutationResult.ValidationFailure("Not used in this test."));
+
+        public Task<GoogleCalendarLinkMutationResult> CreateManagedLinkAsync(Guid householdId, CreateManagedGoogleCalendarLinkRequest request, DateTimeOffset createdAtUtc, CancellationToken cancellationToken) =>
+            Task.FromResult(GoogleCalendarLinkMutationResult.ValidationFailure("Not used in this test."));
+
+        public Task<GoogleCalendarLinkMutationResult> DeleteAsync(Guid householdId, Guid linkId, CancellationToken cancellationToken) =>
+            Task.FromResult(GoogleCalendarLinkMutationResult.NotFound());
+
+        public Task<GoogleCalendarLinkMutationResult> UpdateSyncSettingsAsync(Guid householdId, Guid linkId, UpdateGoogleCalendarLinkSyncSettingsRequest request, DateTimeOffset requestedAtUtc, CancellationToken cancellationToken) =>
+            Task.FromResult(GoogleCalendarLinkMutationResult.NotFound());
+
+        public Task<GoogleCalendarSyncResult> SyncAsync(Guid householdId, Guid linkId, DateTimeOffset requestedAtUtc, CancellationToken cancellationToken) =>
+            Task.FromResult(GoogleCalendarSyncResult.NotFound());
+
+        public Task<GoogleCalendarAutoSyncRunResult> SyncDueLinksAsync(DateTimeOffset requestedAtUtc, CancellationToken cancellationToken) =>
+            Task.FromResult(new GoogleCalendarAutoSyncRunResult(0, 0, 0));
+
+        public Task QueueLocalEventUpsertAsync(Guid householdId, Guid scheduledEventId, DateTimeOffset queuedAtUtc, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+
+        public Task QueueLocalEventDeletionAsync(Guid householdId, Guid scheduledEventId, DateTimeOffset queuedAtUtc, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+
+        public Task<GoogleCalendarLocalEventSyncRunResult> SyncDueLocalEventsAsync(DateTimeOffset requestedAtUtc, CancellationToken cancellationToken) =>
+            Task.FromResult(new GoogleCalendarLocalEventSyncRunResult(0, 0, 0));
     }
 
     private static IConfiguration CreateConfiguration() =>

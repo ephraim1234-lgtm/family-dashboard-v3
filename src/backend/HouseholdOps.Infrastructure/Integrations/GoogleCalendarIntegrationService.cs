@@ -1,3 +1,4 @@
+using System.Globalization;
 using HouseholdOps.Infrastructure.Persistence;
 using HouseholdOps.Modules.Integrations;
 using HouseholdOps.Modules.Integrations.Contracts;
@@ -15,6 +16,9 @@ public sealed class GoogleCalendarIntegrationService(
     IImportedScheduledEventSyncService importedEventSyncService) : IGoogleCalendarIntegrationService
 {
     private const int DefaultSyncIntervalMinutes = 30;
+    private const string LocalEventIdExtendedPropertyName = "householdopsScheduledEventId";
+    private const string WritableCalendarScope = "https://www.googleapis.com/auth/calendar";
+    private const string WritableCalendarEventsScope = "https://www.googleapis.com/auth/calendar.events";
     private readonly GoogleCalendarIcsParser parser = new();
 
     public async Task<GoogleCalendarLinkListResponse> ListAsync(
@@ -27,12 +31,22 @@ public sealed class GoogleCalendarIntegrationService(
             .ToListAsync(cancellationToken);
 
         var accountEmails = await LoadGoogleAccountEmailsAsync(links, cancellationToken);
+        var outboundCounts = await LoadOutboundCountsAsync(
+            links.Select(link => link.Id).ToArray(),
+            cancellationToken);
+
         var items = links
-            .Select(link => MapSummary(
-                link,
-                accountEmails.TryGetValue(link.GoogleOAuthAccountLinkId ?? Guid.Empty, out var accountEmail)
-                    ? accountEmail
-                    : null))
+            .Select(link =>
+            {
+                outboundCounts.TryGetValue(link.Id, out var counts);
+
+                return MapSummary(
+                    link,
+                    accountEmails.TryGetValue(link.GoogleOAuthAccountLinkId ?? Guid.Empty, out var accountEmail)
+                        ? accountEmail
+                        : null,
+                    counts ?? OutboundSyncCounts.None);
+            })
             .ToList();
 
         return new GoogleCalendarLinkListResponse(items);
@@ -166,38 +180,6 @@ public sealed class GoogleCalendarIntegrationService(
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
-    private async Task<string> EnsureActiveAccessTokenAsync(
-        GoogleOAuthAccountLink accountLink,
-        CancellationToken cancellationToken)
-    {
-        if (accountLink.AccessTokenExpiresAtUtc.HasValue
-            && accountLink.AccessTokenExpiresAtUtc.Value > DateTimeOffset.UtcNow.AddMinutes(1))
-        {
-            return accountLink.AccessToken;
-        }
-
-        if (string.IsNullOrWhiteSpace(accountLink.RefreshToken))
-        {
-            return accountLink.AccessToken;
-        }
-
-        var refreshedToken = await googleOAuthClient.RefreshAccessTokenAsync(
-            accountLink.RefreshToken,
-            cancellationToken);
-
-        accountLink.AccessToken = refreshedToken.AccessToken;
-        accountLink.RefreshToken = string.IsNullOrWhiteSpace(refreshedToken.RefreshToken)
-            ? accountLink.RefreshToken
-            : refreshedToken.RefreshToken;
-        accountLink.TokenType = refreshedToken.TokenType;
-        accountLink.Scope = refreshedToken.Scope;
-        accountLink.AccessTokenExpiresAtUtc = DateTimeOffset.UtcNow.AddSeconds(refreshedToken.ExpiresInSeconds);
-        accountLink.UpdatedAtUtc = DateTimeOffset.UtcNow;
-        await dbContext.SaveChangesAsync(cancellationToken);
-
-        return accountLink.AccessToken;
-    }
-
     public async Task<GoogleCalendarLinkMutationResult> CreateAsync(
         Guid householdId,
         CreateGoogleCalendarLinkRequest request,
@@ -244,6 +226,7 @@ public sealed class GoogleCalendarIntegrationService(
             DisplayName = displayName,
             LinkMode = GoogleCalendarConnection.LinkModeIcsFeed,
             FeedUrl = normalizedFeedUrl,
+            OutboundSyncEnabled = false,
             CreatedAtUtc = createdAtUtc,
             AutoSyncEnabled = true,
             SyncIntervalMinutes = DefaultSyncIntervalMinutes,
@@ -253,7 +236,8 @@ public sealed class GoogleCalendarIntegrationService(
         dbContext.GoogleCalendarConnections.Add(link);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        return GoogleCalendarLinkMutationResult.Success(MapSummary(link, null));
+        return GoogleCalendarLinkMutationResult.Success(
+            MapSummary(link, null, OutboundSyncCounts.None));
     }
 
     public async Task<GoogleCalendarLinkMutationResult> CreateManagedLinkAsync(
@@ -310,6 +294,7 @@ public sealed class GoogleCalendarIntegrationService(
             GoogleOAuthAccountLinkId = request.AccountLinkId,
             GoogleCalendarId = calendarId,
             GoogleCalendarTimeZone = request.CalendarTimeZone?.Trim(),
+            OutboundSyncEnabled = false,
             CreatedAtUtc = createdAtUtc,
             AutoSyncEnabled = true,
             SyncIntervalMinutes = DefaultSyncIntervalMinutes,
@@ -319,10 +304,11 @@ public sealed class GoogleCalendarIntegrationService(
         dbContext.GoogleCalendarConnections.Add(link);
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        return GoogleCalendarLinkMutationResult.Success(MapSummary(link, accountLink.Email));
+        return GoogleCalendarLinkMutationResult.Success(
+            MapSummary(link, accountLink.Email, OutboundSyncCounts.None));
     }
 
-    public async Task<bool> DeleteAsync(
+    public async Task<GoogleCalendarLinkMutationResult> DeleteAsync(
         Guid householdId,
         Guid linkId,
         CancellationToken cancellationToken)
@@ -334,7 +320,16 @@ public sealed class GoogleCalendarIntegrationService(
 
         if (link is null)
         {
-            return false;
+            return GoogleCalendarLinkMutationResult.NotFound();
+        }
+
+        var mirroredEventCount = await dbContext.GoogleCalendarLocalEventSyncs
+            .CountAsync(item => item.GoogleCalendarConnectionId == linkId, cancellationToken);
+
+        if (mirroredEventCount > 0)
+        {
+            return GoogleCalendarLinkMutationResult.Conflict(
+                "This Google calendar still owns mirrored local-event sync records. Disable or move outbound mirroring in a later cleanup slice before removing the link.");
         }
 
         await importedEventSyncService.DeleteSourceAsync(
@@ -345,7 +340,11 @@ public sealed class GoogleCalendarIntegrationService(
 
         dbContext.GoogleCalendarConnections.Remove(link);
         await dbContext.SaveChangesAsync(cancellationToken);
-        return true;
+        return GoogleCalendarLinkMutationResult.Success(
+            MapSummary(
+                link,
+                await ResolveGoogleAccountEmailAsync(link, cancellationToken),
+                OutboundSyncCounts.None));
     }
 
     public async Task<GoogleCalendarLinkMutationResult> UpdateSyncSettingsAsync(
@@ -362,8 +361,7 @@ public sealed class GoogleCalendarIntegrationService(
 
         if (link is null)
         {
-            return GoogleCalendarLinkMutationResult.ValidationFailure(
-                "The linked Google Calendar was not found.");
+            return GoogleCalendarLinkMutationResult.NotFound();
         }
 
         if (request.SyncIntervalMinutes is < 5 or > 1440)
@@ -372,6 +370,51 @@ public sealed class GoogleCalendarIntegrationService(
                 "Sync interval must be between 5 and 1440 minutes.");
         }
 
+        if (request.OutboundSyncEnabled)
+        {
+            if (!string.Equals(link.LinkMode, GoogleCalendarConnection.LinkModeOAuthCalendar, StringComparison.Ordinal))
+            {
+                return GoogleCalendarLinkMutationResult.ValidationFailure(
+                    "Only managed Google calendar links can receive mirrored local events.");
+            }
+
+            if (!link.GoogleOAuthAccountLinkId.HasValue || string.IsNullOrWhiteSpace(link.GoogleCalendarId))
+            {
+                return GoogleCalendarLinkMutationResult.ValidationFailure(
+                    "This managed Google calendar link is missing required provider details.");
+            }
+
+            var accountLink = await dbContext.GoogleOAuthAccountLinks
+                .SingleOrDefaultAsync(
+                    item => item.Id == link.GoogleOAuthAccountLinkId.Value,
+                    cancellationToken);
+
+            if (accountLink is null)
+            {
+                return GoogleCalendarLinkMutationResult.ValidationFailure(
+                    "The linked Google account for this managed calendar could not be found.");
+            }
+
+            if (!HasWritableGoogleScope(accountLink.Scope))
+            {
+                return GoogleCalendarLinkMutationResult.ValidationFailure(
+                    "Reconnect the linked Google account with calendar write access before enabling outbound sync.");
+            }
+
+            var otherOutboundTargets = await dbContext.GoogleCalendarConnections
+                .Where(item =>
+                    item.HouseholdId == householdId
+                    && item.Id != linkId
+                    && item.OutboundSyncEnabled)
+                .ToListAsync(cancellationToken);
+
+            foreach (var otherTarget in otherOutboundTargets)
+            {
+                otherTarget.OutboundSyncEnabled = false;
+            }
+        }
+
+        link.OutboundSyncEnabled = request.OutboundSyncEnabled;
         link.AutoSyncEnabled = request.AutoSyncEnabled;
         link.SyncIntervalMinutes = request.SyncIntervalMinutes;
         link.NextSyncDueAtUtc = request.AutoSyncEnabled
@@ -382,7 +425,8 @@ public sealed class GoogleCalendarIntegrationService(
         return GoogleCalendarLinkMutationResult.Success(
             MapSummary(
                 link,
-                await ResolveGoogleAccountEmailAsync(link, cancellationToken)));
+                await ResolveGoogleAccountEmailAsync(link, cancellationToken),
+                await LoadOutboundCountsForLinkAsync(link.Id, cancellationToken)));
     }
 
     public async Task<GoogleCalendarSyncResult> SyncAsync(
@@ -438,6 +482,149 @@ public sealed class GoogleCalendarIntegrationService(
             failedCount);
     }
 
+    public async Task QueueLocalEventUpsertAsync(
+        Guid householdId,
+        Guid scheduledEventId,
+        DateTimeOffset queuedAtUtc,
+        CancellationToken cancellationToken)
+    {
+        var existingSync = await dbContext.GoogleCalendarLocalEventSyncs
+            .SingleOrDefaultAsync(
+                item => item.HouseholdId == householdId && item.ScheduledEventId == scheduledEventId,
+                cancellationToken);
+
+        if (existingSync is null)
+        {
+            var outboundTarget = await dbContext.GoogleCalendarConnections
+                .Where(link =>
+                    link.HouseholdId == householdId
+                    && link.OutboundSyncEnabled
+                    && link.LinkMode == GoogleCalendarConnection.LinkModeOAuthCalendar)
+                .OrderBy(link => link.CreatedAtUtc)
+                .SingleOrDefaultAsync(cancellationToken);
+
+            if (outboundTarget is null)
+            {
+                return;
+            }
+
+            dbContext.GoogleCalendarLocalEventSyncs.Add(new GoogleCalendarLocalEventSync
+            {
+                HouseholdId = householdId,
+                ScheduledEventId = scheduledEventId,
+                GoogleCalendarConnectionId = outboundTarget.Id,
+                RemoteEventId = BuildRemoteEventId(scheduledEventId),
+                SyncStatus = GoogleCalendarSyncStatuses.Pending,
+                PendingOperation = GoogleCalendarSyncOperations.Upsert,
+                LastQueuedAtUtc = queuedAtUtc,
+                NextAttemptAtUtc = queuedAtUtc,
+                LastError = null
+            });
+
+            return;
+        }
+
+        existingSync.PendingOperation = GoogleCalendarSyncOperations.Upsert;
+        existingSync.SyncStatus = GoogleCalendarSyncStatuses.Pending;
+        existingSync.LastQueuedAtUtc = queuedAtUtc;
+        existingSync.NextAttemptAtUtc = queuedAtUtc;
+        existingSync.LastError = null;
+        existingSync.MarkedDeletedAtUtc = null;
+        if (string.IsNullOrWhiteSpace(existingSync.RemoteEventId))
+        {
+            existingSync.RemoteEventId = BuildRemoteEventId(scheduledEventId);
+        }
+    }
+
+    public async Task QueueLocalEventDeletionAsync(
+        Guid householdId,
+        Guid scheduledEventId,
+        DateTimeOffset queuedAtUtc,
+        CancellationToken cancellationToken)
+    {
+        var existingSync = await dbContext.GoogleCalendarLocalEventSyncs
+            .SingleOrDefaultAsync(
+                item => item.HouseholdId == householdId && item.ScheduledEventId == scheduledEventId,
+                cancellationToken);
+
+        if (existingSync is null)
+        {
+            return;
+        }
+
+        existingSync.PendingOperation = GoogleCalendarSyncOperations.Delete;
+        existingSync.SyncStatus = GoogleCalendarSyncStatuses.Pending;
+        existingSync.LastQueuedAtUtc = queuedAtUtc;
+        existingSync.NextAttemptAtUtc = queuedAtUtc;
+        existingSync.LastError = null;
+        existingSync.MarkedDeletedAtUtc = queuedAtUtc;
+    }
+
+    public async Task<GoogleCalendarLocalEventSyncRunResult> SyncDueLocalEventsAsync(
+        DateTimeOffset requestedAtUtc,
+        CancellationToken cancellationToken)
+    {
+        var dueSyncs = await dbContext.GoogleCalendarLocalEventSyncs
+            .Where(sync =>
+                sync.PendingOperation != GoogleCalendarSyncOperations.None
+                && sync.NextAttemptAtUtc.HasValue
+                && sync.NextAttemptAtUtc <= requestedAtUtc)
+            .OrderBy(sync => sync.NextAttemptAtUtc)
+            .ToListAsync(cancellationToken);
+
+        var succeededCount = 0;
+        var failedCount = 0;
+
+        foreach (var sync in dueSyncs)
+        {
+            if (await SyncLocalEventAsync(sync, requestedAtUtc, cancellationToken))
+            {
+                succeededCount++;
+            }
+            else
+            {
+                failedCount++;
+            }
+        }
+
+        return new GoogleCalendarLocalEventSyncRunResult(
+            dueSyncs.Count,
+            succeededCount,
+            failedCount);
+    }
+
+    private async Task<string> EnsureActiveAccessTokenAsync(
+        GoogleOAuthAccountLink accountLink,
+        CancellationToken cancellationToken)
+    {
+        if (accountLink.AccessTokenExpiresAtUtc.HasValue
+            && accountLink.AccessTokenExpiresAtUtc.Value > DateTimeOffset.UtcNow.AddMinutes(1))
+        {
+            return accountLink.AccessToken;
+        }
+
+        if (string.IsNullOrWhiteSpace(accountLink.RefreshToken))
+        {
+            return accountLink.AccessToken;
+        }
+
+        var refreshedToken = await googleOAuthClient.RefreshAccessTokenAsync(
+            accountLink.RefreshToken,
+            cancellationToken);
+
+        accountLink.AccessToken = refreshedToken.AccessToken;
+        accountLink.RefreshToken = string.IsNullOrWhiteSpace(refreshedToken.RefreshToken)
+            ? accountLink.RefreshToken
+            : refreshedToken.RefreshToken;
+        accountLink.TokenType = refreshedToken.TokenType;
+        accountLink.Scope = refreshedToken.Scope;
+        accountLink.AccessTokenExpiresAtUtc = DateTimeOffset.UtcNow.AddSeconds(refreshedToken.ExpiresInSeconds);
+        accountLink.UpdatedAtUtc = DateTimeOffset.UtcNow;
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return accountLink.AccessToken;
+    }
+
     private async Task<GoogleCalendarSyncResult> SyncLinkAsync(
         GoogleCalendarConnection link,
         DateTimeOffset requestedAtUtc,
@@ -476,7 +663,8 @@ public sealed class GoogleCalendarIntegrationService(
             return GoogleCalendarSyncResult.Success(
                 MapSummary(
                     link,
-                    await ResolveGoogleAccountEmailAsync(link, cancellationToken)));
+                    await ResolveGoogleAccountEmailAsync(link, cancellationToken),
+                    await LoadOutboundCountsForLinkAsync(link.Id, cancellationToken)));
         }
         catch (Exception exception)
         {
@@ -492,7 +680,202 @@ public sealed class GoogleCalendarIntegrationService(
                 exception.Message,
                 MapSummary(
                     link,
-                    await ResolveGoogleAccountEmailAsync(link, cancellationToken)));
+                    await ResolveGoogleAccountEmailAsync(link, cancellationToken),
+                    await LoadOutboundCountsForLinkAsync(link.Id, cancellationToken)));
+        }
+    }
+
+    private async Task<bool> SyncLocalEventAsync(
+        GoogleCalendarLocalEventSync sync,
+        DateTimeOffset requestedAtUtc,
+        CancellationToken cancellationToken)
+    {
+        sync.LastAttemptedAtUtc = requestedAtUtc;
+        sync.AttemptCount += 1;
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        try
+        {
+            var link = await dbContext.GoogleCalendarConnections
+                .SingleOrDefaultAsync(item => item.Id == sync.GoogleCalendarConnectionId, cancellationToken);
+
+            if (link is null)
+            {
+                throw new InvalidOperationException(
+                    "The managed Google calendar link for this local event sync could not be found.");
+            }
+
+            if (!string.Equals(link.LinkMode, GoogleCalendarConnection.LinkModeOAuthCalendar, StringComparison.Ordinal)
+                || !link.GoogleOAuthAccountLinkId.HasValue
+                || string.IsNullOrWhiteSpace(link.GoogleCalendarId))
+            {
+                throw new InvalidOperationException(
+                    "This managed Google calendar link is missing required provider details.");
+            }
+
+            var accountLink = await dbContext.GoogleOAuthAccountLinks
+                .SingleOrDefaultAsync(item => item.Id == link.GoogleOAuthAccountLinkId.Value, cancellationToken);
+
+            if (accountLink is null)
+            {
+                throw new InvalidOperationException(
+                    "The linked Google account for this managed calendar could not be found.");
+            }
+
+            if (!HasWritableGoogleScope(accountLink.Scope))
+            {
+                throw new InvalidOperationException(
+                    "Reconnect the linked Google account with calendar write access before outbound sync can continue.");
+            }
+
+            var accessToken = await EnsureActiveAccessTokenAsync(accountLink, cancellationToken);
+
+            if (string.Equals(sync.PendingOperation, GoogleCalendarSyncOperations.Delete, StringComparison.Ordinal))
+            {
+                await DeleteRemoteEventAsync(
+                    accessToken,
+                    link.GoogleCalendarId,
+                    sync.RemoteEventId,
+                    cancellationToken);
+
+                dbContext.GoogleCalendarLocalEventSyncs.Remove(sync);
+                await dbContext.SaveChangesAsync(cancellationToken);
+                return true;
+            }
+
+            var scheduledEvent = await dbContext.ScheduledEvents
+                .SingleOrDefaultAsync(
+                    item => item.HouseholdId == sync.HouseholdId && item.Id == sync.ScheduledEventId,
+                    cancellationToken);
+
+            if (scheduledEvent is null)
+            {
+                if (sync.LastSucceededAtUtc.HasValue)
+                {
+                    sync.PendingOperation = GoogleCalendarSyncOperations.Delete;
+                    sync.SyncStatus = GoogleCalendarSyncStatuses.Pending;
+                    sync.MarkedDeletedAtUtc ??= requestedAtUtc;
+                    sync.NextAttemptAtUtc = requestedAtUtc;
+                    sync.LastError = null;
+                    await dbContext.SaveChangesAsync(cancellationToken);
+                    return true;
+                }
+
+                dbContext.GoogleCalendarLocalEventSyncs.Remove(sync);
+                await dbContext.SaveChangesAsync(cancellationToken);
+                return true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(scheduledEvent.SourceKind))
+            {
+                dbContext.GoogleCalendarLocalEventSyncs.Remove(sync);
+                await dbContext.SaveChangesAsync(cancellationToken);
+                return true;
+            }
+
+            var householdTimeZoneId = await dbContext.Households
+                .Where(item => item.Id == sync.HouseholdId)
+                .Select(item => item.TimeZoneId)
+                .SingleAsync(cancellationToken);
+
+            var request = BuildOutboundEventRequest(
+                scheduledEvent,
+                householdTimeZoneId,
+                sync.RemoteEventId);
+
+            await UpsertRemoteEventAsync(
+                accessToken,
+                link.GoogleCalendarId,
+                sync,
+                request,
+                cancellationToken);
+
+            sync.SyncStatus = GoogleCalendarSyncStatuses.Succeeded;
+            sync.PendingOperation = GoogleCalendarSyncOperations.None;
+            sync.NextAttemptAtUtc = null;
+            sync.LastSucceededAtUtc = requestedAtUtc;
+            sync.LastError = null;
+            sync.MarkedDeletedAtUtc = null;
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+        catch (Exception exception)
+        {
+            sync.SyncStatus = GoogleCalendarSyncStatuses.Failed;
+            sync.LastError = exception.Message;
+            sync.NextAttemptAtUtc = requestedAtUtc.AddMinutes(CalculateRetryDelayMinutes(sync.AttemptCount));
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return false;
+        }
+    }
+
+    private async Task UpsertRemoteEventAsync(
+        string accessToken,
+        string calendarId,
+        GoogleCalendarLocalEventSync sync,
+        GoogleOAuthCalendarEventUpsertRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (sync.LastSucceededAtUtc.HasValue)
+        {
+            try
+            {
+                var updated = await googleOAuthClient.UpdateCalendarEventAsync(
+                    accessToken,
+                    calendarId,
+                    sync.RemoteEventId,
+                    request,
+                    cancellationToken);
+
+                sync.RemoteEventId = updated.Id;
+                return;
+            }
+            catch (GoogleOAuthClientException exception) when (exception.StatusCode == 404)
+            {
+                // The remote copy was removed outside the app. Recreate it with the canonical id.
+            }
+        }
+
+        try
+        {
+            var created = await googleOAuthClient.CreateCalendarEventAsync(
+                accessToken,
+                calendarId,
+                request,
+                cancellationToken);
+
+            sync.RemoteEventId = created.Id;
+        }
+        catch (GoogleOAuthClientException exception) when (exception.StatusCode == 409)
+        {
+            var updated = await googleOAuthClient.UpdateCalendarEventAsync(
+                accessToken,
+                calendarId,
+                sync.RemoteEventId,
+                request,
+                cancellationToken);
+
+            sync.RemoteEventId = updated.Id;
+        }
+    }
+
+    private async Task DeleteRemoteEventAsync(
+        string accessToken,
+        string calendarId,
+        string remoteEventId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await googleOAuthClient.DeleteCalendarEventAsync(
+                accessToken,
+                calendarId,
+                remoteEventId,
+                cancellationToken);
+        }
+        catch (GoogleOAuthClientException exception) when (exception.StatusCode == 404)
+        {
+            // Already gone remotely; treat it as a successful cleanup.
         }
     }
 
@@ -538,6 +921,116 @@ public sealed class GoogleCalendarIntegrationService(
         return parser.Parse(feed);
     }
 
+    private static GoogleOAuthCalendarEventUpsertRequest BuildOutboundEventRequest(
+        ScheduledEvent scheduledEvent,
+        string householdTimeZoneId,
+        string remoteEventId)
+    {
+        if (!scheduledEvent.StartsAtUtc.HasValue)
+        {
+            throw new InvalidOperationException("Google outbound sync requires a scheduled event start time.");
+        }
+
+        if (!scheduledEvent.IsAllDay && !scheduledEvent.EndsAtUtc.HasValue)
+        {
+            throw new InvalidOperationException(
+                "Google outbound sync currently requires an end time for timed local events.");
+        }
+
+        var recurrence = BuildRecurrenceRules(scheduledEvent);
+        var privateProperties = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            [LocalEventIdExtendedPropertyName] = scheduledEvent.Id.ToString("D")
+        };
+
+        return new GoogleOAuthCalendarEventUpsertRequest(
+            remoteEventId,
+            scheduledEvent.Title,
+            scheduledEvent.Description,
+            scheduledEvent.IsAllDay,
+            scheduledEvent.StartsAtUtc.Value,
+            scheduledEvent.EndsAtUtc,
+            householdTimeZoneId,
+            recurrence,
+            privateProperties);
+    }
+
+    private static IReadOnlyList<string> BuildRecurrenceRules(ScheduledEvent scheduledEvent)
+    {
+        if (scheduledEvent.RecurrencePattern == EventRecurrencePattern.None)
+        {
+            return [];
+        }
+
+        var rule = scheduledEvent.RecurrencePattern switch
+        {
+            EventRecurrencePattern.Daily => "RRULE:FREQ=DAILY",
+            EventRecurrencePattern.Weekly => BuildWeeklyRecurrenceRule(scheduledEvent),
+            _ => throw new InvalidOperationException("Unsupported local recurrence pattern for Google outbound sync.")
+        };
+
+        if (scheduledEvent.RecursUntilUtc.HasValue)
+        {
+            rule += $";UNTIL={scheduledEvent.RecursUntilUtc.Value.UtcDateTime.ToString("yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture)}";
+        }
+
+        return [rule];
+    }
+
+    private static string BuildWeeklyRecurrenceRule(ScheduledEvent scheduledEvent)
+    {
+        var days = RecurrenceRequestMapper.ToWeekdayNames(scheduledEvent.WeeklyDaysMask)
+            .Select(day => day switch
+            {
+                "Monday" => "MO",
+                "Tuesday" => "TU",
+                "Wednesday" => "WE",
+                "Thursday" => "TH",
+                "Friday" => "FR",
+                "Saturday" => "SA",
+                "Sunday" => "SU",
+                _ => throw new InvalidOperationException("Unsupported weekly day in Google recurrence export.")
+            })
+            .ToArray();
+
+        if (days.Length == 0)
+        {
+            throw new InvalidOperationException(
+                "Google outbound sync requires at least one weekday for weekly recurring local events.");
+        }
+
+        return $"RRULE:FREQ=WEEKLY;BYDAY={string.Join(",", days)}";
+    }
+
+    private static int CalculateRetryDelayMinutes(int attemptCount)
+    {
+        var boundedAttempt = Math.Min(Math.Max(attemptCount, 1), 6);
+        return boundedAttempt switch
+        {
+            1 => 1,
+            2 => 2,
+            3 => 4,
+            4 => 8,
+            5 => 16,
+            _ => 30
+        };
+    }
+
+    private static string BuildRemoteEventId(Guid scheduledEventId) =>
+        $"hhops{scheduledEventId:N}".ToLowerInvariant();
+
+    private static bool HasWritableGoogleScope(string scope)
+    {
+        if (string.IsNullOrWhiteSpace(scope))
+        {
+            return false;
+        }
+
+        var scopes = scope.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        return scopes.Contains(WritableCalendarScope, StringComparer.Ordinal)
+            || scopes.Contains(WritableCalendarEventsScope, StringComparer.Ordinal);
+    }
+
     private async Task<Dictionary<Guid, string>> LoadGoogleAccountEmailsAsync(
         IReadOnlyCollection<GoogleCalendarConnection> links,
         CancellationToken cancellationToken)
@@ -558,6 +1051,51 @@ public sealed class GoogleCalendarIntegrationService(
             .ToDictionaryAsync(link => link.Id, link => link.Email, cancellationToken);
     }
 
+    private async Task<Dictionary<Guid, OutboundSyncCounts>> LoadOutboundCountsAsync(
+        IReadOnlyCollection<Guid> linkIds,
+        CancellationToken cancellationToken)
+    {
+        if (linkIds.Count == 0)
+        {
+            return [];
+        }
+
+        var counts = await dbContext.GoogleCalendarLocalEventSyncs
+            .Where(item => linkIds.Contains(item.GoogleCalendarConnectionId))
+            .GroupBy(item => item.GoogleCalendarConnectionId)
+            .Select(group => new
+            {
+                LinkId = group.Key,
+                MirroredCount = group.Count(),
+                PendingCount = group.Count(item => item.PendingOperation != GoogleCalendarSyncOperations.None),
+                FailedCount = group.Count(item => item.SyncStatus == GoogleCalendarSyncStatuses.Failed)
+            })
+            .ToListAsync(cancellationToken);
+
+        return counts.ToDictionary(
+            item => item.LinkId,
+            item => new OutboundSyncCounts(
+                item.MirroredCount,
+                item.PendingCount,
+                item.FailedCount));
+    }
+
+    private async Task<OutboundSyncCounts> LoadOutboundCountsForLinkAsync(
+        Guid linkId,
+        CancellationToken cancellationToken)
+    {
+        var counts = await dbContext.GoogleCalendarLocalEventSyncs
+            .Where(item => item.GoogleCalendarConnectionId == linkId)
+            .GroupBy(item => item.GoogleCalendarConnectionId)
+            .Select(group => new OutboundSyncCounts(
+                group.Count(),
+                group.Count(item => item.PendingOperation != GoogleCalendarSyncOperations.None),
+                group.Count(item => item.SyncStatus == GoogleCalendarSyncStatuses.Failed)))
+            .SingleOrDefaultAsync(cancellationToken);
+
+        return counts ?? OutboundSyncCounts.None;
+    }
+
     private async Task<string?> ResolveGoogleAccountEmailAsync(
         GoogleCalendarConnection link,
         CancellationToken cancellationToken)
@@ -575,7 +1113,8 @@ public sealed class GoogleCalendarIntegrationService(
 
     private static GoogleCalendarLinkSummaryResponse MapSummary(
         GoogleCalendarConnection link,
-        string? googleOAuthAccountEmail)
+        string? googleOAuthAccountEmail,
+        OutboundSyncCounts outboundCounts)
     {
         var feedUrlHost = "Managed Google calendar";
         var feedUrlPathHint = link.GoogleCalendarId ?? "Unavailable";
@@ -602,6 +1141,7 @@ public sealed class GoogleCalendarIntegrationService(
             googleOAuthAccountEmail,
             link.GoogleCalendarId,
             link.GoogleCalendarTimeZone,
+            link.OutboundSyncEnabled,
             link.AutoSyncEnabled,
             link.SyncIntervalMinutes,
             link.NextSyncDueAtUtc,
@@ -614,6 +1154,9 @@ public sealed class GoogleCalendarIntegrationService(
             link.ImportedEventCount,
             link.SkippedRecurringEventCount,
             link.SkippedRecurringOverrideCount,
+            outboundCounts.MirroredLocalEventCount,
+            outboundCounts.PendingLocalEventSyncCount,
+            outboundCounts.FailedLocalEventSyncCount,
             link.CreatedAtUtc);
     }
 
@@ -712,4 +1255,12 @@ internal sealed record SyncFailureDetails(
     string? RecoveryHint)
 {
     public static SyncFailureDetails None { get; } = new(null, null);
+}
+
+internal sealed record OutboundSyncCounts(
+    int MirroredLocalEventCount,
+    int PendingLocalEventSyncCount,
+    int FailedLocalEventSyncCount)
+{
+    public static OutboundSyncCounts None { get; } = new(0, 0, 0);
 }

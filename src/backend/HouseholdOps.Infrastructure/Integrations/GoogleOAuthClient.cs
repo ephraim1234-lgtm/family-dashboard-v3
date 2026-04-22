@@ -14,7 +14,7 @@ internal sealed class GoogleOAuthClient(
         "openid",
         "email",
         "profile",
-        "https://www.googleapis.com/auth/calendar.readonly"
+        "https://www.googleapis.com/auth/calendar"
     ];
 
     public string BuildAuthorizationUrl(string state)
@@ -159,6 +159,81 @@ internal sealed class GoogleOAuthClient(
             .ToList();
     }
 
+    public async Task<GoogleOAuthCalendarEvent> CreateCalendarEventAsync(
+        string accessToken,
+        string calendarId,
+        GoogleOAuthCalendarEventUpsertRequest request,
+        CancellationToken cancellationToken)
+    {
+        using var httpRequest = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"https://www.googleapis.com/calendar/v3/calendars/{Uri.EscapeDataString(calendarId)}/events");
+        httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        httpRequest.Content = JsonContent.Create(CreateEventPayload(request));
+
+        using var response = await httpClient.SendAsync(httpRequest, cancellationToken);
+        var payload = await response.Content.ReadFromJsonAsync<CalendarEventPayload>(cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            await ThrowCalendarEventExceptionAsync(response, "create");
+        }
+
+        if (payload is null || string.IsNullOrWhiteSpace(payload.Id))
+        {
+            throw new InvalidOperationException("Google Calendar event create returned no event payload.");
+        }
+
+        return MapEvent(payload);
+    }
+
+    public async Task<GoogleOAuthCalendarEvent> UpdateCalendarEventAsync(
+        string accessToken,
+        string calendarId,
+        string eventId,
+        GoogleOAuthCalendarEventUpsertRequest request,
+        CancellationToken cancellationToken)
+    {
+        using var httpRequest = new HttpRequestMessage(
+            HttpMethod.Put,
+            $"https://www.googleapis.com/calendar/v3/calendars/{Uri.EscapeDataString(calendarId)}/events/{Uri.EscapeDataString(eventId)}");
+        httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        httpRequest.Content = JsonContent.Create(CreateEventPayload(request));
+
+        using var response = await httpClient.SendAsync(httpRequest, cancellationToken);
+        var payload = await response.Content.ReadFromJsonAsync<CalendarEventPayload>(cancellationToken);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            await ThrowCalendarEventExceptionAsync(response, "update");
+        }
+
+        if (payload is null || string.IsNullOrWhiteSpace(payload.Id))
+        {
+            throw new InvalidOperationException("Google Calendar event update returned no event payload.");
+        }
+
+        return MapEvent(payload);
+    }
+
+    public async Task DeleteCalendarEventAsync(
+        string accessToken,
+        string calendarId,
+        string eventId,
+        CancellationToken cancellationToken)
+    {
+        using var httpRequest = new HttpRequestMessage(
+            HttpMethod.Delete,
+            $"https://www.googleapis.com/calendar/v3/calendars/{Uri.EscapeDataString(calendarId)}/events/{Uri.EscapeDataString(eventId)}");
+        httpRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        using var response = await httpClient.SendAsync(httpRequest, cancellationToken);
+        if (!response.IsSuccessStatusCode)
+        {
+            await ThrowCalendarEventExceptionAsync(response, "delete");
+        }
+    }
+
     private string GetRequiredConfig(string key) =>
         string.IsNullOrWhiteSpace(configuration[key]?.Trim().Trim('"'))
             ? throw new InvalidOperationException($"{key} is required for Google OAuth.")
@@ -191,6 +266,105 @@ internal sealed class GoogleOAuthClient(
             payload.ExpiresIn,
             payload.Scope ?? string.Join(' ', Scopes),
             payload.RefreshToken);
+    }
+
+    private static CalendarEventMutationPayload CreateEventPayload(
+        GoogleOAuthCalendarEventUpsertRequest request)
+    {
+        var endAtUtc = request.EndsAtUtc ?? request.StartsAtUtc;
+        var recurrence = request.Recurrence.Count == 0 ? null : request.Recurrence;
+
+        if (request.IsAllDay)
+        {
+            return new CalendarEventMutationPayload
+            {
+                Id = request.EventId,
+                Summary = request.Summary,
+                Description = request.Description,
+                Start = new CalendarEventMutationDatePayload
+                {
+                    Date = request.StartsAtUtc.UtcDateTime.ToString("yyyy-MM-dd")
+                },
+                End = new CalendarEventMutationDatePayload
+                {
+                    Date = endAtUtc.UtcDateTime.Date.AddDays(1).ToString("yyyy-MM-dd")
+                },
+                Recurrence = recurrence,
+                ExtendedProperties = CreateExtendedProperties(request.PrivateExtendedProperties)
+            };
+        }
+
+        var startDateTime = request.StartsAtUtc;
+        var endDateTime = endAtUtc;
+
+        if (!string.IsNullOrWhiteSpace(request.TimeZoneId))
+        {
+            var resolvedTimeZone = TimeZoneResolver.Resolve(request.TimeZoneId);
+            if (resolvedTimeZone is not null)
+            {
+                startDateTime = TimeZoneInfo.ConvertTime(request.StartsAtUtc, resolvedTimeZone);
+                endDateTime = TimeZoneInfo.ConvertTime(endAtUtc, resolvedTimeZone);
+            }
+        }
+
+        return new CalendarEventMutationPayload
+        {
+            Id = request.EventId,
+            Summary = request.Summary,
+            Description = request.Description,
+            Start = new CalendarEventMutationDatePayload
+            {
+                DateTime = startDateTime.ToString("O"),
+                TimeZone = request.TimeZoneId
+            },
+            End = new CalendarEventMutationDatePayload
+            {
+                DateTime = endDateTime.ToString("O"),
+                TimeZone = request.TimeZoneId
+            },
+            Recurrence = recurrence,
+            ExtendedProperties = CreateExtendedProperties(request.PrivateExtendedProperties)
+        };
+    }
+
+    private static CalendarEventExtendedPropertiesPayload? CreateExtendedProperties(
+        IReadOnlyDictionary<string, string> values)
+    {
+        if (values.Count == 0)
+        {
+            return null;
+        }
+
+        return new CalendarEventExtendedPropertiesPayload
+        {
+            Private = new Dictionary<string, string>(values, StringComparer.Ordinal)
+        };
+    }
+
+    private static GoogleOAuthCalendarEvent MapEvent(CalendarEventPayload item) =>
+        new(
+            item.Id!,
+            item.Summary,
+            item.Description,
+            item.Status ?? "confirmed",
+            item.Start?.Date,
+            item.Start?.DateTime,
+            item.Start?.TimeZone,
+            item.End?.Date,
+            item.End?.DateTime,
+            item.End?.TimeZone,
+            item.Recurrence ?? [],
+            item.RecurringEventId);
+
+    private async Task ThrowCalendarEventExceptionAsync(
+        HttpResponseMessage response,
+        string operationName)
+    {
+        var body = await response.Content.ReadAsStringAsync();
+        throw new GoogleOAuthClientException(
+            $"Google Calendar event {operationName} failed with {(int)response.StatusCode}.",
+            (int)response.StatusCode,
+            string.IsNullOrWhiteSpace(body) ? null : body);
     }
 
     private sealed class TokenPayload
@@ -284,6 +458,48 @@ internal sealed class GoogleOAuthClient(
 
         [JsonPropertyName("recurringEventId")]
         public string? RecurringEventId { get; init; }
+    }
+
+    private sealed class CalendarEventMutationPayload
+    {
+        [JsonPropertyName("id")]
+        public string? Id { get; init; }
+
+        [JsonPropertyName("summary")]
+        public string? Summary { get; init; }
+
+        [JsonPropertyName("description")]
+        public string? Description { get; init; }
+
+        [JsonPropertyName("start")]
+        public CalendarEventMutationDatePayload? Start { get; init; }
+
+        [JsonPropertyName("end")]
+        public CalendarEventMutationDatePayload? End { get; init; }
+
+        [JsonPropertyName("recurrence")]
+        public IReadOnlyList<string>? Recurrence { get; init; }
+
+        [JsonPropertyName("extendedProperties")]
+        public CalendarEventExtendedPropertiesPayload? ExtendedProperties { get; init; }
+    }
+
+    private sealed class CalendarEventMutationDatePayload
+    {
+        [JsonPropertyName("date")]
+        public string? Date { get; init; }
+
+        [JsonPropertyName("dateTime")]
+        public string? DateTime { get; init; }
+
+        [JsonPropertyName("timeZone")]
+        public string? TimeZone { get; init; }
+    }
+
+    private sealed class CalendarEventExtendedPropertiesPayload
+    {
+        [JsonPropertyName("private")]
+        public Dictionary<string, string>? Private { get; init; }
     }
 
     private sealed class CalendarEventDatePayload

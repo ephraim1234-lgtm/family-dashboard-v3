@@ -40,7 +40,7 @@ public interface IGoogleCalendarIntegrationService
         DateTimeOffset createdAtUtc,
         CancellationToken cancellationToken);
 
-    Task<bool> DeleteAsync(
+    Task<GoogleCalendarLinkMutationResult> DeleteAsync(
         Guid householdId,
         Guid linkId,
         CancellationToken cancellationToken);
@@ -59,6 +59,22 @@ public interface IGoogleCalendarIntegrationService
         CancellationToken cancellationToken);
 
     Task<GoogleCalendarAutoSyncRunResult> SyncDueLinksAsync(
+        DateTimeOffset requestedAtUtc,
+        CancellationToken cancellationToken);
+
+    Task QueueLocalEventUpsertAsync(
+        Guid householdId,
+        Guid scheduledEventId,
+        DateTimeOffset queuedAtUtc,
+        CancellationToken cancellationToken);
+
+    Task QueueLocalEventDeletionAsync(
+        Guid householdId,
+        Guid scheduledEventId,
+        DateTimeOffset queuedAtUtc,
+        CancellationToken cancellationToken);
+
+    Task<GoogleCalendarLocalEventSyncRunResult> SyncDueLocalEventsAsync(
         DateTimeOffset requestedAtUtc,
         CancellationToken cancellationToken);
 }

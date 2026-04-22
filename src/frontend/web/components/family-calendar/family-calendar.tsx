@@ -440,6 +440,9 @@ function CalendarDetailDrawer() {
           {isEvent && selectedDetail.item.recurrenceSummary ? (
             <p className="muted mb-0 mt-3">{selectedDetail.item.recurrenceSummary}</p>
           ) : null}
+          {isEvent && selectedDetail.item.googleSyncLabel ? (
+            <p className="muted mb-0 mt-3">{selectedDetail.item.googleSyncLabel}</p>
+          ) : null}
         </div>
 
         {isEditableEvent ? (
@@ -512,6 +515,30 @@ function CalendarDetailDrawer() {
             <p className="muted mb-0">
               Imported calendar items stay visible in the family calendar, but edits and deletes continue through the calendar integration workflow.
             </p>
+          </div>
+        ) : null}
+
+        {selectedDetail.type === "event" && !selectedDetail.item.isImported && selectedDetail.item.isGoogleMirrorEnabled ? (
+          <div className="stack-card">
+            <div className="eyebrow">Google mirror</div>
+            <p className="muted">
+              {selectedDetail.item.googleSyncLabel ?? "Mirrored to Google"}
+              {selectedDetail.item.googleTargetDisplayName
+                ? ` Â· ${selectedDetail.item.googleTargetDisplayName}`
+                : ""}
+            </p>
+            {selectedDetail.item.googleSyncError ? (
+              <p className="error-text">{selectedDetail.item.googleSyncError}</p>
+            ) : null}
+            {selectedDetail.item.lastGoogleSyncSucceededAtUtc ? (
+              <p className="muted mb-0">
+                Last synced {new Date(selectedDetail.item.lastGoogleSyncSucceededAtUtc).toLocaleString()}.
+              </p>
+            ) : (
+              <p className="muted mb-0">
+                This local event is queued through the Google sync worker rather than writing directly from the calendar form.
+              </p>
+            )}
           </div>
         ) : null}
 

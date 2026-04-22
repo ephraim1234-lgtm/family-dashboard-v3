@@ -1,6 +1,8 @@
 using HouseholdOps.Infrastructure.Persistence;
 using HouseholdOps.Infrastructure.Scheduling;
 using HouseholdOps.Modules.Households;
+using HouseholdOps.Modules.Integrations;
+using HouseholdOps.Modules.Integrations.Contracts;
 using HouseholdOps.Modules.Scheduling;
 using HouseholdOps.Modules.Scheduling.Contracts;
 using HouseholdOps.SharedKernel.Time;
@@ -19,7 +21,7 @@ public class ScheduledEventManagementServiceTests
     public async Task OneTimeEvent_CanBeEdited_AndAgendaReflectsChanges()
     {
         await using var dbContext = CreateDbContext();
-        var managementService = new ScheduledEventManagementService(dbContext, FixedClock);
+        var managementService = CreateManagementService(dbContext);
         var agendaQueryService = new AgendaQueryService(dbContext);
 
         var created = await managementService.CreateEventAsync(
@@ -63,7 +65,7 @@ public class ScheduledEventManagementServiceTests
     public async Task OneTimeEvent_CanBeDeleted_AndAgendaBecomesEmpty()
     {
         await using var dbContext = CreateDbContext();
-        var managementService = new ScheduledEventManagementService(dbContext, FixedClock);
+        var managementService = CreateManagementService(dbContext);
         var agendaQueryService = new AgendaQueryService(dbContext);
 
         var created = await managementService.CreateEventAsync(
@@ -98,7 +100,7 @@ public class ScheduledEventManagementServiceTests
     public async Task DailyRecurringEvent_CanBeEdited_AtSeriesLevel()
     {
         await using var dbContext = CreateDbContext();
-        var managementService = new ScheduledEventManagementService(dbContext, FixedClock);
+        var managementService = CreateManagementService(dbContext);
         var agendaQueryService = new AgendaQueryService(dbContext);
 
         var created = await managementService.CreateEventAsync(
@@ -143,7 +145,7 @@ public class ScheduledEventManagementServiceTests
     public async Task DailyRecurringEvent_CanBeDeleted_AtSeriesLevel()
     {
         await using var dbContext = CreateDbContext();
-        var managementService = new ScheduledEventManagementService(dbContext, FixedClock);
+        var managementService = CreateManagementService(dbContext);
         var agendaQueryService = new AgendaQueryService(dbContext);
 
         var created = await managementService.CreateEventAsync(
@@ -178,7 +180,7 @@ public class ScheduledEventManagementServiceTests
     public async Task WeeklyRecurringEvent_CanBeEdited_AndDeleted_AtSeriesLevel()
     {
         await using var dbContext = CreateDbContext();
-        var managementService = new ScheduledEventManagementService(dbContext, FixedClock);
+        var managementService = CreateManagementService(dbContext);
         var agendaQueryService = new AgendaQueryService(dbContext);
 
         var created = await managementService.CreateEventAsync(
@@ -237,7 +239,7 @@ public class ScheduledEventManagementServiceTests
     public async Task ListEventsAsync_ReturnsSeriesRatherThanExpandedOccurrences()
     {
         await using var dbContext = CreateDbContext();
-        var managementService = new ScheduledEventManagementService(dbContext, FixedClock);
+        var managementService = CreateManagementService(dbContext);
 
         await managementService.CreateEventAsync(
             HouseholdId,
@@ -265,7 +267,7 @@ public class ScheduledEventManagementServiceTests
     public async Task BrowseQuery_GroupsOccurrencesByDay_AndIncludesRecurrenceMetadata()
     {
         await using var dbContext = CreateDbContext();
-        var managementService = new ScheduledEventManagementService(dbContext, FixedClock);
+        var managementService = CreateManagementService(dbContext);
         var browseService = new ScheduleBrowseQueryService(dbContext);
 
         await managementService.CreateEventAsync(
@@ -317,7 +319,7 @@ public class ScheduledEventManagementServiceTests
     public async Task BrowseQuery_HonorsExplicitWindowStartAndLength()
     {
         await using var dbContext = CreateDbContext();
-        var managementService = new ScheduledEventManagementService(dbContext, FixedClock);
+        var managementService = CreateManagementService(dbContext);
         var browseService = new ScheduleBrowseQueryService(dbContext);
 
         await managementService.CreateEventAsync(
@@ -364,8 +366,60 @@ public class ScheduledEventManagementServiceTests
         return dbContext;
     }
 
+    private static ScheduledEventManagementService CreateManagementService(
+        HouseholdOpsDbContext dbContext) =>
+        new(dbContext, FixedClock, new NoOpGoogleCalendarIntegrationService());
+
     private sealed class FakeClock(DateTimeOffset utcNow) : IClock
     {
         public DateTimeOffset UtcNow { get; } = utcNow;
+    }
+
+    private sealed class NoOpGoogleCalendarIntegrationService : IGoogleCalendarIntegrationService
+    {
+        public Task<GoogleCalendarLinkListResponse> ListAsync(Guid householdId, CancellationToken cancellationToken) =>
+            Task.FromResult(new GoogleCalendarLinkListResponse([]));
+
+        public GoogleOAuthReadinessResponse GetOAuthReadiness() =>
+            new(false, false, false, false, null);
+
+        public Task<GoogleOAuthAccountLinkListResponse> ListOAuthAccountsAsync(Guid householdId, CancellationToken cancellationToken) =>
+            Task.FromResult(new GoogleOAuthAccountLinkListResponse([]));
+
+        public Task<GoogleOAuthCalendarListResponse> ListOAuthCalendarsAsync(Guid householdId, CancellationToken cancellationToken) =>
+            Task.FromResult(new GoogleOAuthCalendarListResponse([]));
+
+        public GoogleOAuthStartResponse BeginOAuthLink(string state) =>
+            new(string.Empty);
+
+        public Task CompleteOAuthLinkAsync(Guid householdId, Guid linkedByUserId, string code, DateTimeOffset completedAtUtc, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+
+        public Task<GoogleCalendarLinkMutationResult> CreateAsync(Guid householdId, CreateGoogleCalendarLinkRequest request, DateTimeOffset createdAtUtc, CancellationToken cancellationToken) =>
+            Task.FromResult(GoogleCalendarLinkMutationResult.ValidationFailure("Not used in this test."));
+
+        public Task<GoogleCalendarLinkMutationResult> CreateManagedLinkAsync(Guid householdId, CreateManagedGoogleCalendarLinkRequest request, DateTimeOffset createdAtUtc, CancellationToken cancellationToken) =>
+            Task.FromResult(GoogleCalendarLinkMutationResult.ValidationFailure("Not used in this test."));
+
+        public Task<GoogleCalendarLinkMutationResult> DeleteAsync(Guid householdId, Guid linkId, CancellationToken cancellationToken) =>
+            Task.FromResult(GoogleCalendarLinkMutationResult.NotFound());
+
+        public Task<GoogleCalendarLinkMutationResult> UpdateSyncSettingsAsync(Guid householdId, Guid linkId, UpdateGoogleCalendarLinkSyncSettingsRequest request, DateTimeOffset requestedAtUtc, CancellationToken cancellationToken) =>
+            Task.FromResult(GoogleCalendarLinkMutationResult.NotFound());
+
+        public Task<GoogleCalendarSyncResult> SyncAsync(Guid householdId, Guid linkId, DateTimeOffset requestedAtUtc, CancellationToken cancellationToken) =>
+            Task.FromResult(GoogleCalendarSyncResult.NotFound());
+
+        public Task<GoogleCalendarAutoSyncRunResult> SyncDueLinksAsync(DateTimeOffset requestedAtUtc, CancellationToken cancellationToken) =>
+            Task.FromResult(new GoogleCalendarAutoSyncRunResult(0, 0, 0));
+
+        public Task QueueLocalEventUpsertAsync(Guid householdId, Guid scheduledEventId, DateTimeOffset queuedAtUtc, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+
+        public Task QueueLocalEventDeletionAsync(Guid householdId, Guid scheduledEventId, DateTimeOffset queuedAtUtc, CancellationToken cancellationToken) =>
+            Task.CompletedTask;
+
+        public Task<GoogleCalendarLocalEventSyncRunResult> SyncDueLocalEventsAsync(DateTimeOffset requestedAtUtc, CancellationToken cancellationToken) =>
+            Task.FromResult(new GoogleCalendarLocalEventSyncRunResult(0, 0, 0));
     }
 }

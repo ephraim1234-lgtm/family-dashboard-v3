@@ -24,6 +24,25 @@ public interface IGoogleOAuthClient
         string accessToken,
         string calendarId,
         CancellationToken cancellationToken);
+
+    Task<GoogleOAuthCalendarEvent> CreateCalendarEventAsync(
+        string accessToken,
+        string calendarId,
+        GoogleOAuthCalendarEventUpsertRequest request,
+        CancellationToken cancellationToken);
+
+    Task<GoogleOAuthCalendarEvent> UpdateCalendarEventAsync(
+        string accessToken,
+        string calendarId,
+        string eventId,
+        GoogleOAuthCalendarEventUpsertRequest request,
+        CancellationToken cancellationToken);
+
+    Task DeleteCalendarEventAsync(
+        string accessToken,
+        string calendarId,
+        string eventId,
+        CancellationToken cancellationToken);
 }
 
 public sealed record GoogleOAuthTokenResult(
@@ -58,3 +77,24 @@ public sealed record GoogleOAuthCalendarEvent(
     string? EndTimeZone,
     IReadOnlyList<string> Recurrence,
     string? RecurringEventId);
+
+public sealed record GoogleOAuthCalendarEventUpsertRequest(
+    string EventId,
+    string Summary,
+    string? Description,
+    bool IsAllDay,
+    DateTimeOffset StartsAtUtc,
+    DateTimeOffset? EndsAtUtc,
+    string? TimeZoneId,
+    IReadOnlyList<string> Recurrence,
+    IReadOnlyDictionary<string, string> PrivateExtendedProperties);
+
+public sealed class GoogleOAuthClientException(
+    string message,
+    int statusCode,
+    string? responseBody = null) : Exception(message)
+{
+    public int StatusCode { get; } = statusCode;
+
+    public string? ResponseBody { get; } = responseBody;
+}

@@ -10,6 +10,7 @@ public sealed record GoogleCalendarLinkSummaryResponse(
     string? GoogleOAuthAccountEmail,
     string? GoogleCalendarId,
     string? GoogleCalendarTimeZone,
+    bool OutboundSyncEnabled,
     bool AutoSyncEnabled,
     int SyncIntervalMinutes,
     DateTimeOffset? NextSyncDueAtUtc,
@@ -22,4 +23,7 @@ public sealed record GoogleCalendarLinkSummaryResponse(
     int ImportedEventCount,
     int SkippedRecurringEventCount,
     int SkippedRecurringOverrideCount,
+    int MirroredLocalEventCount,
+    int PendingLocalEventSyncCount,
+    int FailedLocalEventSyncCount,
     DateTimeOffset CreatedAtUtc);

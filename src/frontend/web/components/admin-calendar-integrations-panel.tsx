@@ -13,6 +13,7 @@ type GoogleCalendarLinkSummary = {
   googleOAuthAccountEmail: string | null;
   googleCalendarId: string | null;
   googleCalendarTimeZone: string | null;
+  outboundSyncEnabled: boolean;
   autoSyncEnabled: boolean;
   syncIntervalMinutes: number;
   nextSyncDueAtUtc: string | null;
@@ -25,6 +26,9 @@ type GoogleCalendarLinkSummary = {
   importedEventCount: number;
   skippedRecurringEventCount: number;
   skippedRecurringOverrideCount: number;
+  mirroredLocalEventCount: number;
+  pendingLocalEventSyncCount: number;
+  failedLocalEventSyncCount: number;
   createdAtUtc: string;
 };
 
@@ -84,6 +88,7 @@ export function AdminCalendarIntegrationsPanel() {
   const [syncSettings, setSyncSettings] = useState<Record<string, {
     autoSyncEnabled: boolean;
     syncIntervalMinutes: number;
+    outboundSyncEnabled: boolean;
   }>>({});
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -102,11 +107,16 @@ export function AdminCalendarIntegrationsPanel() {
     const data = (await response.json()) as GoogleCalendarLinkListResponse;
     setLinks(data.items);
     setSyncSettings(() => {
-      const next: Record<string, { autoSyncEnabled: boolean; syncIntervalMinutes: number }> = {};
+      const next: Record<string, {
+        autoSyncEnabled: boolean;
+        syncIntervalMinutes: number;
+        outboundSyncEnabled: boolean;
+      }> = {};
       for (const item of data.items) {
         next[item.id] = {
           autoSyncEnabled: item.autoSyncEnabled,
-          syncIntervalMinutes: item.syncIntervalMinutes
+          syncIntervalMinutes: item.syncIntervalMinutes,
+          outboundSyncEnabled: item.outboundSyncEnabled
         };
       }
 
@@ -354,7 +364,7 @@ export function AdminCalendarIntegrationsPanel() {
     });
 
     if (!response.ok) {
-      setError(`Delete failed with ${response.status}.`);
+      setError(await response.text() || `Delete failed with ${response.status}.`);
       return;
     }
 
@@ -363,13 +373,18 @@ export function AdminCalendarIntegrationsPanel() {
 
   function handleSyncSettingsChange(
     linkId: string,
-    next: Partial<{ autoSyncEnabled: boolean; syncIntervalMinutes: number }>
+    next: Partial<{
+      autoSyncEnabled: boolean;
+      syncIntervalMinutes: number;
+      outboundSyncEnabled: boolean;
+    }>
   ) {
     setSyncSettings((current) => ({
       ...current,
       [linkId]: {
         autoSyncEnabled: next.autoSyncEnabled ?? current[linkId]?.autoSyncEnabled ?? true,
-        syncIntervalMinutes: next.syncIntervalMinutes ?? current[linkId]?.syncIntervalMinutes ?? 30
+        syncIntervalMinutes: next.syncIntervalMinutes ?? current[linkId]?.syncIntervalMinutes ?? 30,
+        outboundSyncEnabled: next.outboundSyncEnabled ?? current[linkId]?.outboundSyncEnabled ?? false
       }
     }));
   }
@@ -517,8 +532,7 @@ export function AdminCalendarIntegrationsPanel() {
         <div className="eyebrow">Calendar integrations</div>
         <h2>Link a Google Calendar iCal feed</h2>
         <p className="muted">
-          This first slice is one-way import only. Integrations owns the link and
-          sync state, while Scheduling stays the source of local event behavior.
+          Feed links stay import-only. Managed OAuth calendars can now also act as a single outbound mirror target for local Scheduling-owned events.
         </p>
         {!isOwner && !isSessionLoading ? (
           <p className="muted">
@@ -576,14 +590,15 @@ export function AdminCalendarIntegrationsPanel() {
         <h2>Narrow import boundary</h2>
         <p className="muted">
           This phase now includes Google OAuth account linking, calendar discovery,
-          and managed Google calendar links. Import remains one-way into Scheduling,
-          recurrence support stays narrow, and bidirectional sync is still out of scope.
+          managed Google calendar links, and a single outbound mirror target for local events. Imported events remain read-only, recurrence support stays narrow, and detached override handling is still out of scope.
         </p>
         <div className="pill-row">
           <span className="pill">Google only</span>
           <span className="pill">OAuth-managed links</span>
           <span className="pill">Manual sync</span>
+          <span className="pill">One outbound mirror target</span>
           <span className="pill">Daily + weekly recurring import</span>
+          <span className="pill">Daily + weekly local outbound sync</span>
           <span className="pill">Unsupported recurrence skipped</span>
           <span className="pill">Imported events are read-only</span>
         </div>
@@ -796,6 +811,9 @@ export function AdminCalendarIntegrationsPanel() {
                         <span className="pill">
                           {link.linkMode === "OAuthCalendar" ? "OAuth managed" : "iCal feed"}
                         </span>
+                        {link.outboundSyncEnabled ? (
+                          <span className="pill">Outbound target</span>
+                        ) : null}
                         {link.autoSyncEnabled ? (
                           <span className="pill">Auto every {link.syncIntervalMinutes}m</span>
                         ) : null}
@@ -823,6 +841,15 @@ export function AdminCalendarIntegrationsPanel() {
                     <div className="muted">
                       Unsupported recurring events skipped: {link.skippedRecurringEventCount}
                     </div>
+                    {link.linkMode === "OAuthCalendar" ? (
+                      <div className="muted">
+                        Local mirrors: {link.mirroredLocalEventCount} total
+                        {" Â· "}
+                        {link.pendingLocalEventSyncCount} pending
+                        {" Â· "}
+                        {link.failedLocalEventSyncCount} failed
+                      </div>
+                    ) : null}
                     {link.linkMode === "OAuthCalendar" ? (
                       <div className="muted">
                         Recurring overrides/exceptions skipped: {link.skippedRecurringOverrideCount}
@@ -867,6 +894,22 @@ export function AdminCalendarIntegrationsPanel() {
                     ) : null}
 
                     <div className="form-stack">
+                      {link.linkMode === "OAuthCalendar" ? (
+                        <label className="field checkbox-field">
+                          <input
+                            type="checkbox"
+                            checked={syncSettings[link.id].outboundSyncEnabled}
+                            onChange={(event) =>
+                              handleSyncSettingsChange(link.id, {
+                                outboundSyncEnabled: event.target.checked
+                              })
+                            }
+                            disabled={!isOwner}
+                          />
+                          <span>Use this managed calendar as the outbound mirror target</span>
+                        </label>
+                      ) : null}
+
                       <label className="field checkbox-field">
                         <input
                           type="checkbox"

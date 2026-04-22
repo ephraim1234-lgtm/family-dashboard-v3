@@ -6,7 +6,9 @@ public enum GoogleCalendarLinkMutationStatus
 {
     Succeeded,
     ValidationFailed,
-    Duplicate
+    Duplicate,
+    Conflict,
+    NotFound
 }
 
 public sealed record GoogleCalendarLinkMutationResult(
@@ -31,4 +33,15 @@ public sealed record GoogleCalendarLinkMutationResult(
             GoogleCalendarLinkMutationStatus.Duplicate,
             error,
             null);
+
+    public static GoogleCalendarLinkMutationResult Conflict(
+        string error) => new(
+            GoogleCalendarLinkMutationStatus.Conflict,
+            error,
+            null);
+
+    public static GoogleCalendarLinkMutationResult NotFound() => new(
+        GoogleCalendarLinkMutationStatus.NotFound,
+        null,
+        null);
 }

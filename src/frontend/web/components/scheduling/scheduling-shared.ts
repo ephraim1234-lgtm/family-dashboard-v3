@@ -16,6 +16,11 @@ export type UpcomingEventItem = {
   endsAtUtc: string | null;
   isImported: boolean;
   sourceKind: string | null;
+  isGoogleMirrorEnabled: boolean;
+  googleSyncStatus: string | null;
+  googleSyncError: string | null;
+  googleTargetDisplayName: string | null;
+  lastGoogleSyncSucceededAtUtc: string | null;
 };
 
 export type UpcomingEventsResponse = {
@@ -38,6 +43,11 @@ export type ScheduledEventSeriesItem = {
   recursUntilUtc: string | null;
   isImported: boolean;
   sourceKind: string | null;
+  isGoogleMirrorEnabled: boolean;
+  googleSyncStatus: string | null;
+  googleSyncError: string | null;
+  googleTargetDisplayName: string | null;
+  lastGoogleSyncSucceededAtUtc: string | null;
   nextOccurrenceStartsAtUtc: string | null;
   createdAtUtc: string;
 };

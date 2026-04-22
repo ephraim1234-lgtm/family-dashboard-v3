@@ -41,6 +41,12 @@ export type CalendarEventItem = CalendarItemBase & {
   timeLabel: string;
   detailLabel: string;
   recurrenceSummary: string | null;
+  isGoogleMirrorEnabled: boolean;
+  googleSyncStatus: string | null;
+  googleSyncError: string | null;
+  googleTargetDisplayName: string | null;
+  lastGoogleSyncSucceededAtUtc: string | null;
+  googleSyncLabel: string | null;
 };
 
 export type CalendarReminderItem = CalendarItemBase & {
@@ -187,6 +193,26 @@ export function buildCalendarEventItem(
     }
   }
 
+  const googleSyncLabel = event.isGoogleMirrorEnabled
+    ? event.googleSyncStatus === "Failed"
+      ? "Sync needs attention"
+      : event.googleSyncStatus === "Pending"
+        ? "Sync pending"
+        : "Mirrored to Google"
+    : null;
+
+  const detailLabel = event.isImported
+    ? "Imported events stay visible here and remain read-only."
+    : event.isGoogleMirrorEnabled
+      ? event.googleSyncStatus === "Failed"
+        ? event.googleSyncError ?? "Google sync needs attention for this local event."
+        : event.googleSyncStatus === "Pending"
+          ? `This local event will sync to ${event.googleTargetDisplayName ?? "Google Calendar"} shortly.`
+          : `This local event mirrors to ${event.googleTargetDisplayName ?? "Google Calendar"}.`
+      : accessState === "editable"
+        ? "Local events can be planned and edited from this calendar."
+        : "Local events stay visible here while owner edits remain protected in this slice.";
+
   return {
     key: `event-${event.id}-${event.startsAtUtc ?? "none"}`,
     id: event.id,
@@ -210,12 +236,14 @@ export function buildCalendarEventItem(
       startsAtUtc: event.startsAtUtc,
       endsAtUtc: event.endsAtUtc
     }),
-    detailLabel: event.isImported
-      ? "Imported events stay visible here and remain read-only."
-      : accessState === "editable"
-        ? "Local events can be planned and edited from this calendar."
-        : "Local events stay visible here while owner edits remain protected in this slice.",
-    recurrenceSummary: seriesItem?.recurrenceSummary ?? null
+    detailLabel,
+    recurrenceSummary: seriesItem?.recurrenceSummary ?? null,
+    isGoogleMirrorEnabled: event.isGoogleMirrorEnabled,
+    googleSyncStatus: event.googleSyncStatus,
+    googleSyncError: event.googleSyncError,
+    googleTargetDisplayName: event.googleTargetDisplayName,
+    lastGoogleSyncSucceededAtUtc: event.lastGoogleSyncSucceededAtUtc,
+    googleSyncLabel
   };
 }
 

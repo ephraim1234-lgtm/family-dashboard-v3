@@ -32,6 +32,8 @@ public sealed class HouseholdOpsDbContext(DbContextOptions<HouseholdOpsDbContext
 
     public DbSet<GoogleOAuthAccountLink> GoogleOAuthAccountLinks => Set<GoogleOAuthAccountLink>();
 
+    public DbSet<GoogleCalendarLocalEventSync> GoogleCalendarLocalEventSyncs => Set<GoogleCalendarLocalEventSync>();
+
     public DbSet<EventReminder> EventReminders => Set<EventReminder>();
 
     public DbSet<Chore> Chores => Set<Chore>();
@@ -210,6 +212,7 @@ public sealed class HouseholdOpsDbContext(DbContextOptions<HouseholdOpsDbContext
             entity.Property(x => x.GoogleOAuthAccountLinkId);
             entity.Property(x => x.GoogleCalendarId).HasMaxLength(320);
             entity.Property(x => x.GoogleCalendarTimeZone).HasMaxLength(128);
+            entity.Property(x => x.OutboundSyncEnabled);
             entity.Property(x => x.AutoSyncEnabled);
             entity.Property(x => x.SyncIntervalMinutes);
             entity.Property(x => x.NextSyncDueAtUtc);
@@ -230,6 +233,10 @@ public sealed class HouseholdOpsDbContext(DbContextOptions<HouseholdOpsDbContext
                 .IsUnique()
                 .HasDatabaseName("IX_google_calendar_connections_household_oauth_calendar")
                 .HasFilter("\"GoogleOAuthAccountLinkId\" IS NOT NULL AND \"GoogleCalendarId\" IS NOT NULL");
+            entity.HasIndex(x => x.HouseholdId)
+                .HasDatabaseName("IX_google_calendar_connections_household_outbound_target")
+                .IsUnique()
+                .HasFilter("\"OutboundSyncEnabled\" = TRUE");
             entity.HasOne<Household>()
                 .WithMany()
                 .HasForeignKey(x => x.HouseholdId)
@@ -260,6 +267,38 @@ public sealed class HouseholdOpsDbContext(DbContextOptions<HouseholdOpsDbContext
                 .WithMany()
                 .HasForeignKey(x => x.HouseholdId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<GoogleCalendarLocalEventSync>(entity =>
+        {
+            entity.ToTable("google_calendar_local_event_syncs");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.RemoteEventId).HasMaxLength(128);
+            entity.Property(x => x.SyncStatus).HasMaxLength(16);
+            entity.Property(x => x.PendingOperation).HasMaxLength(16);
+            entity.Property(x => x.LastError);
+            entity.Property(x => x.LastQueuedAtUtc);
+            entity.Property(x => x.NextAttemptAtUtc);
+            entity.Property(x => x.LastAttemptedAtUtc);
+            entity.Property(x => x.LastSucceededAtUtc);
+            entity.Property(x => x.AttemptCount);
+            entity.Property(x => x.MarkedDeletedAtUtc);
+            entity.HasIndex(x => x.HouseholdId);
+            entity.HasIndex(x => new { x.HouseholdId, x.ScheduledEventId })
+                .IsUnique()
+                .HasDatabaseName("IX_google_calendar_local_event_syncs_household_event");
+            entity.HasIndex(x => new { x.PendingOperation, x.NextAttemptAtUtc })
+                .HasDatabaseName("IX_google_calendar_local_event_syncs_pending_due");
+            entity.HasIndex(x => new { x.GoogleCalendarConnectionId, x.SyncStatus })
+                .HasDatabaseName("IX_google_calendar_local_event_syncs_link_status");
+            entity.HasOne<Household>()
+                .WithMany()
+                .HasForeignKey(x => x.HouseholdId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<GoogleCalendarConnection>()
+                .WithMany()
+                .HasForeignKey(x => x.GoogleCalendarConnectionId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
 
         modelBuilder.Entity<EventReminder>(entity =>

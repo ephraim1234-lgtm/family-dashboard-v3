@@ -24,6 +24,9 @@ public sealed class GoogleCalendarSyncWorker(
                 var result = await integrationService.SyncDueLinksAsync(
                     clock.UtcNow,
                     stoppingToken);
+                var outboundResult = await integrationService.SyncDueLocalEventsAsync(
+                    clock.UtcNow,
+                    stoppingToken);
 
                 if (result.DueCount > 0)
                 {
@@ -32,6 +35,15 @@ public sealed class GoogleCalendarSyncWorker(
                         result.DueCount,
                         result.SucceededCount,
                         result.FailedCount);
+                }
+
+                if (outboundResult.DueCount > 0)
+                {
+                    logger.LogInformation(
+                        "Processed {DueCount} due outbound Google local-event sync job(s). Succeeded: {SucceededCount}. Failed: {FailedCount}.",
+                        outboundResult.DueCount,
+                        outboundResult.SucceededCount,
+                        outboundResult.FailedCount);
                 }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

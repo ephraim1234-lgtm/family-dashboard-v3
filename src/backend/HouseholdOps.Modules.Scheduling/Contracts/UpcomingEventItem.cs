@@ -8,4 +8,9 @@ public sealed record UpcomingEventItem(
     DateTimeOffset? StartsAtUtc,
     DateTimeOffset? EndsAtUtc,
     bool IsImported,
-    string? SourceKind);
+    string? SourceKind,
+    bool IsGoogleMirrorEnabled,
+    string? GoogleSyncStatus,
+    string? GoogleSyncError,
+    string? GoogleTargetDisplayName,
+    DateTimeOffset? LastGoogleSyncSucceededAtUtc);

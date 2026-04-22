@@ -113,15 +113,20 @@ public static class RecurrenceExpansion
                         || occurrenceStart <= scheduledEvent.RecursUntilUtc.Value)
                     && AgendaWindowFilter.StartsInWindow(occurrenceStart, windowStartUtc, windowEndUtc))
                 {
-                    occurrences.Add(new UpcomingEventItem(
-                        scheduledEvent.Id,
-                        scheduledEvent.Title,
-                        scheduledEvent.Description,
-                        scheduledEvent.IsAllDay,
-                        occurrenceStart,
-                        duration.HasValue ? occurrenceStart.Add(duration.Value) : null,
-                        !string.IsNullOrWhiteSpace(scheduledEvent.SourceKind),
-                        scheduledEvent.SourceKind));
+                occurrences.Add(new UpcomingEventItem(
+                    scheduledEvent.Id,
+                    scheduledEvent.Title,
+                    scheduledEvent.Description,
+                    scheduledEvent.IsAllDay,
+                    occurrenceStart,
+                    duration.HasValue ? occurrenceStart.Add(duration.Value) : null,
+                    !string.IsNullOrWhiteSpace(scheduledEvent.SourceKind),
+                    scheduledEvent.SourceKind,
+                    false,
+                    null,
+                    null,
+                    null,
+                    null));
                 }
             }
 
@@ -145,7 +150,12 @@ public static class RecurrenceExpansion
             occurrenceStart,
             duration.HasValue ? occurrenceStart.Add(duration.Value) : null,
             !string.IsNullOrWhiteSpace(scheduledEvent.SourceKind),
-            scheduledEvent.SourceKind);
+            scheduledEvent.SourceKind,
+            false,
+            null,
+            null,
+            null,
+            null);
     }
 
     private static HashSet<DayOfWeek> ResolveWeeklyDays(ScheduledEvent scheduledEvent)

@@ -14,5 +14,10 @@ public sealed record ScheduledEventSeriesItem(
     DateTimeOffset? RecursUntilUtc,
     bool IsImported,
     string? SourceKind,
+    bool IsGoogleMirrorEnabled,
+    string? GoogleSyncStatus,
+    string? GoogleSyncError,
+    string? GoogleTargetDisplayName,
+    DateTimeOffset? LastGoogleSyncSucceededAtUtc,
     DateTimeOffset? NextOccurrenceStartsAtUtc,
     DateTimeOffset CreatedAtUtc);
